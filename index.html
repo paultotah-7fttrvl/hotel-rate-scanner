@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hotel Multi-Date Rate Scanner</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'DM Sans', sans-serif; background: #f0f2f5; color: #1a1a2e; }
+    ::-webkit-scrollbar { height: 6px; width: 6px; }
+    ::-webkit-scrollbar-track { background: #f0f2f5; }
+    ::-webkit-scrollbar-thumb { background: #ccc; border-radius: 3px; }
+    @keyframes fadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+    a.book-link { text-decoration: none; }
+    a.book-link:hover { opacity: 0.85; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+
+    // =====================================================================
+    //  HOTEL DATABASE — Real hotels with real booking URLs
+    // =====================================================================
+    const HOTELS = [
+      // Santa Barbara, CA
+      { name: "Belmond El Encanto", city: "Santa Barbara", region: "California, US", stars: 5, baseRate: 695, img: "\u{1F3DB}", url: "https://www.belmond.com/hotels/north-america/usa/california/belmond-el-encanto", taKey: "g33045-d809655" },
+      { name: "Hotel Californian", city: "Santa Barbara", region: "California, US", stars: 5, baseRate: 499, img: "\u{1F30A}", url: "https://www.hotelcalifornian.com", taKey: "g33045-d12406533" },
+      { name: "Mar Monte Hotel", city: "Santa Barbara", region: "California, US", stars: 4, baseRate: 389, img: "\u{1F3E8}", url: "https://www.hyatt.com/unbound-collection/en-US/sbars-mar-monte-hotel", taKey: "g33045-d119697", chain: "hyatt", chainCode: "sbars" },
+      { name: "The Ritz-Carlton Bacara", city: "Santa Barbara", region: "California, US", stars: 5, baseRate: 749, img: "\u{1F334}", url: "https://www.ritzcarlton.com/en/hotels/sbarc-the-ritz-carlton-bacara-santa-barbara", taKey: "g32438-d169676", chain: "marriott", chainCode: "SBARC" },
+      { name: "Kimpton Canary Hotel", city: "Santa Barbara", region: "California, US", stars: 4, baseRate: 359, img: "\u{1F338}", url: "https://www.canarysantabarbara.com", taKey: "g33045-d524006", chain: "ihg", chainCode: "canary-hotel-santa-barbara-ca/sabcn" },
+      { name: "Inn of the Spanish Garden", city: "Santa Barbara", region: "California, US", stars: 4, baseRate: 289, img: "\u{1F3E1}", url: "https://www.spanishgardeninn.com", taKey: "g33045-d225519" },
+      { name: "Hotel Santa Barbara", city: "Santa Barbara", region: "California, US", stars: 3, baseRate: 199, img: "\u{1F3E0}", url: "https://www.hotelsantabarbara.com", taKey: "g33045-d115664" },
+      { name: "Hilton Santa Barbara Beachfront Resort", city: "Santa Barbara", region: "California, US", stars: 4, baseRate: 329, img: "\u{1F3E8}", url: "https://www.hilton.com/en/hotels/sbasfhf-hilton-santa-barbara-beachfront-resort", taKey: "g33045-d81899", chain: "hilton", chainCode: "SBASFHF" },
+      // Charleston, SC
+      { name: "Belmond Charleston Place", city: "Charleston", region: "South Carolina, US", stars: 5, baseRate: 499, img: "\u{1F3DB}", url: "https://www.belmond.com/hotels/north-america/usa/south-carolina/belmond-charleston-place", taKey: "g54171-d217827" },
+      { name: "The Spectator Hotel", city: "Charleston", region: "South Carolina, US", stars: 5, baseRate: 429, img: "\u{1F338}", url: "https://www.thespectatorhotel.com", taKey: "g54171-d7183413" },
+      { name: "Hotel Bennett", city: "Charleston", region: "South Carolina, US", stars: 5, baseRate: 459, img: "\u{1F3E8}", url: "https://www.hotelbennett.com", taKey: "g54171-d14060821" },
+      { name: "The Vendue", city: "Charleston", region: "South Carolina, US", stars: 4, baseRate: 299, img: "\u{1F30A}", url: "https://www.thevendue.com", taKey: "g54171-d111473" },
+      { name: "HarbourView Inn", city: "Charleston", region: "South Carolina, US", stars: 4, baseRate: 269, img: "\u{1F3E0}", url: "https://www.harbourviewinn.com", taKey: "g54171-d103512" },
+      { name: "Francis Marion Hotel", city: "Charleston", region: "South Carolina, US", stars: 4, baseRate: 219, img: "\u{1F3E1}", url: "https://www.francismarionhotel.com", taKey: "g54171-d103437" },
+      // Austin, TX
+      { name: "Hotel Saint Cecilia", city: "Austin", region: "Texas, US", stars: 5, baseRate: 595, img: "\u{1F338}", url: "https://www.hotelsaintcecilia.com", taKey: "g30196-d1224950" },
+      { name: "The Driskill", city: "Austin", region: "Texas, US", stars: 4, baseRate: 329, img: "\u{1F3DB}", url: "https://www.hyatt.com/en-US/hotel/texas/the-driskill/ausub", taKey: "g30196-d519725", chain: "hyatt", chainCode: "ausub" },
+      { name: "South Congress Hotel", city: "Austin", region: "Texas, US", stars: 4, baseRate: 289, img: "\u{1F3E8}", url: "https://www.southcongresshotel.com", taKey: "g30196-d7736591" },
+      { name: "Hotel Van Zandt", city: "Austin", region: "Texas, US", stars: 4, baseRate: 269, img: "\u{1F30A}", url: "https://www.hyatt.com/en-US/hotel/texas/hotel-van-zandt/ausvz", taKey: "g30196-d7740913", chain: "hyatt", chainCode: "ausvz" },
+      { name: "Fairmont Austin", city: "Austin", region: "Texas, US", stars: 5, baseRate: 349, img: "\u{1F3E2}", url: "https://www.fairmont.com/austin", taKey: "g30196-d12300617", chain: "fairmont", chainCode: "austin" },
+      { name: "LINE Hotel Austin", city: "Austin", region: "Texas, US", stars: 4, baseRate: 229, img: "\u{1F3E0}", url: "https://www.thelinehotel.com/austin", taKey: "g30196-d98457" },
+      // Seattle, WA
+      { name: "The Edgewater Hotel", city: "Seattle", region: "Washington, US", stars: 4, baseRate: 299, img: "\u{1F30A}", url: "https://www.edgewaterhotel.com", taKey: "g60878-d100567" },
+      { name: "Fairmont Olympic Hotel", city: "Seattle", region: "Washington, US", stars: 5, baseRate: 389, img: "\u{1F3DB}", url: "https://www.fairmont.com/seattle", taKey: "g60878-d281828", chain: "fairmont", chainCode: "seattle" },
+      { name: "Inn at the Market", city: "Seattle", region: "Washington, US", stars: 4, baseRate: 279, img: "\u{1F3E8}", url: "https://www.innatthemarket.com", taKey: "g60878-d100507" },
+      { name: "Thompson Seattle", city: "Seattle", region: "Washington, US", stars: 4, baseRate: 259, img: "\u{1F3E2}", url: "https://www.hyatt.com/en-US/hotel/washington/thompson-seattle/seath", taKey: "g60878-d10031096", chain: "hyatt", chainCode: "seath" },
+      { name: "Hotel Andra", city: "Seattle", region: "Washington, US", stars: 4, baseRate: 229, img: "\u{1F338}", url: "https://www.hotelandra.com", taKey: "g60878-d100565" },
+      { name: "Ace Hotel Seattle", city: "Seattle", region: "Washington, US", stars: 3, baseRate: 179, img: "\u{1F3E0}", url: "https://acehotel.com/seattle", taKey: "g60878-d100509" },
+      // New York, NY
+      { name: "The Plaza", city: "New York", region: "New York, US", stars: 5, baseRate: 795, img: "\u{1F3DB}", url: "https://www.theplazany.com", taKey: "g60763-d675616" },
+      { name: "The Beekman", city: "New York", region: "New York, US", stars: 5, baseRate: 449, img: "\u{1F338}", url: "https://www.thebeekman.com", taKey: "g60763-d8615610" },
+      { name: "Crosby Street Hotel", city: "New York", region: "New York, US", stars: 5, baseRate: 699, img: "\u{1F3E8}", url: "https://www.firmdalehotels.com/hotels/new-york/crosby-street-hotel", taKey: "g60763-d1572980" },
+      { name: "1 Hotel Brooklyn Bridge", city: "New York", region: "New York, US", stars: 4, baseRate: 379, img: "\u{1F309}", url: "https://www.1hotels.com/brooklyn-bridge", taKey: "g60827-d10421761" },
+      { name: "Pod 51 Hotel", city: "New York", region: "New York, US", stars: 3, baseRate: 159, img: "\u{1F3E0}", url: "https://www.thepodhotel.com/pod-51", taKey: "g60763-d93358" },
+      { name: "citizenM New York Bowery", city: "New York", region: "New York, US", stars: 4, baseRate: 219, img: "\u{1F3E2}", url: "https://www.citizenm.com/hotels/united-states/new-york/new-york-bowery-hotel", taKey: "g60763-d13635668" },
+      // Paris, France
+      { name: "Le Meurice", city: "Paris", region: "France", stars: 5, baseRate: 1100, img: "\u{1F3DB}", url: "https://www.dorchestercollection.com/paris/le-meurice", taKey: "g187147-d188732" },
+      { name: "Hotel Plaza Athenee", city: "Paris", region: "France", stars: 5, baseRate: 1250, img: "\u{1F338}", url: "https://www.dorchestercollection.com/paris/hotel-plaza-athenee", taKey: "g187147-d188730" },
+      { name: "Hotel des Grands Boulevards", city: "Paris", region: "France", stars: 4, baseRate: 259, img: "\u{1F3E8}", url: "https://www.grandsboulevardshotel.com", taKey: "g187147-d12995518" },
+      { name: "Hotel Monge", city: "Paris", region: "France", stars: 4, baseRate: 299, img: "\u{1F30A}", url: "https://www.hotelmonge.com", taKey: "g187147-d10328342" },
+      { name: "Mama Shelter Paris East", city: "Paris", region: "France", stars: 3, baseRate: 149, img: "\u{1F3E1}", url: "https://www.mamashelter.com/paris-east", taKey: "g187147-d1149494" },
+      // Tokyo, Japan
+      { name: "Park Hyatt Tokyo", city: "Tokyo", region: "Japan", stars: 5, baseRate: 699, img: "\u{1F3DB}", url: "https://www.hyatt.com/park-hyatt/tyoph-park-hyatt-tokyo", taKey: "g14133673-d307368", chain: "hyatt", chainCode: "tyoph" },
+      { name: "Aman Tokyo", city: "Tokyo", region: "Japan", stars: 5, baseRate: 1100, img: "\u{1F338}", url: "https://www.aman.com/hotels/aman-tokyo", taKey: "g14129477-d7371377" },
+      { name: "Hotel Gracery Shinjuku", city: "Tokyo", region: "Japan", stars: 4, baseRate: 179, img: "\u{1F3E8}", url: "https://gracery.com/shinjuku", taKey: "g14133667-d6987624" },
+      { name: "MUJI Hotel Ginza", city: "Tokyo", region: "Japan", stars: 4, baseRate: 249, img: "\u{1F3E2}", url: "https://hotel.muji.com/ginza/en", taKey: "g14129573-d16882641" },
+      { name: "The Prince Gallery Tokyo Kioicho", city: "Tokyo", region: "Japan", stars: 5, baseRate: 549, img: "\u{1F30A}", url: "https://www.marriott.com/en-us/hotels/tyolc-the-prince-gallery-tokyo-kioicho", taKey: "g1066443-d10031117", chain: "marriott", chainCode: "TYOLC" },
+      // London, UK
+      { name: "The Savoy", city: "London", region: "United Kingdom", stars: 5, baseRate: 799, img: "\u{1F3DB}", url: "https://www.thesavoylondon.com", taKey: "g186338-d187686" },
+      { name: "Claridge's", city: "London", region: "United Kingdom", stars: 5, baseRate: 899, img: "\u{1F338}", url: "https://www.claridges.co.uk", taKey: "g186338-d187685" },
+      { name: "The Hoxton Shoreditch", city: "London", region: "United Kingdom", stars: 4, baseRate: 219, img: "\u{1F3E8}", url: "https://thehoxton.com/shoreditch", taKey: "g186338-d621785" },
+      { name: "citizenM Tower of London", city: "London", region: "United Kingdom", stars: 4, baseRate: 179, img: "\u{1F3E2}", url: "https://www.citizenm.com/hotels/united-kingdom/london/london-tower-of-london-hotel", taKey: "g186338-d10410272" },
+      // Limerick, Ireland
+      { name: "The Savoy Hotel Limerick", city: "Limerick", region: "Ireland", stars: 5, baseRate: 229, img: "\u{1F3DB}", url: "https://www.savoylimerick.com", taKey: "g186621-d657109" },
+      { name: "No. 1 Pery Square Hotel", city: "Limerick", region: "Ireland", stars: 4, baseRate: 189, img: "\u{1F338}", url: "https://www.oneperysquare.com", taKey: "g186621-d1167509" },
+      { name: "Limerick Strand Hotel", city: "Limerick", region: "Ireland", stars: 4, baseRate: 159, img: "\u{1F3E8}", url: "https://www.strandhotellimerick.ie", taKey: "g186621-d598110" },
+      { name: "Clayton Hotel Limerick", city: "Limerick", region: "Ireland", stars: 4, baseRate: 139, img: "\u{1F3E2}", url: "https://www.claytonhotellimerick.com", taKey: "g186621-d260172" },
+      { name: "The George Limerick", city: "Limerick", region: "Ireland", stars: 4, baseRate: 169, img: "\u{1F30A}", url: "https://www.thegeorgelimerick.com", taKey: "g186621-d630895" },
+      // Rome, Italy
+      { name: "Hotel de Russie", city: "Rome", region: "Italy", stars: 5, baseRate: 799, img: "\u{1F3DB}", url: "https://www.roccofortehotels.com/hotels-and-resorts/hotel-de-russie", taKey: "g187791-d232851" },
+      { name: "Hotel Eden", city: "Rome", region: "Italy", stars: 5, baseRate: 899, img: "\u{1F338}", url: "https://www.dorchestercollection.com/rome/hotel-eden", taKey: "g187791-d191331" },
+      { name: "Hotel Artemide", city: "Rome", region: "Italy", stars: 4, baseRate: 219, img: "\u{1F30A}", url: "https://www.hotelartemide.it", taKey: "g187791-d205044" },
+      // Barcelona, Spain
+      { name: "Hotel Arts Barcelona", city: "Barcelona", region: "Spain", stars: 5, baseRate: 549, img: "\u{1F30A}", url: "https://www.hotelartsbarcelona.com", taKey: "g187497-d190635" },
+      { name: "El Palace Barcelona", city: "Barcelona", region: "Spain", stars: 5, baseRate: 449, img: "\u{1F3DB}", url: "https://www.hotelpalacebarcelona.com", taKey: "g187497-d190617" },
+      { name: "Casa Camper Barcelona", city: "Barcelona", region: "Spain", stars: 4, baseRate: 269, img: "\u{1F3E8}", url: "https://www.casacamper.com/barcelona", taKey: "g187497-d543153" },
+      // Sydney, Australia
+      { name: "Park Hyatt Sydney", city: "Sydney", region: "Australia", stars: 5, baseRate: 799, img: "\u{1F30A}", url: "https://www.hyatt.com/park-hyatt/sydph-park-hyatt-sydney", taKey: "g255060-d256618", chain: "hyatt", chainCode: "sydph" },
+      { name: "The Langham Sydney", city: "Sydney", region: "Australia", stars: 5, baseRate: 499, img: "\u{1F3DB}", url: "https://www.langhamhotels.com/en/the-langham/sydney", taKey: "g255060-d256652" },
+      { name: "QT Sydney", city: "Sydney", region: "Australia", stars: 5, baseRate: 349, img: "\u{1F3E8}", url: "https://www.qthotels.com/sydney", taKey: "g255060-d2641285" },
+      // Cancun, Mexico
+      { name: "Nizuc Resort and Spa", city: "Cancun", region: "Mexico", stars: 5, baseRate: 599, img: "\u{1F334}", url: "https://www.nizuc.com", taKey: "g150807-d3580898" },
+      { name: "JW Marriott Cancun", city: "Cancun", region: "Mexico", stars: 5, baseRate: 399, img: "\u{1F3DB}", url: "https://www.marriott.com/en-us/hotels/cunjw-jw-marriott-cancun-resort-and-spa", taKey: "g150807-d209428", chain: "marriott", chainCode: "CUNJW" },
+      // Dubai, UAE
+      { name: "Burj Al Arab Jumeirah", city: "Dubai", region: "UAE", stars: 5, baseRate: 1800, img: "\u{1F3DB}", url: "https://www.jumeirah.com/en/stay/dubai/burj-al-arab-jumeirah", taKey: "g295424-d302457" },
+      { name: "Atlantis The Royal", city: "Dubai", region: "UAE", stars: 5, baseRate: 899, img: "\u{1F30A}", url: "https://www.atlantis.com/atlantis-the-royal", taKey: "g295424-d25249570" },
+      // Bali, Indonesia
+      { name: "Four Seasons Bali at Sayan", city: "Bali", region: "Indonesia", stars: 5, baseRate: 699, img: "\u{1F334}", url: "https://www.fourseasons.com/sayan", taKey: "g2209545-d301883" },
+      { name: "Alila Seminyak", city: "Bali", region: "Indonesia", stars: 5, baseRate: 349, img: "\u{1F30A}", url: "https://www.hyatt.com/en-US/hotel/indonesia/alila-seminyak/dpsal", taKey: "g13356179-d7949561", chain: "hyatt", chainCode: "dpsal" },
+      // San Francisco, CA
+      { name: "The St. Regis San Francisco", city: "San Francisco", region: "California, US", stars: 5, baseRate: 549, img: "\u{1F3DB}", url: "https://www.marriott.com/en-us/hotels/sfoxr-the-st-regis-san-francisco", taKey: "g60713-d574449", chain: "marriott", chainCode: "SFOXR" },
+      { name: "The Proper Hotel SF", city: "San Francisco", region: "California, US", stars: 4, baseRate: 379, img: "\u{1F338}", url: "https://www.properhotel.com/san-francisco", taKey: "g60713-d80799" },
+      // Los Angeles, CA
+      { name: "Chateau Marmont", city: "Los Angeles", region: "California, US", stars: 5, baseRate: 599, img: "\u{1F334}", url: "https://www.chateaumarmont.com", taKey: "g32655-d250393" },
+      { name: "Shutters on the Beach", city: "Los Angeles", region: "California, US", stars: 5, baseRate: 699, img: "\u{1F30A}", url: "https://www.shuttersonthebeach.com", taKey: "g33052-d113252" },
+      // Miami, FL
+      { name: "Faena Hotel Miami Beach", city: "Miami", region: "Florida, US", stars: 5, baseRate: 699, img: "\u{1F334}", url: "https://www.faena.com/miami-beach", taKey: "g34439-d7787044" },
+      { name: "The Setai", city: "Miami", region: "Florida, US", stars: 5, baseRate: 799, img: "\u{1F30A}", url: "https://www.thesetaihotel.com", taKey: "g34439-d503070" },
+      // Nashville, TN
+      { name: "The Hermitage Hotel", city: "Nashville", region: "Tennessee, US", stars: 5, baseRate: 449, img: "\u{1F3DB}", url: "https://www.thehermitagehotel.com", taKey: "g55229-d111960" },
+      { name: "Graduate Nashville", city: "Nashville", region: "Tennessee, US", stars: 4, baseRate: 259, img: "\u{1F3E8}", url: "https://www.graduatehotels.com/nashville", taKey: "g55229-d17761819" },
+      { name: "Noelle Nashville", city: "Nashville", region: "Tennessee, US", stars: 4, baseRate: 289, img: "\u{1F338}", url: "https://www.noelle-nashville.com", taKey: "g55229-d12907868" },
+      // Maui, HI
+      { name: "Four Seasons Resort Maui", city: "Maui", region: "Hawaii, US", stars: 5, baseRate: 999, img: "\u{1F334}", url: "https://www.fourseasons.com/maui", taKey: "g609129-d87397" },
+      { name: "Andaz Maui at Wailea", city: "Maui", region: "Hawaii, US", stars: 5, baseRate: 699, img: "\u{1F30A}", url: "https://www.hyatt.com/andaz/oggaw-andaz-maui-at-wailea-resort", taKey: "g609129-d4459053", chain: "hyatt", chainCode: "oggaw" },
+      { name: "Hotel Wailea", city: "Maui", region: "Hawaii, US", stars: 5, baseRate: 599, img: "\u{1F338}", url: "https://www.hotelwailea.com", taKey: "g609129-d247776" },
+      // Amsterdam
+      { name: "Waldorf Astoria Amsterdam", city: "Amsterdam", region: "Netherlands", stars: 5, baseRate: 599, img: "\u{1F3DB}", url: "https://www.hilton.com/en/hotels/amswaqa-waldorf-astoria-amsterdam", taKey: "g188590-d5555141", chain: "hilton", chainCode: "AMSWAQA" },
+      { name: "Pulitzer Amsterdam", city: "Amsterdam", region: "Netherlands", stars: 5, baseRate: 449, img: "\u{1F30A}", url: "https://www.pulitzeramsterdam.com", taKey: "g188590-d189387" },
+    ].map((h, i) => ({ ...h, id: "h-" + i, variance: 0.25 + (i % 7) * 0.03 }));
+
+    // =====================================================================
+    //  RATE ENGINE
+    //  ---------------------------------------------------------------
+    //  DEMO MODE: Generates realistic simulated rates.
+    //  PRODUCTION: Replace fetchRates() with a real API call.
+    //  See README.md for integration instructions (Amadeus, SerpAPI, etc.)
+    // =====================================================================
+    function generateDemoRate(hotel, checkIn) {
+      const d = new Date(checkIn);
+      const dow = d.getDay();
+      const month = d.getMonth();
+      const charSum = hotel.id.split("").reduce((a, c) => a + c.charCodeAt(0), 0);
+      const seed = (charSum * 31 + d.getDate() * 17 + month * 53 + dow * 7) % 100;
+      let mult = 1;
+      if (dow === 5 || dow === 6) mult += 0.18;  // weekend premium
+      if (dow === 0) mult += 0.08;
+      if (month >= 5 && month <= 8) mult += 0.22; // summer premium
+      if (month === 11 || month === 0) mult += 0.15; // holiday premium
+      const noise = (seed / 100 - 0.5) * hotel.variance;
+      const rate = Math.round(hotel.baseRate * (mult + noise));
+      return { rate: Math.max(Math.round(hotel.baseRate * 0.65), rate), available: seed > 5 };
+    }
+
+    let USE_LIVE_API = true;
+    let LIVE_API_AVAILABLE = null;
+
+    async function fetchRates(hotel, checkIn, checkOut) {
+      if (USE_LIVE_API && hotel.taKey) {
+        try {
+          const params = new URLSearchParams({ hotel_key: hotel.taKey, chk_in: checkIn, chk_out: checkOut });
+          const res = await fetch(`/api/rates?${params}`);
+          const data = await res.json();
+          if (data.error) {
+            console.warn("API error, falling back to demo:", data.error);
+            return generateDemoRate(hotel, checkIn);
+          }
+          LIVE_API_AVAILABLE = true;
+          if (data.rate != null && data.available) {
+            return {
+              rate: data.rate,
+              available: true,
+              source: "live",
+              providers: data.providers,
+            };
+          }
+          return { rate: null, available: false, source: "live" };
+        } catch (err) {
+          console.warn("API unreachable, falling back to demo:", err.message);
+          USE_LIVE_API = false;
+          LIVE_API_AVAILABLE = false;
+          return generateDemoRate(hotel, checkIn);
+        }
+      }
+      return generateDemoRate(hotel, checkIn);
+    }
+
+    // =====================================================================
+    //  UTILITIES
+    // =====================================================================
+    function nightsBetween(a, b) { return Math.max(1, Math.round((new Date(b) - new Date(a)) / 86400000)); }
+    function fmtDate(s) { if (!s) return ""; return new Date(s + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" }); }
+    function fmtUSD(n) { return "$" + n.toLocaleString(); }
+
+    function buildBookingUrl(hotel, checkIn, checkOut) {
+      const c = hotel.chain, code = hotel.chainCode;
+      if (!c || !code) return hotel.url;
+      if (c === "hilton") return `https://www.hilton.com/en/book/reservation/rooms/?ctyhocn=${code}&arrivalDate=${checkIn}&departureDate=${checkOut}&room1NumAdults=1`;
+      if (c === "marriott") return `https://www.marriott.com/reservation/availabilitySearch.mi?propertyCode=${code}&fromDate=${checkIn}&toDate=${checkOut}`;
+      if (c === "ihg") {
+        const d1 = new Date(checkIn+"T12:00:00"), d2 = new Date(checkOut+"T12:00:00");
+        return `https://www.ihg.com/kimptonhotels/hotels/us/en/${code}/hoteldetail?qCiD=${d1.getDate()}&qCiMy=${String(d1.getMonth()).padStart(2,"0")}${d1.getFullYear()}&qCoD=${d2.getDate()}&qCoMy=${String(d2.getMonth()).padStart(2,"0")}${d2.getFullYear()}&qRms=1&qAdlt=1`;
+      }
+      if (c === "fairmont") return `https://www.fairmont.com/${code}/reservations/?checkIn=${checkIn}&checkOut=${checkOut}&adults=1`;
+      if (c === "hyatt") return `https://www.hyatt.com/shop/rooms/${code}?location=${encodeURIComponent(hotel.name)}&checkinDate=${checkIn}&checkoutDate=${checkOut}&rooms=1&adults=1&kids=0&rate=Standard`;
+      return hotel.url;
+    }
+
+    // =====================================================================
+    //  COMPONENTS
+    // =====================================================================
+    function Stars({ n }) {
+      return <span style={{ color: "#D4A053", fontSize: 12, letterSpacing: 1 }}>{"★".repeat(n)}{"☆".repeat(5 - n)}</span>;
+    }
+
+    // --- Hotel Search ---
+    function SearchPanel({ selected, onToggle, clearSignal }) {
+      const [q, setQ] = useState("");
+      const [open, setOpen] = useState(false);
+      const ref = useRef(null);
+
+      useEffect(() => { if (clearSignal > 0) { setQ(""); setOpen(false); } }, [clearSignal]);
+
+      useEffect(() => {
+        const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+        document.addEventListener("mousedown", handler);
+        return () => document.removeEventListener("mousedown", handler);
+      }, []);
+
+      const term = q.trim().toLowerCase();
+      const results = term.length >= 2
+        ? HOTELS.filter(h => (h.name + " " + h.city + " " + h.region).toLowerCase().includes(term)).slice(0, 15)
+        : [];
+
+      const grouped = {};
+      results.forEach(h => { const k = h.city + ", " + h.region; if (!grouped[k]) grouped[k] = []; grouped[k].push(h); });
+      const allCities = [...new Set(HOTELS.map(h => h.city))].sort();
+
+      return (
+        <div style={{ position: "relative" }} ref={ref}>
+          <label style={S.label}>Search Hotels Worldwide</label>
+          <div style={S.searchWrap}>
+            <span style={S.searchIcon}>&#x2315;</span>
+            <input style={S.searchInput} placeholder={"Any city (" + allCities.slice(0, 5).join(", ") + "...)"} value={q}
+              onChange={(e) => { setQ(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)} />
+            {q && <span style={S.clearBtn} onClick={() => { setQ(""); setOpen(false); }}>&times;</span>}
+          </div>
+          {open && term.length >= 2 && (
+            <div style={S.dropdown}>
+              {results.length === 0 ? (
+                <div style={S.noResults}>
+                  <div>No hotels for "{q}"</div>
+                  <div style={{ fontSize: 11, color: "#999", marginTop: 6 }}>Try: {allCities.join(", ")}</div>
+                </div>
+              ) : Object.entries(grouped).map(([city, hotels]) => (
+                <div key={city}>
+                  <div style={S.cityHead}>{city}</div>
+                  {hotels.map(h => {
+                    const isSel = selected.some(s => s.id === h.id);
+                    const full = !isSel && selected.length >= 5;
+                    return (
+                      <div key={h.id} style={{ ...S.item, opacity: full ? 0.35 : 1, background: isSel ? "rgba(212,160,83,0.08)" : "transparent" }}
+                        onClick={() => { if (!full) onToggle(h); }}>
+                        <span style={{ fontSize: 20, marginRight: 10 }}>{h.img}</span>
+                        <div style={{ flex: 1 }}>
+                          <div style={S.hName}>{h.name}</div>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <Stars n={h.stars} />
+                            <span style={{ fontSize: 11, color: "#666" }}>~{fmtUSD(h.baseRate)}/night</span>
+                          </div>
+                        </div>
+                        <span style={{ ...S.badge, background: isSel ? "#D4A053" : "transparent", color: isSel ? "#fff" : "#999", border: isSel ? "none" : "1.5px solid #ccc" }}>
+                          {isSel ? "\u2713" : "+"}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          )}
+          {selected.length > 0 && (
+            <div style={S.chips}>
+              {selected.map(h => (
+                <span key={h.id} style={S.chip}>
+                  {h.img} {h.name}
+                  <span style={S.chipX} onClick={() => onToggle(h)}>&times;</span>
+                </span>
+              ))}
+            </div>
+          )}
+          <div style={S.hint}>{selected.length}/5 hotels selected</div>
+        </div>
+      );
+    }
+
+    // --- Date Range Picker (unified calendar) ---
+    const CAL_MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+
+    function DateRangePicker({ checkIn, checkOut, onChange, minDate }) {
+      const [open, setOpen] = useState(false);
+      const [phase, setPhase] = useState("in");
+      const [tempIn, setTempIn] = useState(null);
+      const [hover, setHover] = useState(null);
+      const ref = useRef(null);
+      const [vm, setVm] = useState(() => {
+        const d = checkIn ? new Date(checkIn + "T12:00:00") : new Date();
+        return { y: d.getFullYear(), m: d.getMonth() };
+      });
+
+      useEffect(() => {
+        const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+        document.addEventListener("mousedown", h);
+        return () => document.removeEventListener("mousedown", h);
+      }, []);
+
+      const openCal = () => {
+        setPhase("in"); setTempIn(null); setHover(null);
+        const d = checkIn ? new Date(checkIn + "T12:00:00") : new Date();
+        setVm({ y: d.getFullYear(), m: d.getMonth() });
+        setOpen(true);
+      };
+
+      const nav = (dir) => setVm(p => {
+        let m = p.m + dir, y = p.y;
+        if (m < 0) { m = 11; y--; } if (m > 11) { m = 0; y++; }
+        return { y, m };
+      });
+
+      const pick = (ds) => {
+        if (phase === "in") { setTempIn(ds); setPhase("out"); setHover(null); }
+        else {
+          if (ds <= tempIn) { setTempIn(ds); setHover(null); }
+          else { onChange(tempIn, ds); setOpen(false); }
+        }
+      };
+
+      const toStr = (y, m, d) => `${y}-${String(m+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
+      const m2y = vm.m === 11 ? vm.y + 1 : vm.y;
+      const m2m = vm.m === 11 ? 0 : vm.m + 1;
+
+      const renderMonth = (y, m) => {
+        const dim = new Date(y, m+1, 0).getDate();
+        const fd = new Date(y, m, 1).getDay();
+        const cells = [];
+        for (let i = 0; i < fd; i++) cells.push(null);
+        for (let d = 1; d <= dim; d++) cells.push(toStr(y, m, d));
+        return (
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ textAlign: "center", fontSize: 12, fontWeight: 600, color: "#333", marginBottom: 6 }}>{CAL_MONTHS[m]} {y}</div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)" }}>
+              {["Su","Mo","Tu","We","Th","Fr","Sa"].map(d => (
+                <div key={d} style={{ textAlign: "center", fontSize: 9, color: "#999", padding: "3px 0", fontWeight: 700 }}>{d}</div>
+              ))}
+              {cells.map((ds, i) => {
+                if (!ds) return <div key={`e${i}`} />;
+                const past = ds < minDate;
+                const start = phase === "out" && ds === tempIn;
+                const endD = phase === "out" && hover && hover > tempIn ? hover : null;
+                const end = endD && ds === endD;
+                const inR = phase === "out" && tempIn && endD && ds > tempIn && ds < endD;
+                const dn = parseInt(ds.split("-")[2]);
+                return (
+                  <div key={ds} onClick={() => !past && pick(ds)}
+                    onMouseEnter={() => { if (!past && phase === "out") setHover(ds); }}
+                    style={{
+                      textAlign: "center", padding: "5px 0", fontSize: 12, lineHeight: "22px",
+                      cursor: past ? "default" : "pointer",
+                      color: past ? "#ccc" : (start || end) ? "#fff" : inR ? "#1a1a2e" : "#444",
+                      background: (start || end) ? "#D4A053" : inR ? "rgba(212,160,83,0.18)" : "transparent",
+                      borderRadius: start ? "50% 0 0 50%" : end ? "0 50% 50% 0" : 0,
+                      fontWeight: (start || end) ? 700 : 400,
+                    }}>
+                    {dn}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      };
+
+      const label = checkIn && checkOut
+        ? `${fmtDate(checkIn)} \u2192 ${fmtDate(checkOut)}  \u00B7  ${nightsBetween(checkIn, checkOut)} night${nightsBetween(checkIn, checkOut) > 1 ? "s" : ""}`
+        : "Select dates";
+
+      return (
+        <div style={{ flex: 1, position: "relative" }} ref={ref}>
+          <div onClick={openCal} style={{
+            padding: "8px 12px", fontSize: 12, background: "#f5f6f8", border: "1px solid #e0e0e0",
+            borderRadius: 6, color: checkIn && checkOut ? "#1a1a2e" : "#999", cursor: "pointer", fontFamily: "'DM Sans', sans-serif",
+          }}>{label}</div>
+          {open && (
+            <div onMouseLeave={() => setHover(null)} style={{
+              position: "absolute", top: "calc(100% + 4px)", left: 0, zIndex: 200,
+              background: "#fff", border: "1px solid #e4e6ea", borderRadius: 10,
+              padding: 16, boxShadow: "0 8px 30px rgba(0,0,0,0.12)", width: 380,
+            }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                <button onClick={() => nav(-1)} style={{ background: "none", border: "1px solid #e0e0e0", color: "#888", fontSize: 16, cursor: "pointer", borderRadius: 4, padding: "2px 8px", lineHeight: 1 }}>&lsaquo;</button>
+                <div style={{ fontSize: 11, fontWeight: 600, color: phase === "in" ? "#D4A053" : "#5cb85c", letterSpacing: 0.3 }}>
+                  {phase === "in" ? "Select check-in" : "Select check-out"}
+                </div>
+                <button onClick={() => nav(1)} style={{ background: "none", border: "1px solid #e0e0e0", color: "#888", fontSize: 16, cursor: "pointer", borderRadius: 4, padding: "2px 8px", lineHeight: 1 }}>&rsaquo;</button>
+              </div>
+              <div style={{ display: "flex", gap: 12 }}>
+                {renderMonth(vm.y, vm.m)}
+                {renderMonth(m2y, m2m)}
+              </div>
+              {tempIn && phase === "out" && (
+                <div style={{ textAlign: "center", fontSize: 10, color: "#888", marginTop: 8 }}>
+                  Check-in: <strong style={{ color: "#D4A053" }}>{fmtDate(tempIn)}</strong> — now pick check-out
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // --- Date Ranges ---
+    function DatePanel({ ranges, onUpdate, onAdd, onRemove }) {
+      const today = new Date().toISOString().split("T")[0];
+      return (
+        <div>
+          <label style={S.label}>Date Ranges</label>
+          <div style={S.hint}>Add 2-10 date ranges to compare</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 10 }}>
+            {ranges.map((dr, i) => (
+              <div key={i} style={S.dateRow}>
+                <span style={S.dateIdx}>#{i + 1}</span>
+                <DateRangePicker checkIn={dr.checkIn} checkOut={dr.checkOut} minDate={today}
+                  onChange={(ci, co) => onUpdate(i, ci, co)} />
+                {ranges.length > 2 && <button style={S.rmBtn} onClick={() => onRemove(i)}>&times;</button>}
+              </div>
+            ))}
+          </div>
+          {ranges.length < 10
+            ? <button style={S.addBtn} onClick={onAdd}>+ Add Date Range</button>
+            : <div style={{ ...S.hint, color: "#D4A053", marginTop: 8 }}>Maximum 10 date ranges</div>}
+        </div>
+      );
+    }
+
+    // --- Results Table ---
+    function ResultsTable({ data, hotels, dates, best }) {
+      return (
+        <div style={S.tWrap}>
+          <table style={S.table}>
+            <thead>
+              <tr>
+                <th style={{ ...S.th, minWidth: 200, position: "sticky", left: 0, zIndex: 2, background: "#f8f9fb" }}>Hotel</th>
+                {dates.map((dr, i) => (
+                  <th key={i} style={{ ...S.th, minWidth: 170 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700 }}>{fmtDate(dr.checkIn)} &ndash; {fmtDate(dr.checkOut)}</div>
+                    <div style={{ fontSize: 11, fontWeight: 400, opacity: 0.5, marginTop: 2 }}>
+                      {nightsBetween(dr.checkIn, dr.checkOut)} night{nightsBetween(dr.checkIn, dr.checkOut) > 1 ? "s" : ""}
+                    </div>
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {hotels.map(h => (
+                <tr key={h.id}>
+                  <td style={{ ...S.td, position: "sticky", left: 0, zIndex: 1, background: "#fff" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span style={{ fontSize: 22 }}>{h.img}</span>
+                      <div>
+                        <div style={{ fontWeight: 600, fontSize: 13, color: "#1a1a2e" }}>{h.name}</div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          <Stars n={h.stars} />
+                          <span style={{ fontSize: 10, color: "#999" }}>{h.city}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                  {dates.map((dr, di) => {
+                    const r = data[h.id] && data[h.id][di];
+                    if (!r) return <td key={di} style={S.td}><span style={{ animation: "pulse 1s infinite", color: "#bbb" }}>...</span></td>;
+                    const isB = best && best.hid === h.id && best.di === di;
+                    if (!r.available) return (
+                      <td key={di} style={{ ...S.td, opacity: 0.4 }}>
+                        <div style={{ fontSize: 12, color: "#ff6b6b" }}>No rooms available</div>
+                      </td>
+                    );
+                    const n = nightsBetween(dr.checkIn, dr.checkOut);
+                    const tot = r.rate * n;
+                    const bookUrl = buildBookingUrl(h, dr.checkIn, dr.checkOut);
+                    const allRates = dates.map((_, j) => data[h.id] && data[h.id][j]).filter(x => x && x.available).map(x => x.rate);
+                    const avgRate = allRates.length > 1 ? Math.round(allRates.reduce((a,b) => a+b, 0) / allRates.length) : null;
+                    const delta = avgRate ? r.rate - avgRate : null;
+                    return (
+                      <td key={di} style={{ ...S.td, background: isB ? "rgba(212,160,83,0.08)" : "transparent", borderLeft: isB ? "2px solid #D4A053" : "1px solid #f0f0f0" }}>
+                        {isB && <div style={S.bestTag}>BEST RATE</div>}
+                        <div style={{ fontSize: 9, color: "#999", letterSpacing: 0.5, marginBottom: 2 }}>EST. MARKET RATE</div>
+                        <div style={{ fontSize: 20, fontWeight: 700, color: isB ? "#D4A053" : "#1a1a2e", fontFamily: "'DM Serif Display', Georgia, serif" }}>{fmtUSD(r.rate)}</div>
+                        <div style={{ fontSize: 11, color: "#888", margin: "2px 0 4px" }}>avg/night &middot; {fmtUSD(tot)} total</div>
+                        {delta !== null && delta !== 0 && (
+                          <div style={{ fontSize: 10, color: delta < 0 ? "#5cb85c" : "#ff6b6b", marginBottom: 6, fontWeight: 500 }}>
+                            {delta < 0 ? `${fmtUSD(Math.abs(delta))}/nt cheaper` : `${fmtUSD(delta)}/nt more`} vs avg
+                          </div>
+                        )}
+                        {delta === 0 && <div style={{ fontSize: 10, color: "#999", marginBottom: 6 }}>avg across dates</div>}
+                        <a className="book-link" href={bookUrl} target="_blank" rel="noopener noreferrer"
+                          style={{ ...S.bookBtn, background: isB ? "#D4A053" : "transparent", color: isB ? "#fff" : "#D4A053", border: isB ? "none" : "1px solid #D4A053" }}>
+                          Book My Stay &rarr;
+                        </a>
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      );
+    }
+
+    // --- Summary Cards ---
+    function Summary({ data, hotels, dates, best }) {
+      if (!best) return null;
+      const hotel = hotels.find(h => h.id === best.hid);
+      const dr = dates[best.di];
+      const n = nightsBetween(dr.checkIn, dr.checkOut);
+      let allTotals = [];
+      let worstTotal = 0;
+      hotels.forEach(h => dates.forEach((d, di) => {
+        const r = data[h.id] && data[h.id][di];
+        if (r && r.available) {
+          const t = r.rate * nightsBetween(d.checkIn, d.checkOut);
+          allTotals.push(t);
+          if (t > worstTotal) worstTotal = t;
+        }
+      }));
+      const avg = allTotals.length ? Math.round(allTotals.reduce((a, b) => a + b, 0) / allTotals.length) : 0;
+      const saveVsAvg = avg - best.total;
+      const saveVsWorst = worstTotal - best.total;
+
+      return (
+        <div style={S.sumRow}>
+          <div style={S.sumCard}><div style={S.sumLbl}>Best Rate</div><div style={S.sumVal}>{fmtUSD(best.rate)}</div><div style={S.sumDet}>per night (est.)</div></div>
+          <div style={S.sumCard}><div style={S.sumLbl}>Best Dates</div><div style={{ ...S.sumVal, fontSize: 16 }}>{fmtDate(dr.checkIn)} &ndash; {fmtDate(dr.checkOut)}</div><div style={S.sumDet}>{hotel && hotel.name}</div></div>
+          <div style={S.sumCard}><div style={S.sumLbl}>Est. Total</div><div style={S.sumVal}>{fmtUSD(best.total)}</div><div style={S.sumDet}>{n} night{n > 1 ? "s" : ""}</div></div>
+          <div style={S.sumCard}><div style={S.sumLbl}>You Could Save</div><div style={{ ...S.sumVal, color: saveVsWorst > 0 ? "#5cb85c" : "#1a1a2e" }}>{saveVsWorst > 0 ? fmtUSD(saveVsWorst) : "\u2014"}</div><div style={S.sumDet}>{saveVsWorst > 0 ? "vs. most expensive option" : ""}</div></div>
+        </div>
+      );
+    }
+
+    // =====================================================================
+    //  MAIN APP
+    // =====================================================================
+    function App() {
+      const [sel, setSel] = useState([]);
+      const [dates, setDates] = useState([{ checkIn: "", checkOut: "" }, { checkIn: "", checkOut: "" }]);
+      const [data, setData] = useState(null);
+      const [loading, setLoading] = useState(false);
+      const [best, setBest] = useState(null);
+      const [show, setShow] = useState(false);
+
+      const [clearSig, setClearSig] = useState(0);
+      const toggle = (h) => { setSel(p => p.some(x => x.id === h.id) ? p.filter(x => x.id !== h.id) : p.length < 5 ? [...p, h] : p); setShow(false); setClearSig(c => c + 1); };
+
+      const updDate = (i, checkIn, checkOut) => {
+        setDates(p => { const n = [...p]; n[i] = { checkIn, checkOut }; return n; });
+        setShow(false);
+      };
+
+      const addDate = () => { if (dates.length < 10) setDates(p => [...p, { checkIn: "", checkOut: "" }]); };
+      const rmDate = (i) => { setDates(p => p.filter((_, j) => j !== i)); setShow(false); };
+
+      const valid = dates.filter(d => d.checkIn && d.checkOut && d.checkOut > d.checkIn);
+      const canGo = sel.length >= 1 && valid.length >= 2;
+
+      const compare = async () => {
+        setLoading(true); setShow(true); setBest(null); setData({});
+        const res = {}; let b = null;
+        for (const hotel of sel) {
+          res[hotel.id] = {};
+          for (let di = 0; di < valid.length; di++) {
+            const dr = valid[di];
+            const r = await fetchRates(hotel, dr.checkIn, dr.checkOut);
+            res[hotel.id][di] = r;
+            if (r.available) {
+              const t = r.rate * nightsBetween(dr.checkIn, dr.checkOut);
+              if (!b || t < b.total) b = { hid: hotel.id, di: di, rate: r.rate, total: t };
+            }
+            setData({...res}); setBest(b ? {...b} : null);
+          }
+        }
+        setLoading(false);
+      };
+
+      const cities = [...new Set(HOTELS.map(h => h.city))];
+
+      return (
+        <div style={S.app}>
+          <header style={S.header}>
+            <div style={S.headerIn}>
+              <div>
+                <h1 style={S.h1}><span style={{ color: "#D4A053" }}>&#x27D0;</span> Hotel Rate Scanner</h1>
+                <p style={S.sub}>Compare hotel rates across flexible dates. {HOTELS.length} hotels in {cities.length} destinations.</p>
+              </div>
+              <div style={S.headerBadge}>MULTI-DATE</div>
+            </div>
+          </header>
+
+          <div style={S.main}>
+            <div style={S.grid}>
+              <div style={S.card}><div style={S.cNum}>01</div><SearchPanel selected={sel} onToggle={toggle} clearSignal={clearSig} /></div>
+              <div style={S.card}><div style={S.cNum}>02</div><DatePanel ranges={dates} onUpdate={updDate} onAdd={addDate} onRemove={rmDate} /></div>
+            </div>
+            <div style={{ textAlign: "center", marginTop: 24 }}>
+              <button style={{ ...S.cmpBtn, opacity: canGo ? 1 : 0.35, cursor: canGo ? "pointer" : "not-allowed" }} disabled={!canGo || loading} onClick={compare}>
+                {loading ? <span style={{ animation: "pulse 1s infinite" }}>Scanning rates...</span> : "Compare Rates"}
+              </button>
+              {!canGo && <div style={{ fontSize: 12, color: "#666", marginTop: 6 }}>Select at least 1 hotel and enter 2+ valid date ranges</div>}
+            </div>
+          </div>
+
+          {show && data && (
+            <div style={{ animation: "fadeUp 0.5s ease" }}>
+              <div style={S.divider}><span style={S.divLine} /><span style={S.divTxt}>Results</span><span style={S.divLine} /></div>
+              <Summary data={data} hotels={sel} dates={valid} best={best} />
+              <ResultsTable data={data} hotels={sel} dates={valid} best={best} />
+              <div style={S.foot}>
+                {LIVE_API_AVAILABLE
+                  ? <><strong style={{color:"#5cb85c"}}>&#9679; Live market rates</strong> — estimated rates for date comparison. Final price confirmed on hotel website.</>
+                  : <><strong>Demo mode:</strong> Rates are simulated. Start the server for live pricing.</>}
+                <br />"Book My Stay" opens the hotel's official booking page with your dates pre-selected.
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // =====================================================================
+    //  STYLES
+    // =====================================================================
+    const S = {
+      app: { fontFamily: "'DM Sans', sans-serif", background: "#f0f2f5", color: "#1a1a2e", minHeight: "100vh", paddingBottom: 60 },
+      header: { background: "#fff", borderBottom: "1px solid #e4e6ea", padding: "32px 32px 28px" },
+      headerIn: { maxWidth: 960, margin: "0 auto", display: "flex", justifyContent: "space-between", alignItems: "flex-start" },
+      h1: { fontFamily: "'DM Serif Display', Georgia, serif", fontSize: 32, fontWeight: 400, margin: 0, letterSpacing: -0.5, color: "#1a1a2e" },
+      sub: { fontSize: 14, color: "#888", margin: "6px 0 0", fontWeight: 300 },
+      headerBadge: { fontSize: 10, fontWeight: 700, letterSpacing: 2.5, color: "#D4A053", border: "1px solid rgba(212,160,83,0.35)", padding: "5px 12px", borderRadius: 4, marginTop: 6 },
+      main: { maxWidth: 960, margin: "0 auto", padding: "28px 32px" },
+      grid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 },
+      card: { background: "#fff", border: "1px solid #e4e6ea", borderRadius: 12, padding: 24, position: "relative", boxShadow: "0 1px 3px rgba(0,0,0,0.06)" },
+      cNum: { position: "absolute", top: 14, right: 18, fontSize: 11, fontWeight: 700, color: "rgba(212,160,83,0.4)", letterSpacing: 1 },
+      label: { display: "block", fontSize: 13, fontWeight: 600, color: "#333", marginBottom: 8, letterSpacing: 0.3 },
+      hint: { fontSize: 11, color: "#999", marginTop: 6 },
+      searchWrap: { position: "relative" },
+      searchIcon: { position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", fontSize: 16, color: "#aaa" },
+      searchInput: { width: "100%", padding: "10px 32px 10px 36px", fontSize: 13, background: "#f5f6f8", border: "1px solid #e0e0e0", borderRadius: 8, color: "#1a1a2e", outline: "none", fontFamily: "'DM Sans', sans-serif" },
+      clearBtn: { position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", cursor: "pointer", color: "#999", fontSize: 16, lineHeight: 1 },
+      dropdown: { position: "absolute", top: "100%", left: 0, right: 0, background: "#fff", border: "1px solid #e4e6ea", borderRadius: 10, marginTop: 4, maxHeight: 340, overflowY: "auto", zIndex: 100, boxShadow: "0 8px 30px rgba(0,0,0,0.12)" },
+      cityHead: { fontSize: 10, fontWeight: 700, letterSpacing: 1.5, color: "#D4A053", padding: "10px 14px 4px", textTransform: "uppercase" },
+      item: { display: "flex", alignItems: "center", padding: "8px 14px", cursor: "pointer" },
+      hName: { fontSize: 13, fontWeight: 500, color: "#1a1a2e" },
+      badge: { width: 24, height: 24, borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 600, flexShrink: 0 },
+      noResults: { padding: 16, fontSize: 13, color: "#999", textAlign: "center" },
+      chips: { display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 },
+      chip: { display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 10px", background: "rgba(212,160,83,0.1)", border: "1px solid rgba(212,160,83,0.25)", borderRadius: 20, fontSize: 12, color: "#b8860b" },
+      chipX: { cursor: "pointer", fontWeight: 700, fontSize: 14, marginLeft: 2, opacity: 0.6 },
+      dateRow: { display: "flex", alignItems: "center", gap: 8 },
+      dateIdx: { fontSize: 11, fontWeight: 600, color: "#aaa", width: 24, textAlign: "center", flexShrink: 0 },
+      dateIn: { flex: 1, padding: "8px 10px", fontSize: 12, background: "#f5f6f8", border: "1px solid #e0e0e0", borderRadius: 6, color: "#1a1a2e", fontFamily: "'DM Sans', sans-serif", outline: "none", minWidth: 0 },
+      rmBtn: { background: "none", border: "none", color: "#ff6b6b", fontSize: 18, cursor: "pointer", padding: "2px 6px", lineHeight: 1, flexShrink: 0 },
+      addBtn: { background: "none", border: "1px dashed #ccc", color: "#999", fontSize: 12, padding: "7px 14px", borderRadius: 6, cursor: "pointer", marginTop: 8, fontFamily: "'DM Sans', sans-serif" },
+      cmpBtn: { fontFamily: "'DM Serif Display', Georgia, serif", fontSize: 18, padding: "14px 48px", background: "#D4A053", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontWeight: 400, letterSpacing: 0.3 },
+      divider: { display: "flex", alignItems: "center", gap: 16, maxWidth: 960, margin: "8px auto 24px", padding: "0 32px" },
+      divLine: { flex: 1, height: 1, background: "#e0e0e0" },
+      divTxt: { fontSize: 11, fontWeight: 700, letterSpacing: 2, color: "#aaa", textTransform: "uppercase" },
+      sumRow: { display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, maxWidth: 960, margin: "0 auto 24px", padding: "0 32px" },
+      sumCard: { background: "#fff", border: "1px solid #e4e6ea", borderRadius: 10, padding: "16px 18px", textAlign: "center", boxShadow: "0 1px 3px rgba(0,0,0,0.06)" },
+      sumLbl: { fontSize: 10, fontWeight: 600, letterSpacing: 1, color: "#999", textTransform: "uppercase", marginBottom: 6 },
+      sumVal: { fontFamily: "'DM Serif Display', Georgia, serif", fontSize: 24, color: "#D4A053", fontWeight: 400 },
+      sumDet: { fontSize: 11, color: "#999", marginTop: 4 },
+      tWrap: { maxWidth: 960, margin: "0 auto", padding: "0 32px", overflowX: "auto" },
+      table: { width: "100%", borderCollapse: "collapse", fontSize: 13 },
+      th: { textAlign: "left", padding: "12px 16px", borderBottom: "2px solid #e4e6ea", color: "#666", fontWeight: 600, fontSize: 12, background: "#f8f9fb" },
+      td: { padding: 16, borderBottom: "1px solid #f0f0f0", borderLeft: "1px solid #f0f0f0", verticalAlign: "top" },
+      bestTag: { fontSize: 9, fontWeight: 700, letterSpacing: 1.5, color: "#D4A053", marginBottom: 4 },
+      bookBtn: { fontFamily: "'DM Sans', sans-serif", fontSize: 11, fontWeight: 600, padding: "6px 14px", borderRadius: 5, cursor: "pointer", letterSpacing: 0.2, display: "inline-block", textAlign: "center" },
+      foot: { maxWidth: 960, margin: "24px auto 0", padding: "0 32px", fontSize: 11, color: "#999", textAlign: "center", lineHeight: 1.6 },
+    };
+
+    ReactDOM.render(<App />, document.getElementById("root"));
+  </script>
+</body>
+</html>
