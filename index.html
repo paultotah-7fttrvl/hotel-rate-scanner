@@ -362,6 +362,24 @@
     function formatMMDDYYYY(ds) { const [y,m,d] = ds.split("-"); return `${m}/${d}/${y}`; }
     function parseIHGDate(ds) { const [y,m,d] = ds.split("-"); return { day: d, monthYear: `${m}${y}` }; }
 
+    function buildProviderUrl(providerName, hotelName, city, checkIn, checkOut) {
+      const q = encodeURIComponent(`${hotelName} ${city}`);
+      const pn = (providerName || "").toLowerCase();
+      if (pn.includes("booking.com"))
+        return `https://www.booking.com/searchresults.html?ss=${q}&checkin=${checkIn}&checkout=${checkOut}`;
+      if (pn.includes("expedia"))
+        return `https://www.expedia.com/Hotel-Search?destination=${q}&startDate=${formatMMDDYYYY(checkIn)}&endDate=${formatMMDDYYYY(checkOut)}`;
+      if (pn.includes("hotels.com"))
+        return `https://www.hotels.com/search.do?q-destination=${q}&q-check-in=${checkIn}&q-check-out=${checkOut}`;
+      if (pn.includes("agoda"))
+        return `https://www.agoda.com/search?searchText=${q}&checkIn=${checkIn}&checkOut=${checkOut}`;
+      if (pn.includes("priceline"))
+        return `https://www.priceline.com/hotel-search/?q=${q}&startDate=${checkIn}&endDate=${checkOut}`;
+      if (pn.includes("trip.com"))
+        return `https://www.trip.com/hotels/?query=${q}&checkin=${checkIn}&checkout=${checkOut}`;
+      return `https://www.google.com/travel/hotels?q=${q}&dates=${checkIn},${checkOut}`;
+    }
+
     function buildBookingUrl(hotel, checkIn, checkOut) {
       switch (hotel.chain) {
         case "marriott":
@@ -676,8 +694,11 @@
                     return (
                       <td key={di} style={{ ...S.td, background: isB ? "rgba(212,160,83,0.08)" : "transparent", borderLeft: isB ? "2px solid #D4A053" : "1px solid #f0f0f0" }}>
                         {isB && <div style={S.bestTag}>BEST RATE</div>}
-                        <div style={{ fontSize: 9, color: "#999", letterSpacing: 0.5, marginBottom: 2 }}>EST. MARKET RATE</div>
+                        <div style={{ fontSize: 9, color: "#999", letterSpacing: 0.5, marginBottom: 2 }}>BEST AVAILABLE MARKET RATE</div>
                         <div style={{ fontSize: 20, fontWeight: 700, color: isB ? "#D4A053" : "#1a1a2e", fontFamily: "'DM Serif Display', Georgia, serif" }}>{fmtUSD(r.rate)}</div>
+                        {r.providers && r.providers[0] && (
+                          <div style={{ fontSize: 10, color: "#777", marginTop: 1, marginBottom: 2 }}>via {r.providers[0].name}</div>
+                        )}
                         <div style={{ fontSize: 11, color: "#888", margin: "2px 0 4px" }}>avg/night &middot; {fmtUSD(tot)} total</div>
                         {delta !== null && delta !== 0 && (
                           <div style={{ fontSize: 10, color: delta < 0 ? "#5cb85c" : "#ff6b6b", marginBottom: 6, fontWeight: 500 }}>
@@ -687,8 +708,18 @@
                         {delta === 0 && <div style={{ fontSize: 10, color: "#999", marginBottom: 6 }}>avg across dates</div>}
                         <a className="book-link" href={bookUrl} target="_blank" rel="noopener noreferrer"
                           style={{ ...S.bookBtn, background: isB ? "#D4A053" : "transparent", color: isB ? "#fff" : "#D4A053", border: isB ? "none" : "1px solid #D4A053" }}>
-                          Book My Stay &rarr;
+                          Book Direct &rarr;
                         </a>
+                        {r.providers && r.providers[0] && (() => {
+                          const prov = r.providers[0];
+                          const provUrl = buildProviderUrl(prov.name, h.name, h.city, dr.checkIn, dr.checkOut);
+                          return (
+                            <a href={provUrl} target="_blank" rel="noopener noreferrer"
+                              style={{ display: "block", fontSize: 11, color: "#D4A053", marginTop: 5, textDecoration: "none", fontWeight: 500 }}>
+                              {fmtUSD(prov.rate)} on {prov.name} &rsaquo;
+                            </a>
+                          );
+                        })()}
                       </td>
                     );
                   })}
