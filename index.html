@@ -366,17 +366,9 @@
       const q = encodeURIComponent(`${hotelName} ${city}`);
       const pn = (providerName || "").toLowerCase();
       if (pn.includes("booking.com"))
-        return `https://www.booking.com/searchresults.html?ss=${q}&checkin=${checkIn}&checkout=${checkOut}`;
+        return `https://www.booking.com/searchresults.html?ss=${q}&checkin=${checkIn}&checkout=${checkOut}&group_adults=2&no_rooms=1`;
       if (pn.includes("expedia"))
-        return `https://www.expedia.com/Hotel-Search?destination=${q}&startDate=${formatMMDDYYYY(checkIn)}&endDate=${formatMMDDYYYY(checkOut)}`;
-      if (pn.includes("hotels.com"))
-        return `https://www.hotels.com/search.do?q-destination=${q}&q-check-in=${checkIn}&q-check-out=${checkOut}`;
-      if (pn.includes("agoda"))
-        return `https://www.agoda.com/search?searchText=${q}&checkIn=${checkIn}&checkOut=${checkOut}`;
-      if (pn.includes("priceline"))
-        return `https://www.priceline.com/hotel-search/?q=${q}&startDate=${checkIn}&endDate=${checkOut}`;
-      if (pn.includes("trip.com"))
-        return `https://www.trip.com/hotels/?query=${q}&checkin=${checkIn}&checkout=${checkOut}`;
+        return `https://www.expedia.com/go/hotel/search/Destination/${checkIn}/${checkOut}?CityName=${encodeURIComponent(city)}&ChainName=${encodeURIComponent(hotelName)}&NumRoom=1`;
       return `https://www.google.com/travel/hotels?q=${q}&dates=${checkIn},${checkOut}`;
     }
 
@@ -712,11 +704,16 @@
                         </a>
                         {r.providers && r.providers[0] && (() => {
                           const prov = r.providers[0];
+                          const pn = (prov.name || "").toLowerCase();
+                          const isDirect = pn.includes("booking.com") || pn.includes("expedia");
                           const provUrl = buildProviderUrl(prov.name, h.name, h.city, dr.checkIn, dr.checkOut);
+                          const label = isDirect
+                            ? `${fmtUSD(prov.rate)} on ${prov.name}`
+                            : `${fmtUSD(prov.rate)} on ${prov.name} (via Google Hotels)`;
                           return (
                             <a href={provUrl} target="_blank" rel="noopener noreferrer"
                               style={{ display: "block", fontSize: 11, color: "#D4A053", marginTop: 5, textDecoration: "none", fontWeight: 500 }}>
-                              {fmtUSD(prov.rate)} on {prov.name} &rsaquo;
+                              {label} &rsaquo;
                             </a>
                           );
                         })()}
