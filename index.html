@@ -109,7 +109,7 @@
       // Santa Barbara, CA
       { name: "Ritz-Carlton Bacara", city: "Santa Barbara", region: "California, US", stars: 5, baseRate: 689, url: "https://www.ritzcarlton.com/en/hotels/sbarc-the-ritz-carlton-bacara-santa-barbara", chain: "marriott", chainPropertyCode: "SBARC" },
       { name: "Belmond El Encanto", city: "Santa Barbara", region: "California, US", stars: 5, baseRate: 599, url: "https://www.belmond.com/hotels/north-america/usa/santa-barbara/belmond-el-encanto" },
-      { name: "Mar Monte Hotel", city: "Santa Barbara", region: "California, US", stars: 4, baseRate: 412, url: "https://www.marmontehotel.com" },
+      { name: "Mar Monte Hotel", city: "Santa Barbara", region: "California, US", stars: 4, baseRate: 412, url: "https://www.hyatt.com/unbound-collection/en-US/sbars-mar-monte-hotel", chain: "hyatt", chainPropertyCode: "sbars" },
       { name: "Hotel Californian", city: "Santa Barbara", region: "California, US", stars: 4, baseRate: 349, url: "https://www.hotelcalifornian.com" },
       { name: "Kimpton Canary Hotel", city: "Santa Barbara", region: "California, US", stars: 4, baseRate: 329, url: "https://www.ihg.com/kimpton/hotels/us/en/santa-barbara/sbakm/hoteldetail", chain: "ihg", chainPropertyCode: "SBAKM", chainBrandCode: "KI" },
       { name: "Santa Barbara Inn", city: "Santa Barbara", region: "California, US", stars: 3, baseRate: 249, url: "https://www.santabarbarainn.com" },
@@ -292,8 +292,9 @@
           return `https://www.hyatt.com/shop/rooms/${sc}?location=${sc}&checkinDate=${checkIn}&checkoutDate=${checkOut}&adults=2&rooms=1`;
         }
         case "ihg": {
-          const ci = parseIHGDate(checkIn), co = parseIHGDate(checkOut);
-          return `https://www.ihg.com/redirect?path=rates&brandCode=${hotel.chainBrandCode}&hotelCode=${hotel.chainPropertyCode}&checkInDate=${ci.day}&checkInMonthYear=${ci.monthYear}&checkOutDate=${co.day}&checkOutMonthYear=${co.monthYear}&numberOfAdults=2`;
+          // Use the hotel's own IHG URL with date params appended
+          const base = hotel.url.split("?")[0];
+          return `${base}?qDtCI=${checkIn}&qDtCO=${checkOut}&qAdlt=2&qRms=1`;
         }
         default: {
           const q = encodeURIComponent(`${hotel.name} ${hotel.city}`);
@@ -376,7 +377,12 @@
           return next;
         });
         if (field === "checkIn" && value) {
-          setTimeout(() => { if (checkOutRefs.current[idx]) checkOutRefs.current[idx].focus(); }, 0);
+          setTimeout(() => {
+            const el = checkOutRefs.current[idx];
+            if (el) {
+              try { el.showPicker(); } catch(e) { el.focus(); }
+            }
+          }, 50);
         }
         setShowResults(false);
       };
