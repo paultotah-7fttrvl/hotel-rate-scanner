@@ -94,6 +94,20 @@
     /* Link styles */
     a { color: inherit; text-decoration: none; }
     a:hover { opacity: 0.8; }
+
+    /* Search dropdown */
+    .search-dropdown {
+      position: absolute; top: calc(100% + 6px); left: 0; right: 0;
+      background: #fff; border-radius: 10px; border: 1px solid #eee;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.12); z-index: 100;
+      overflow: hidden;
+    }
+    .search-dropdown-item {
+      padding: 10px 16px; cursor: pointer; font-size: 13px; color: #1a1a1a;
+      display: flex; align-items: center; justify-content: space-between;
+      transition: background 0.1s;
+    }
+    .search-dropdown-item:hover { background: #f5f5f3; }
   </style>
 </head>
 <body>
@@ -335,13 +349,57 @@
       const [showResults, setShowResults] = useState(false);
       const [loading, setLoading] = useState(false);
       const [hasSearched, setHasSearched] = useState(false);
+      const [showDropdown, setShowDropdown] = useState(false);
+      const [dropdownCities, setDropdownCities] = useState([]);
       const searchRef = useRef(null);
+      const searchWrapRef = useRef(null);
       const checkOutRefs = useRef([]);
 
-      // Search hotels — live as user types
+      // Close dropdown on outside click
+      useEffect(() => {
+        const handler = (e) => {
+          if (searchWrapRef.current && !searchWrapRef.current.contains(e.target)) {
+            setShowDropdown(false);
+          }
+        };
+        document.addEventListener("mousedown", handler);
+        return () => document.removeEventListener("mousedown", handler);
+      }, []);
+
+      // Search hotels — live as user types, show city dropdown
       useEffect(() => {
         const q = searchQuery.trim().toLowerCase();
-        if (!q) { setSearchResults([]); setHasSearched(false); return; }
+        if (!q) {
+          setSearchResults([]);
+          setHasSearched(false);
+          setDropdownCities([]);
+          setShowDropdown(false);
+          return;
+        }
+        const matches = HOTELS.filter(
+          (h) =>
+            h.name.toLowerCase().includes(q) ||
+            h.city.toLowerCase().includes(q) ||
+            h.region.toLowerCase().includes(q)
+        );
+        // Unique cities from matches, sorted
+        const cities = [...new Set(matches.map(h => h.city))].sort();
+        setDropdownCities(cities);
+        setShowDropdown(cities.length > 0);
+        // Only show hotels below if user has selected a city (not mid-typing)
+      }, [searchQuery]);
+
+      const selectCity = (city) => {
+        const matches = HOTELS.filter(h => h.city === city);
+        setSearchResults(matches);
+        setHasSearched(true);
+        setShowDropdown(false);
+        setSearchQuery(city);
+      };
+
+      const handleSearch = () => {
+        const q = searchQuery.trim().toLowerCase();
+        if (!q) return;
         const matches = HOTELS.filter(
           (h) =>
             h.name.toLowerCase().includes(q) ||
@@ -350,9 +408,8 @@
         );
         setSearchResults(matches);
         setHasSearched(true);
-      }, [searchQuery]);
-
-      const handleSearch = () => {};
+        setShowDropdown(false);
+      };
 
       // Toggle hotel selection
       const toggleHotel = (hotel) => {
@@ -520,8 +577,9 @@
               </p>
 
               {/* Search bar */}
-              <div style={{
+              <div ref={searchWrapRef} style={{
                 display: "flex", gap: 8, maxWidth: 460, margin: "0 auto",
+                position: "relative",
               }}>
                 <div style={{
                   flex: 1, background: "rgba(255,255,255,0.08)",
@@ -538,6 +596,7 @@
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+                    onFocus={() => dropdownCities.length > 0 && setShowDropdown(true)}
                     ref={searchRef}
                     style={{ fontSize: 14, fontWeight: 500 }}
                   />
@@ -551,6 +610,23 @@
                     fontWeight: 600, fontFamily: "'DM Sans', sans-serif",
                   }}
                 >Search</button>
+                {showDropdown && (
+                  <div className="search-dropdown">
+                    {dropdownCities.map(city => {
+                      const count = HOTELS.filter(h => h.city === city).length;
+                      return (
+                        <div
+                          key={city}
+                          className="search-dropdown-item"
+                          onMouseDown={() => selectCity(city)}
+                        >
+                          <span>{city}</span>
+                          <span style={{ fontSize: 11, color: "#aaa" }}>{count} hotel{count !== 1 ? "s" : ""}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -850,7 +926,7 @@
                             </th>
                           );
                         })}
-                        <th style={{ padding: "12px 16px", borderBottom: "1px solid #eee" }} />
+
                       </tr>
                     </thead>
                     <tbody>
@@ -882,7 +958,7 @@
                               const nights = nightsBetween(dr.checkIn, dr.checkOut);
                               if (!r) return <td key={di} />;
                               return (
-                                <td key={di} style={{ textAlign: "center", padding: "14px 16px" }}>
+                                <td key={di} style={{ textAlign: "center", padding: "12px 16px" }}>
                                   {r.available ? (
                                     <>
                                       <p style={{
@@ -892,9 +968,22 @@
                                         color: isBest ? "#412402" : "#1a1a1a",
                                       }}>{formatCurrency(r.rate)}</p>
                                       <p style={{
-                                        fontSize: 11, margin: "1px 0 0",
+                                        fontSize: 11, margin: "2px 0 6px",
                                         color: isBest ? "#854F0B" : "#aaa",
                                       }}>{formatCurrency(r.rate * nights)} total</p>
+                                      <a
+                                        href={buildBookingUrl(hotel, dr.checkIn, dr.checkOut)}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="btn-primary"
+                                        style={{
+                                          fontSize: 11, fontWeight: 600,
+                                          padding: "4px 12px", borderRadius: 6,
+                                          textDecoration: "none", display: "inline-block",
+                                          background: isBest ? "#2C1810" : "#f0ede8",
+                                          color: isBest ? "#F5E6D8" : "#666",
+                                        }}
+                                      >Book</a>
                                     </>
                                   ) : (
                                     <span style={{ fontSize: 12, color: "#ccc" }}>Sold out</span>
@@ -902,23 +991,6 @@
                                 </td>
                               );
                             })}
-                            <td style={{ padding: "14px 16px", textAlign: "right" }}>
-                              <a
-                                href={buildBookingUrl(hotel, validDates[0].checkIn, validDates[0].checkOut)}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className={isBestHotel ? "btn-primary" : "btn-outline"}
-                                style={{
-                                  fontSize: 12, fontWeight: 500,
-                                  padding: "7px 16px", borderRadius: 8,
-                                  textDecoration: "none", display: "inline-block",
-                                  ...(isBestHotel
-                                    ? { background: "#2C1810", color: "#F5E6D8" }
-                                    : { background: "transparent", color: "#888", border: "1px solid #ddd" }
-                                  ),
-                                }}
-                              >Book</a>
-                            </td>
                           </tr>
                         );
                       })}
