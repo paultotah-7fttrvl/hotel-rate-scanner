@@ -20,21 +20,13 @@
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: #ccc; border-radius: 3px; }
 
-    /* Date input styling */
-    input[type="date"] {
-      font-family: 'DM Sans', sans-serif;
-      font-size: 13px;
-      padding: 8px 12px;
-      border: 1px solid #ddd;
-      border-radius: 8px;
-      background: #fff;
-      color: #1a1a1a;
-      cursor: pointer;
-      outline: none;
-      transition: border-color 0.2s;
-    }
-    input[type="date"]:hover { border-color: #999; }
-    input[type="date"]:focus { border-color: #2C1810; }
+    /* Custom date range picker */
+    .drp-day { text-align: center; padding: 6px 2px; border-radius: 6px; font-size: 12px; cursor: pointer; transition: background 0.1s; }
+    .drp-day:hover:not(.drp-disabled) { background: #f0ede8; }
+    .drp-day.drp-disabled { color: #ddd; cursor: not-allowed; }
+    .drp-day.drp-start, .drp-day.drp-end { background: #2C1810 !important; color: #fff !important; font-weight: 700; }
+    .drp-day.drp-in-range { background: #FAEEDA; color: #412402; }
+    .drp-day.drp-today { outline: 1px solid #ddd; }
 
     /* Search input */
     input[type="text"] {
@@ -334,6 +326,187 @@
     ];
 
     // =====================================================================
+    //  DATE RANGE PICKER COMPONENT
+    // =====================================================================
+    function DateRangePicker({ value, onChange, minDate, colorDot }) {
+      const today = minDate || new Date().toISOString().split("T")[0];
+      const [open, setOpen] = useState(false);
+      const [step, setStep] = useState("checkIn");
+      const [tempCheckIn, setTempCheckIn] = useState(null);
+      const [hoverDate, setHoverDate] = useState(null);
+      const initMonth = () => {
+        const src = value.checkIn || today;
+        const d = new Date(src + "T12:00:00");
+        return { y: d.getFullYear(), m: d.getMonth() };
+      };
+      const [view, setView] = useState(initMonth);
+      const wrapRef = useRef(null);
+
+      useEffect(() => {
+        const handler = (e) => {
+          if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false);
+        };
+        document.addEventListener("mousedown", handler);
+        return () => document.removeEventListener("mousedown", handler);
+      }, []);
+
+      const handleOpen = () => {
+        setOpen(o => !o);
+        setStep("checkIn");
+        setTempCheckIn(null);
+        setHoverDate(null);
+        setView(initMonth());
+      };
+
+      const handleDayClick = (dateStr) => {
+        if (step === "checkIn") {
+          setTempCheckIn(dateStr);
+          setStep("checkOut");
+          setHoverDate(null);
+        } else {
+          if (dateStr <= tempCheckIn) {
+            // clicked same or earlier — restart
+            setTempCheckIn(dateStr);
+            setHoverDate(null);
+            return;
+          }
+          onChange({ checkIn: tempCheckIn, checkOut: dateStr });
+          setOpen(false);
+          setStep("checkIn");
+          setTempCheckIn(null);
+        }
+      };
+
+      const getDays = (y, m) => {
+        const firstDay = new Date(y, m, 1).getDay();
+        const total = new Date(y, m + 1, 0).getDate();
+        const days = Array(firstDay).fill(null);
+        for (let d = 1; d <= total; d++) {
+          days.push(`${y}-${String(m+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`);
+        }
+        return days;
+      };
+
+      const prevMonth = () => setView(v => {
+        if (v.m === 0) return { y: v.y - 1, m: 11 };
+        return { y: v.y, m: v.m - 1 };
+      });
+      const nextMonth = () => setView(v => {
+        if (v.m === 11) return { y: v.y + 1, m: 0 };
+        return { y: v.y, m: v.m + 1 };
+      });
+
+      const monthLabel = new Date(view.y, view.m).toLocaleDateString("en-US", { month: "long", year: "numeric" });
+      const days = getDays(view.y, view.m);
+
+      const startDate = step === "checkOut" ? tempCheckIn : value.checkIn;
+      const endDate = step === "checkOut" ? hoverDate : value.checkOut;
+
+      const fmtShort = (ds) => {
+        if (!ds) return null;
+        const d = new Date(ds + "T12:00:00");
+        return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+      };
+      const nights = value.checkIn && value.checkOut
+        ? Math.round((new Date(value.checkOut) - new Date(value.checkIn)) / 86400000) : 0;
+
+      return (
+        <div ref={wrapRef} style={{ position: "relative", flex: 1 }}>
+          {/* Trigger */}
+          <div
+            onClick={handleOpen}
+            style={{
+              display: "flex", alignItems: "center", gap: 8,
+              background: "#fff", border: open ? "1px solid #2C1810" : "1px solid #ddd",
+              borderRadius: 8, padding: "8px 12px", cursor: "pointer", userSelect: "none",
+              transition: "border-color 0.2s",
+            }}
+          >
+            <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
+              <rect x="1" y="2" width="12" height="11" rx="1.5" stroke="#aaa" strokeWidth="1.1"/>
+              <path d="M1 6h12" stroke="#aaa" strokeWidth="1.1"/>
+              <rect x="3" y="1" width="1.5" height="2.5" rx="0.5" fill="#aaa"/>
+              <rect x="9.5" y="1" width="1.5" height="2.5" rx="0.5" fill="#aaa"/>
+            </svg>
+            {value.checkIn && value.checkOut ? (
+              <span style={{ fontSize: 13, color: "#1a1a1a", fontWeight: 500 }}>
+                {fmtShort(value.checkIn)} → {fmtShort(value.checkOut)}
+                <span style={{ color: "#aaa", fontWeight: 400, marginLeft: 6, fontSize: 12 }}>
+                  {nights} night{nights !== 1 ? "s" : ""}
+                </span>
+              </span>
+            ) : step === "checkOut" && tempCheckIn ? (
+              <span style={{ fontSize: 13, color: "#1a1a1a" }}>
+                {fmtShort(tempCheckIn)} → <span style={{ color: "#C4A882" }}>pick check-out</span>
+              </span>
+            ) : (
+              <span style={{ fontSize: 13, color: "#aaa" }}>Select dates</span>
+            )}
+          </div>
+
+          {/* Calendar */}
+          {open && (
+            <div style={{
+              position: "absolute", top: "calc(100% + 6px)", left: 0, zIndex: 200,
+              background: "#fff", borderRadius: 12, border: "1px solid #eee",
+              boxShadow: "0 8px 32px rgba(0,0,0,0.12)", padding: "16px 14px",
+              minWidth: 260,
+            }}>
+              <p style={{
+                fontSize: 11, fontWeight: 600, textAlign: "center", margin: "0 0 12px",
+                color: step === "checkIn" ? "#854F0B" : "#085041",
+              }}>
+                {step === "checkIn" ? "Select check-in" : `Check-in ${fmtShort(tempCheckIn)} — select check-out`}
+              </p>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                <button onClick={prevMonth} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 18, color: "#666", padding: "0 6px", lineHeight: 1 }}>‹</button>
+                <span style={{ fontSize: 13, fontWeight: 600 }}>{monthLabel}</span>
+                <button onClick={nextMonth} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 18, color: "#666", padding: "0 6px", lineHeight: 1 }}>›</button>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 1, marginBottom: 4 }}>
+                {["Su","Mo","Tu","We","Th","Fr","Sa"].map(d => (
+                  <div key={d} style={{ textAlign: "center", fontSize: 10, color: "#bbb", fontWeight: 600, padding: "2px 0" }}>{d}</div>
+                ))}
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 1 }}>
+                {days.map((ds, i) => {
+                  if (!ds) return <div key={`e${i}`} />;
+                  const disabled = ds < today;
+                  const isStart = ds === startDate;
+                  const isEnd = endDate && ds === endDate && endDate > startDate;
+                  const inRange = startDate && endDate && ds > startDate && ds < endDate && endDate > startDate;
+                  const isToday = ds === today;
+                  let cls = "drp-day";
+                  if (disabled) cls += " drp-disabled";
+                  else if (isStart || isEnd) cls += " drp-start";
+                  else if (inRange) cls += " drp-in-range";
+                  else if (isToday) cls += " drp-today";
+                  return (
+                    <div
+                      key={ds}
+                      className={cls}
+                      onMouseEnter={() => step === "checkOut" && !disabled && setHoverDate(ds)}
+                      onMouseLeave={() => step === "checkOut" && setHoverDate(null)}
+                      onClick={() => !disabled && handleDayClick(ds)}
+                    >
+                      {parseInt(ds.split("-")[2])}
+                    </div>
+                  );
+                })}
+              </div>
+              {(value.checkIn || value.checkOut) && (
+                <button
+                  onClick={() => { onChange({ checkIn: "", checkOut: "" }); setStep("checkIn"); setTempCheckIn(null); }}
+                  style={{ background: "none", border: "none", cursor: "pointer", fontSize: 11, color: "#bbb", padding: "10px 0 0", display: "block", width: "100%", textAlign: "center", fontFamily: "'DM Sans', sans-serif" }}
+                >Clear</button>
+              )}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // =====================================================================
     //  APP COMPONENT
     // =====================================================================
     function App() {
@@ -424,29 +597,12 @@
       };
 
       // Date range management
-      const updateDate = (idx, field, value) => {
+      const updateDateRange = (idx, val) => {
         setDateRanges((prev) => {
           const next = [...prev];
-          next[idx] = { ...next[idx], [field]: value };
-          if (field === "checkIn") {
-            // Always set checkout to day after checkin
-            const co = new Date(value);
-            co.setDate(co.getDate() + 1);
-            const coStr = co.toISOString().split("T")[0];
-            if (!next[idx].checkOut || next[idx].checkOut <= value) {
-              next[idx].checkOut = coStr;
-            }
-          }
+          next[idx] = val;
           return next;
         });
-        if (field === "checkIn" && value) {
-          setTimeout(() => {
-            const el = checkOutRefs.current[idx];
-            if (el) {
-              try { el.showPicker(); } catch(e) { el.focus(); }
-            }
-          }, 100);
-        }
         setShowResults(false);
       };
 
@@ -685,7 +841,7 @@
                   <label style={{
                     fontSize: 11, fontWeight: 600, color: "#888",
                     letterSpacing: 1.5, textTransform: "uppercase",
-                  }}>Which hotels are you considering?</label>
+                  }}>Add hotels to your shortlist</label>
                   <span style={{ fontSize: 11, color: "#aaa" }}>
                     {selectedHotels.length} of 5 selected
                   </span>
@@ -699,18 +855,19 @@
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                     {searchResults.map((hotel) => {
                       const isSelected = selectedHotels.find((h) => h.id === hotel.id);
+                      const atMax = selectedHotels.length >= 5 && !isSelected;
                       return (
                         <div
                           key={hotel.id}
                           className="hotel-pill"
-                          onClick={() => toggleHotel(hotel)}
+                          onClick={() => !atMax && toggleHotel(hotel)}
                           style={{
                             display: "flex", alignItems: "center", gap: 6,
-                            background: isSelected ? "#FAEEDA" : "#f5f5f3",
+                            background: isSelected ? "#FAEEDA" : atMax ? "#f9f9f7" : "#f5f5f3",
                             borderRadius: 100, padding: "8px 14px 8px 10px",
                             fontSize: 13, fontWeight: isSelected ? 600 : 400,
-                            color: isSelected ? "#412402" : "#666",
-                            cursor: "pointer",
+                            color: isSelected ? "#412402" : atMax ? "#ccc" : "#666",
+                            cursor: atMax ? "not-allowed" : "pointer",
                             border: isSelected ? "1px solid #EF9F27" : "1px solid transparent",
                           }}
                         >
@@ -739,6 +896,74 @@
               </div>
             )}
 
+            {/* ============ SHORTLIST (always visible when hotels selected) ============ */}
+            {selectedHotels.length > 0 && (() => {
+              const cities = [...new Set(selectedHotels.map(h => h.city))];
+              const isMultiCity = cities.length > 1;
+              return (
+                <div className="fade-up" style={{
+                  background: "#fff", border: "1px solid #eee",
+                  borderRadius: 12, padding: 20, marginBottom: 16,
+                }}>
+                  <div style={{
+                    display: "flex", alignItems: "center",
+                    justifyContent: "space-between", marginBottom: 12,
+                  }}>
+                    <label style={{
+                      fontSize: 11, fontWeight: 600, color: "#888",
+                      letterSpacing: 1.5, textTransform: "uppercase",
+                    }}>Your shortlist</label>
+                    {isMultiCity && (
+                      <span style={{
+                        fontSize: 11, color: "#854F0B", background: "#FAEEDA",
+                        padding: "2px 8px", borderRadius: 100, fontWeight: 500,
+                      }}>Multi-city comparison</span>
+                    )}
+                  </div>
+                  {cities.map(city => (
+                    <div key={city} style={{ marginBottom: 12 }}>
+                      {isMultiCity && (
+                        <p style={{
+                          fontSize: 11, fontWeight: 600, color: "#aaa",
+                          textTransform: "uppercase", letterSpacing: 1,
+                          marginBottom: 6,
+                        }}>{city}</p>
+                      )}
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                        {selectedHotels.filter(h => h.city === city).map(hotel => (
+                          <div
+                            key={hotel.id}
+                            className="hotel-pill"
+                            style={{
+                              display: "flex", alignItems: "center", gap: 6,
+                              background: "#FAEEDA", borderRadius: 100,
+                              padding: "8px 10px 8px 14px",
+                              fontSize: 13, fontWeight: 600,
+                              color: "#412402",
+                              border: "1px solid #EF9F27",
+                            }}
+                          >
+                            {hotel.name}
+                            <span style={{ fontSize: 11, color: "#854F0B", fontWeight: 400 }}>
+                              {"★".repeat(hotel.stars)}
+                            </span>
+                            <svg
+                              width="14" height="14" viewBox="0 0 14 14" fill="none"
+                              style={{ cursor: "pointer", flexShrink: 0, marginLeft: 2 }}
+                              onClick={() => toggleHotel(hotel)}
+                            >
+                              <circle cx="7" cy="7" r="6" fill="#EF9F27"/>
+                              <path d="M4.5 4.5L9.5 9.5M9.5 4.5L4.5 9.5" stroke="white" strokeWidth="1.2" strokeLinecap="round"/>
+                            </svg>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+
             {/* ============ DATE RANGES ============ */}
             {selectedHotels.length > 0 && (
               <div className="fade-up" style={{
@@ -754,8 +979,6 @@
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                   {dateRanges.map((dr, idx) => {
                     const c = OPTION_COLORS[idx];
-                    const nights = dr.checkIn && dr.checkOut && dr.checkOut > dr.checkIn
-                      ? nightsBetween(dr.checkIn, dr.checkOut) : 0;
                     return (
                       <div key={idx} style={{
                         display: "flex", alignItems: "center", gap: 10,
@@ -768,31 +991,13 @@
                         <span style={{
                           fontSize: 11, fontWeight: 600, color: "#aaa",
                           textTransform: "uppercase", letterSpacing: 1,
-                          minWidth: 68,
+                          minWidth: 68, flexShrink: 0,
                         }}>Option {String.fromCharCode(65 + idx)}</span>
-                        <input
-                          type="date"
-                          value={dr.checkIn}
-                          min={new Date().toISOString().split("T")[0]}
-                          onChange={(e) => updateDate(idx, "checkIn", e.target.value)}
-                          style={{ flex: 1 }}
+                        <DateRangePicker
+                          value={dr}
+                          onChange={(val) => updateDateRange(idx, val)}
+                          minDate={new Date().toISOString().split("T")[0]}
                         />
-                        <span style={{ fontSize: 12, color: "#aaa" }}>→</span>
-                        <input
-                          type="date"
-                          ref={el => checkOutRefs.current[idx] = el}
-                          value={dr.checkOut}
-                          min={dr.checkIn ? (() => { const d = new Date(dr.checkIn); d.setDate(d.getDate() + 1); return d.toISOString().split("T")[0]; })() : ""}
-                          onChange={(e) => updateDate(idx, "checkOut", e.target.value)}
-                          style={{ flex: 1 }}
-                        />
-                        {nights > 0 && (
-                          <span style={{
-                            fontSize: 12, color: "#aaa", whiteSpace: "nowrap",
-                          }}>
-                            {nights} night{nights > 1 ? "s" : ""}
-                          </span>
-                        )}
                         {dateRanges.length > 2 && (
                           <svg
                             width="14" height="14" viewBox="0 0 14 14" fill="none"
