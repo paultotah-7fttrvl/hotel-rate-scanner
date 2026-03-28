@@ -111,7 +111,7 @@
       { name: "Belmond El Encanto", city: "Santa Barbara", region: "California, US", stars: 5, baseRate: 599, url: "https://www.belmond.com/hotels/north-america/usa/santa-barbara/belmond-el-encanto" },
       { name: "Mar Monte Hotel", city: "Santa Barbara", region: "California, US", stars: 4, baseRate: 412, url: "https://www.hyatt.com/unbound-collection/en-US/sbars-mar-monte-hotel", chain: "hyatt", chainPropertyCode: "sbars" },
       { name: "Hotel Californian", city: "Santa Barbara", region: "California, US", stars: 4, baseRate: 349, url: "https://www.hotelcalifornian.com" },
-      { name: "Kimpton Canary Hotel", city: "Santa Barbara", region: "California, US", stars: 4, baseRate: 329, url: "https://www.ihg.com/kimpton/hotels/us/en/santa-barbara/sbakm/hoteldetail", chain: "ihg", chainPropertyCode: "SBAKM", chainBrandCode: "KI" },
+      { name: "Kimpton Canary Hotel", city: "Santa Barbara", region: "California, US", stars: 4, baseRate: 329, url: "https://www.ihg.com/kimpton/hotels/us/en/santa-barbara/sabcn/hoteldetail", chain: "ihg", chainPropertyCode: "SABCN", chainBrandCode: "KI" },
       { name: "Santa Barbara Inn", city: "Santa Barbara", region: "California, US", stars: 3, baseRate: 249, url: "https://www.santabarbarainn.com" },
       // Charleston, SC
       { name: "Belmond Charleston Place", city: "Charleston", region: "South Carolina, US", stars: 5, baseRate: 499, url: "https://www.belmond.com/hotels/north-america/usa/charleston/belmond-charleston-place" },
@@ -338,10 +338,10 @@
       const searchRef = useRef(null);
       const checkOutRefs = useRef([]);
 
-      // Search hotels
-      const handleSearch = useCallback(() => {
-        if (!searchQuery.trim()) return;
-        const q = searchQuery.toLowerCase();
+      // Search hotels — live as user types
+      useEffect(() => {
+        const q = searchQuery.trim().toLowerCase();
+        if (!q) { setSearchResults([]); setHasSearched(false); return; }
         const matches = HOTELS.filter(
           (h) =>
             h.name.toLowerCase().includes(q) ||
@@ -351,6 +351,8 @@
         setSearchResults(matches);
         setHasSearched(true);
       }, [searchQuery]);
+
+      const handleSearch = () => {};
 
       // Toggle hotel selection
       const toggleHotel = (hotel) => {
@@ -369,10 +371,14 @@
         setDateRanges((prev) => {
           const next = [...prev];
           next[idx] = { ...next[idx], [field]: value };
-          if (field === "checkIn" && next[idx].checkOut && next[idx].checkOut <= value) {
+          if (field === "checkIn") {
+            // Always set checkout to day after checkin
             const co = new Date(value);
             co.setDate(co.getDate() + 1);
-            next[idx].checkOut = co.toISOString().split("T")[0];
+            const coStr = co.toISOString().split("T")[0];
+            if (!next[idx].checkOut || next[idx].checkOut <= value) {
+              next[idx].checkOut = coStr;
+            }
           }
           return next;
         });
@@ -382,7 +388,7 @@
             if (el) {
               try { el.showPicker(); } catch(e) { el.focus(); }
             }
-          }, 50);
+          }, 100);
         }
         setShowResults(false);
       };
@@ -691,6 +697,7 @@
                         <input
                           type="date"
                           value={dr.checkIn}
+                          min={new Date().toISOString().split("T")[0]}
                           onChange={(e) => updateDate(idx, "checkIn", e.target.value)}
                           style={{ flex: 1 }}
                         />
@@ -699,6 +706,7 @@
                           type="date"
                           ref={el => checkOutRefs.current[idx] = el}
                           value={dr.checkOut}
+                          min={dr.checkIn ? (() => { const d = new Date(dr.checkIn); d.setDate(d.getDate() + 1); return d.toISOString().split("T")[0]; })() : ""}
                           onChange={(e) => updateDate(idx, "checkOut", e.target.value)}
                           style={{ flex: 1 }}
                         />
