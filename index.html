@@ -107,11 +107,11 @@
     // =====================================================================
     const HOTELS = [
       // Santa Barbara, CA
-      { name: "Ritz-Carlton Bacara", city: "Santa Barbara", region: "California, US", stars: 5, baseRate: 689, url: "https://www.ritzcarlton.com/en/hotels/sbarc-the-ritz-carlton-bacara-santa-barbara" },
+      { name: "Ritz-Carlton Bacara", city: "Santa Barbara", region: "California, US", stars: 5, baseRate: 689, url: "https://www.ritzcarlton.com/en/hotels/sbarc-the-ritz-carlton-bacara-santa-barbara", chain: "marriott", chainPropertyCode: "SBARC" },
       { name: "Belmond El Encanto", city: "Santa Barbara", region: "California, US", stars: 5, baseRate: 599, url: "https://www.belmond.com/hotels/north-america/usa/santa-barbara/belmond-el-encanto" },
       { name: "Mar Monte Hotel", city: "Santa Barbara", region: "California, US", stars: 4, baseRate: 412, url: "https://www.marmontehotel.com" },
       { name: "Hotel Californian", city: "Santa Barbara", region: "California, US", stars: 4, baseRate: 349, url: "https://www.hotelcalifornian.com" },
-      { name: "Kimpton Canary Hotel", city: "Santa Barbara", region: "California, US", stars: 4, baseRate: 329, url: "https://www.ihg.com/kimpton/hotels/us/en/santa-barbara/sbakm/hoteldetail" },
+      { name: "Kimpton Canary Hotel", city: "Santa Barbara", region: "California, US", stars: 4, baseRate: 329, url: "https://www.ihg.com/kimpton/hotels/us/en/santa-barbara/sbakm/hoteldetail", chain: "ihg", chainPropertyCode: "SBAKM", chainBrandCode: "KI" },
       { name: "Santa Barbara Inn", city: "Santa Barbara", region: "California, US", stars: 3, baseRate: 249, url: "https://www.santabarbarainn.com" },
       // Charleston, SC
       { name: "Belmond Charleston Place", city: "Charleston", region: "South Carolina, US", stars: 5, baseRate: 499, url: "https://www.belmond.com/hotels/north-america/usa/charleston/belmond-charleston-place" },
@@ -122,9 +122,9 @@
       // Austin, TX
       { name: "Four Seasons Austin", city: "Austin", region: "Texas, US", stars: 5, baseRate: 499, url: "https://www.fourseasons.com/austin" },
       { name: "Hotel Saint Cecilia", city: "Austin", region: "Texas, US", stars: 5, baseRate: 549, url: "https://www.hotelsaintcecilia.com" },
-      { name: "The Driskill", city: "Austin", region: "Texas, US", stars: 4, baseRate: 299, url: "https://www.hyatt.com/en-US/hotel/texas/the-driskill/ausal" },
+      { name: "The Driskill", city: "Austin", region: "Texas, US", stars: 4, baseRate: 299, url: "https://www.hyatt.com/en-US/hotel/texas/the-driskill/ausal", chain: "hyatt", chainPropertyCode: "ausal" },
       { name: "South Congress Hotel", city: "Austin", region: "Texas, US", stars: 4, baseRate: 279, url: "https://www.southcongresshotel.com" },
-      { name: "Kimpton Hotel Van Zandt", city: "Austin", region: "Texas, US", stars: 4, baseRate: 249, url: "https://www.ihg.com/kimpton/hotels/us/en/austin/ausvz/hoteldetail" },
+      { name: "Kimpton Hotel Van Zandt", city: "Austin", region: "Texas, US", stars: 4, baseRate: 249, url: "https://www.ihg.com/kimpton/hotels/us/en/austin/ausvz/hoteldetail", chain: "ihg", chainPropertyCode: "AUSVZ", chainBrandCode: "KI" },
       // Seattle, WA
       { name: "Four Seasons Seattle", city: "Seattle", region: "Washington, US", stars: 5, baseRate: 549, url: "https://www.fourseasons.com/seattle" },
       { name: "The Edgewater Hotel", city: "Seattle", region: "Washington, US", stars: 4, baseRate: 299, url: "https://www.edgewaterhotel.com" },
@@ -144,9 +144,9 @@
       { name: "Hotel Fabric", city: "Paris", region: "France", stars: 3, baseRate: 179, url: "https://www.hotelfabric.com" },
       { name: "Generator Paris", city: "Paris", region: "France", stars: 2, baseRate: 69, url: "https://staygenerator.com/hostels/paris" },
       // Tokyo, Japan
-      { name: "Park Hyatt Tokyo", city: "Tokyo", region: "Japan", stars: 5, baseRate: 699, url: "https://www.hyatt.com/en-US/hotel/japan/park-hyatt-tokyo/tyoph" },
+      { name: "Park Hyatt Tokyo", city: "Tokyo", region: "Japan", stars: 5, baseRate: 699, url: "https://www.hyatt.com/en-US/hotel/japan/park-hyatt-tokyo/tyoph", chain: "hyatt", chainPropertyCode: "tyoph" },
       { name: "Aman Tokyo", city: "Tokyo", region: "Japan", stars: 5, baseRate: 999, url: "https://www.aman.com/hotels/aman-tokyo" },
-      { name: "The Prince Gallery Tokyo", city: "Tokyo", region: "Japan", stars: 5, baseRate: 449, url: "https://www.marriott.com/hotels/travel/tyolc-the-prince-gallery-tokyo-kioicho" },
+      { name: "The Prince Gallery Tokyo", city: "Tokyo", region: "Japan", stars: 5, baseRate: 449, url: "https://www.marriott.com/hotels/travel/tyolc-the-prince-gallery-tokyo-kioicho", chain: "marriott", chainPropertyCode: "TYOLC" },
       { name: "Shinjuku Granbell Hotel", city: "Tokyo", region: "Japan", stars: 3, baseRate: 129, url: "https://www.granbellhotel.jp/en/shinjuku" },
       { name: "UNPLAN Shinjuku", city: "Tokyo", region: "Japan", stars: 2, baseRate: 49, url: "https://unplan.jp" },
       // London, UK
@@ -168,8 +168,8 @@
       { name: "Hotel Artemide", city: "Rome", region: "Italy", stars: 4, baseRate: 199, url: "https://www.hotelartemide.it" },
       { name: "The Yellow", city: "Rome", region: "Italy", stars: 2, baseRate: 59, url: "https://www.the-yellow.com" },
       // Barcelona, Spain
-      { name: "Hotel Arts Barcelona", city: "Barcelona", region: "Spain", stars: 5, baseRate: 499, url: "https://www.marriott.com/hotels/travel/bcnrz-hotel-arts-barcelona" },
-      { name: "W Barcelona", city: "Barcelona", region: "Spain", stars: 5, baseRate: 449, url: "https://www.marriott.com/hotels/travel/bcnwh-w-barcelona" },
+      { name: "Hotel Arts Barcelona", city: "Barcelona", region: "Spain", stars: 5, baseRate: 499, url: "https://www.marriott.com/hotels/travel/bcnrz-hotel-arts-barcelona", chain: "marriott", chainPropertyCode: "BCNRZ" },
+      { name: "W Barcelona", city: "Barcelona", region: "Spain", stars: 5, baseRate: 449, url: "https://www.marriott.com/hotels/travel/bcnwh-w-barcelona", chain: "marriott", chainPropertyCode: "BCNWH" },
       { name: "Hotel Casa Fuster", city: "Barcelona", region: "Spain", stars: 5, baseRate: 349, url: "https://www.hotelcasafuster.com" },
       { name: "Yurbban Trafalgar Hotel", city: "Barcelona", region: "Spain", stars: 3, baseRate: 149, url: "https://www.yurbban.com" },
       { name: "Generator Barcelona", city: "Barcelona", region: "Spain", stars: 2, baseRate: 49, url: "https://staygenerator.com/hostels/barcelona" },
@@ -181,7 +181,7 @@
       { name: "Wake Up! Sydney", city: "Sydney", region: "Australia", stars: 2, baseRate: 39, url: "https://www.wakeup.com.au" },
       // Cancun, Mexico
       { name: "Nizuc Resort & Spa", city: "Cancun", region: "Mexico", stars: 5, baseRate: 599, url: "https://www.nizuc.com" },
-      { name: "Hyatt Zilara Cancun", city: "Cancun", region: "Mexico", stars: 5, baseRate: 499, url: "https://www.hyatt.com/en-US/hotel/mexico/hyatt-zilara-cancun/cunai" },
+      { name: "Hyatt Zilara Cancun", city: "Cancun", region: "Mexico", stars: 5, baseRate: 499, url: "https://www.hyatt.com/en-US/hotel/mexico/hyatt-zilara-cancun/cunai", chain: "hyatt", chainPropertyCode: "cunai" },
       { name: "Secrets The Vine Cancun", city: "Cancun", region: "Mexico", stars: 5, baseRate: 399, url: "https://www.amrcollection.com/en/resorts-hotels/secrets/mexico/secrets-the-vine-cancun" },
       { name: "Fiesta Americana Condesa", city: "Cancun", region: "Mexico", stars: 4, baseRate: 199, url: "https://www.fiestamericana.com/en/hotels-resorts/fiesta-americana-condesa-cancun" },
       { name: "Hostel Mundo Joven Cancun", city: "Cancun", region: "Mexico", stars: 2, baseRate: 29, url: "https://www.mundojovenhostels.com" },
@@ -198,7 +198,7 @@
       { name: "The Oberoi Bali", city: "Bali", region: "Indonesia", stars: 5, baseRate: 349, url: "https://www.oberoihotels.com/hotels-in-bali" },
       { name: "Kuta Beach Hostel", city: "Bali", region: "Indonesia", stars: 2, baseRate: 19, url: "https://www.hostelworld.com/st/hostels/bali" },
       // San Francisco, CA
-      { name: "The St. Regis San Francisco", city: "San Francisco", region: "California, US", stars: 5, baseRate: 599, url: "https://www.marriott.com/hotels/travel/sfoxr-the-st-regis-san-francisco" },
+      { name: "The St. Regis San Francisco", city: "San Francisco", region: "California, US", stars: 5, baseRate: 599, url: "https://www.marriott.com/hotels/travel/sfoxr-the-st-regis-san-francisco", chain: "marriott", chainPropertyCode: "SFOXR" },
       { name: "Hotel Vitale", city: "San Francisco", region: "California, US", stars: 4, baseRate: 329, url: "https://www.1hotels.com/san-francisco" },
       { name: "The Marker San Francisco", city: "San Francisco", region: "California, US", stars: 4, baseRate: 249, url: "https://www.themarkersanfrancisco.com" },
       { name: "Hotel Zetta", city: "San Francisco", region: "California, US", stars: 4, baseRate: 219, url: "https://www.hotelzetta.com" },
@@ -223,12 +223,12 @@
       { name: "Dream Nashville", city: "Nashville", region: "Tennessee, US", stars: 4, baseRate: 249, url: "https://www.dreamhotels.com/nashville" },
       // Maui, HI
       { name: "Four Seasons Maui", city: "Maui", region: "Hawaii, US", stars: 5, baseRate: 999, url: "https://www.fourseasons.com/maui" },
-      { name: "Andaz Maui at Wailea", city: "Maui", region: "Hawaii, US", stars: 5, baseRate: 699, url: "https://www.hyatt.com/en-US/hotel/hawaii/andaz-maui-at-wailea-resort/oggaw" },
+      { name: "Andaz Maui at Wailea", city: "Maui", region: "Hawaii, US", stars: 5, baseRate: 699, url: "https://www.hyatt.com/en-US/hotel/hawaii/andaz-maui-at-wailea-resort/oggaw", chain: "hyatt", chainPropertyCode: "oggaw" },
       { name: "Hotel Wailea", city: "Maui", region: "Hawaii, US", stars: 5, baseRate: 599, url: "https://www.hotelwailea.com" },
-      { name: "Hyatt Regency Maui", city: "Maui", region: "Hawaii, US", stars: 4, baseRate: 449, url: "https://www.hyatt.com/en-US/hotel/hawaii/hyatt-regency-maui-resort-and-spa/ogghr" },
+      { name: "Hyatt Regency Maui", city: "Maui", region: "Hawaii, US", stars: 4, baseRate: 449, url: "https://www.hyatt.com/en-US/hotel/hawaii/hyatt-regency-maui-resort-and-spa/ogghr", chain: "hyatt", chainPropertyCode: "ogghr" },
       { name: "Maui Seaside Hotel", city: "Maui", region: "Hawaii, US", stars: 3, baseRate: 179, url: "https://www.mauiseaside.com" },
       // Amsterdam, Netherlands
-      { name: "Waldorf Astoria Amsterdam", city: "Amsterdam", region: "Netherlands", stars: 5, baseRate: 599, url: "https://www.hilton.com/en/hotels/amswawa-waldorf-astoria-amsterdam" },
+      { name: "Waldorf Astoria Amsterdam", city: "Amsterdam", region: "Netherlands", stars: 5, baseRate: 599, url: "https://www.hilton.com/en/hotels/amswawa-waldorf-astoria-amsterdam", chain: "hilton", chainPropertyCode: "AMSWAWA" },
       { name: "Pulitzer Amsterdam", city: "Amsterdam", region: "Netherlands", stars: 5, baseRate: 449, url: "https://www.pulitzeramsterdam.com" },
       { name: "Sir Adam Hotel", city: "Amsterdam", region: "Netherlands", stars: 4, baseRate: 229, url: "https://www.sirhotels.com/adam" },
       { name: "Hotel V Nesplein", city: "Amsterdam", region: "Netherlands", stars: 4, baseRate: 199, url: "https://www.hotelv.nl/nesplein" },
@@ -278,13 +278,28 @@
     // =====================================================================
     //  BOOKING URL BUILDER — chain deep links + Google Hotels fallback
     // =====================================================================
+    function formatMMDDYYYY(ds) { const [y,m,d] = ds.split("-"); return `${m}/${d}/${y}`; }
+    function parseIHGDate(ds) { const [y,m,d] = ds.split("-"); return { day: d, monthYear: `${m}${y}` }; }
+
     function buildBookingUrl(hotel, checkIn, checkOut) {
-      // Direct hotel URL is the primary path
-      if (hotel.url) {
-        return hotel.url;
+      switch (hotel.chain) {
+        case "marriott":
+          return `https://www.marriott.com/reservation/availabilitySearch.mi?propertyCode=${hotel.chainPropertyCode}&fromDate=${formatMMDDYYYY(checkIn)}&toDate=${formatMMDDYYYY(checkOut)}`;
+        case "hilton":
+          return `https://www.hilton.com/en/book/reservation/rooms/?ctyhocn=${hotel.chainPropertyCode}&arrivalDate=${checkIn}&departureDate=${checkOut}&room1NumAdults=2`;
+        case "hyatt": {
+          const sc = hotel.chainPropertyCode.toLowerCase();
+          return `https://www.hyatt.com/shop/rooms/${sc}?location=${sc}&checkinDate=${checkIn}&checkoutDate=${checkOut}&adults=2&rooms=1`;
+        }
+        case "ihg": {
+          const ci = parseIHGDate(checkIn), co = parseIHGDate(checkOut);
+          return `https://www.ihg.com/redirect?path=rates&brandCode=${hotel.chainBrandCode}&hotelCode=${hotel.chainPropertyCode}&checkInDate=${ci.day}&checkInMonthYear=${ci.monthYear}&checkOutDate=${co.day}&checkOutMonthYear=${co.monthYear}&numberOfAdults=2`;
+        }
+        default: {
+          const q = encodeURIComponent(`${hotel.name} ${hotel.city}`);
+          return `https://www.google.com/travel/hotels?q=${q}&dates=${checkIn},${checkOut}`;
+        }
       }
-      // Google Hotels fallback
-      return `https://www.google.com/travel/hotels?q=${encodeURIComponent(hotel.name + " " + hotel.city)}&dates=${checkIn},${checkOut}`;
     }
 
     // =====================================================================
@@ -320,6 +335,7 @@
       const [loading, setLoading] = useState(false);
       const [hasSearched, setHasSearched] = useState(false);
       const searchRef = useRef(null);
+      const checkOutRefs = useRef([]);
 
       // Search hotels
       const handleSearch = useCallback(() => {
@@ -359,6 +375,9 @@
           }
           return next;
         });
+        if (field === "checkIn" && value) {
+          setTimeout(() => { if (checkOutRefs.current[idx]) checkOutRefs.current[idx].focus(); }, 0);
+        }
         setShowResults(false);
       };
 
@@ -672,6 +691,7 @@
                         <span style={{ fontSize: 12, color: "#aaa" }}>→</span>
                         <input
                           type="date"
+                          ref={el => checkOutRefs.current[idx] = el}
                           value={dr.checkOut}
                           onChange={(e) => updateDate(idx, "checkOut", e.target.value)}
                           style={{ flex: 1 }}
