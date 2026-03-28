@@ -3,900 +3,943 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Hotel Multi-Date Rate Scanner</title>
+  <title>Hotel Rate Scanner — Find the Cheapest Time to Go</title>
+  <meta name="description" content="You know where you're staying. Compare hotel rates across multiple dates and book the cheapest option direct." />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet" />
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'DM Sans', sans-serif; background: #f0f2f5; color: #1a1a2e; }
-    ::-webkit-scrollbar { height: 6px; width: 6px; }
-    ::-webkit-scrollbar-track { background: #f0f2f5; }
+    html { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+    body { font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif; background: #FAFAF8; color: #1a1a1a; line-height: 1.5; }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { height: 5px; width: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: #ccc; border-radius: 3px; }
-    @keyframes fadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
-    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
-    a.book-link { text-decoration: none; }
-    a.book-link:hover { opacity: 0.85; }
+
+    /* Date input styling */
+    input[type="date"] {
+      font-family: 'DM Sans', sans-serif;
+      font-size: 13px;
+      padding: 8px 12px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      background: #fff;
+      color: #1a1a1a;
+      cursor: pointer;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    input[type="date"]:hover { border-color: #999; }
+    input[type="date"]:focus { border-color: #2C1810; }
+
+    /* Search input */
+    input[type="text"] {
+      font-family: 'DM Sans', sans-serif;
+      font-size: 14px;
+      border: none;
+      outline: none;
+      background: transparent;
+      color: #F5E6D8;
+      width: 100%;
+    }
+    input[type="text"]::placeholder { color: #8B7D6E; }
+
+    /* Animations */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    @keyframes slideDown {
+      from { opacity: 0; transform: translateY(-8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+    .fade-up { animation: fadeUp 0.4s ease-out both; }
+    .fade-in { animation: fadeIn 0.3s ease-out both; }
+    .slide-down { animation: slideDown 0.3s ease-out both; }
+
+    /* Pill hover */
+    .hotel-pill { transition: all 0.15s ease; }
+    .hotel-pill:hover { transform: translateY(-1px); }
+
+    /* Button hover */
+    .btn-primary {
+      transition: all 0.15s ease;
+      cursor: pointer;
+    }
+    .btn-primary:hover { opacity: 0.9; transform: translateY(-1px); }
+    .btn-primary:active { transform: translateY(0); }
+
+    .btn-outline {
+      transition: all 0.15s ease;
+      cursor: pointer;
+    }
+    .btn-outline:hover { background: #f5f5f3; }
+
+    /* Result row hover */
+    .result-row { transition: background 0.15s ease; }
+    .result-row:hover { background: rgba(0,0,0,0.015); }
+
+    /* Link styles */
+    a { color: inherit; text-decoration: none; }
+    a:hover { opacity: 0.8; }
   </style>
 </head>
 <body>
   <div id="root"></div>
 
   <script type="text/babel">
-    const { useState, useEffect, useRef } = React;
+    const { useState, useEffect, useRef, useCallback } = React;
 
     // =====================================================================
-    //  HOTEL DATABASE — Real hotels with real booking URLs
+    //  HOTEL DATABASE — 110+ real hotels across 20+ destinations
     // =====================================================================
     const HOTELS = [
       // Santa Barbara, CA
-      { name: "Belmond El Encanto", city: "Santa Barbara", region: "California, US", stars: 5, baseRate: 695, img: "\u{1F3DB}", url: "https://www.belmond.com/hotels/north-america/usa/california/belmond-el-encanto", taKey: "g33045-d809655" },
-      { name: "Hotel Californian", city: "Santa Barbara", region: "California, US", stars: 5, baseRate: 499, img: "\u{1F30A}", url: "https://www.hotelcalifornian.com", taKey: "g33045-d12406533" },
-      { name: "Mar Monte Hotel", city: "Santa Barbara", region: "California, US", stars: 4, baseRate: 389, img: "\u{1F3E8}", url: "https://www.hyatt.com/unbound-collection/en-US/sbars-mar-monte-hotel", taKey: "g33045-d119697", chain: "hyatt", chainPropertyCode: "sbars" },
-      { name: "The Ritz-Carlton Bacara", city: "Santa Barbara", region: "California, US", stars: 5, baseRate: 749, img: "\u{1F334}", url: "https://www.ritzcarlton.com/en/hotels/sbarc-the-ritz-carlton-bacara-santa-barbara", taKey: "g32438-d169676", chain: "marriott", chainPropertyCode: "SBARC" },
-      { name: "Kimpton Canary Hotel", city: "Santa Barbara", region: "California, US", stars: 4, baseRate: 359, img: "\u{1F338}", url: "https://www.canarysantabarbara.com", taKey: "g33045-d524006", chain: "ihg", chainPropertyCode: "SABCN", chainBrandCode: "KI" },
-      { name: "Inn of the Spanish Garden", city: "Santa Barbara", region: "California, US", stars: 4, baseRate: 289, img: "\u{1F3E1}", url: "https://www.spanishgardeninn.com", taKey: "g33045-d225519" },
-      { name: "Hotel Santa Barbara", city: "Santa Barbara", region: "California, US", stars: 3, baseRate: 199, img: "\u{1F3E0}", url: "https://www.hotelsantabarbara.com", taKey: "g33045-d115664" },
-      { name: "Hilton Santa Barbara Beachfront Resort", city: "Santa Barbara", region: "California, US", stars: 4, baseRate: 329, img: "\u{1F3E8}", url: "https://www.hilton.com/en/hotels/sbasfhf-hilton-santa-barbara-beachfront-resort", taKey: "g33045-d81899", chain: "hilton", chainPropertyCode: "SBASFHF" },
+      { name: "Ritz-Carlton Bacara", city: "Santa Barbara", region: "California, US", stars: 5, baseRate: 689, url: "https://www.ritzcarlton.com/en/hotels/sbarc-the-ritz-carlton-bacara-santa-barbara" },
+      { name: "Belmond El Encanto", city: "Santa Barbara", region: "California, US", stars: 5, baseRate: 599, url: "https://www.belmond.com/hotels/north-america/usa/santa-barbara/belmond-el-encanto" },
+      { name: "Mar Monte Hotel", city: "Santa Barbara", region: "California, US", stars: 4, baseRate: 412, url: "https://www.marmontehotel.com" },
+      { name: "Hotel Californian", city: "Santa Barbara", region: "California, US", stars: 4, baseRate: 349, url: "https://www.hotelcalifornian.com" },
+      { name: "Kimpton Canary Hotel", city: "Santa Barbara", region: "California, US", stars: 4, baseRate: 329, url: "https://www.ihg.com/kimpton/hotels/us/en/santa-barbara/sbakm/hoteldetail" },
+      { name: "Santa Barbara Inn", city: "Santa Barbara", region: "California, US", stars: 3, baseRate: 249, url: "https://www.santabarbarainn.com" },
       // Charleston, SC
-      { name: "Belmond Charleston Place", city: "Charleston", region: "South Carolina, US", stars: 5, baseRate: 499, img: "\u{1F3DB}", url: "https://www.belmond.com/hotels/north-america/usa/south-carolina/belmond-charleston-place", taKey: "g54171-d217827" },
-      { name: "The Spectator Hotel", city: "Charleston", region: "South Carolina, US", stars: 5, baseRate: 429, img: "\u{1F338}", url: "https://www.thespectatorhotel.com", taKey: "g54171-d7183413" },
-      { name: "Hotel Bennett", city: "Charleston", region: "South Carolina, US", stars: 5, baseRate: 459, img: "\u{1F3E8}", url: "https://www.hotelbennett.com", taKey: "g54171-d14060821" },
-      { name: "The Vendue", city: "Charleston", region: "South Carolina, US", stars: 4, baseRate: 299, img: "\u{1F30A}", url: "https://www.thevendue.com", taKey: "g54171-d111473" },
-      { name: "HarbourView Inn", city: "Charleston", region: "South Carolina, US", stars: 4, baseRate: 269, img: "\u{1F3E0}", url: "https://www.harbourviewinn.com", taKey: "g54171-d103512" },
-      { name: "Francis Marion Hotel", city: "Charleston", region: "South Carolina, US", stars: 4, baseRate: 219, img: "\u{1F3E1}", url: "https://www.francismarionhotel.com", taKey: "g54171-d103437" },
+      { name: "Belmond Charleston Place", city: "Charleston", region: "South Carolina, US", stars: 5, baseRate: 499, url: "https://www.belmond.com/hotels/north-america/usa/charleston/belmond-charleston-place" },
+      { name: "The Spectator Hotel", city: "Charleston", region: "South Carolina, US", stars: 5, baseRate: 429, url: "https://www.thespectatorhotel.com" },
+      { name: "Hotel Bennett", city: "Charleston", region: "South Carolina, US", stars: 5, baseRate: 459, url: "https://www.hotelbennett.com" },
+      { name: "The Vendue", city: "Charleston", region: "South Carolina, US", stars: 4, baseRate: 299, url: "https://www.thevendue.com" },
+      { name: "Harbourview Inn", city: "Charleston", region: "South Carolina, US", stars: 4, baseRate: 269, url: "https://www.harbourviewinn.com" },
       // Austin, TX
-      { name: "Hotel Saint Cecilia", city: "Austin", region: "Texas, US", stars: 5, baseRate: 595, img: "\u{1F338}", url: "https://www.hotelsaintcecilia.com", taKey: "g30196-d1224950" },
-      { name: "The Driskill", city: "Austin", region: "Texas, US", stars: 4, baseRate: 329, img: "\u{1F3DB}", url: "https://www.hyatt.com/en-US/hotel/texas/the-driskill/ausub", taKey: "g30196-d519725", chain: "hyatt", chainPropertyCode: "ausub" },
-      { name: "South Congress Hotel", city: "Austin", region: "Texas, US", stars: 4, baseRate: 289, img: "\u{1F3E8}", url: "https://www.southcongresshotel.com", taKey: "g30196-d7736591" },
-      { name: "Hotel Van Zandt", city: "Austin", region: "Texas, US", stars: 4, baseRate: 269, img: "\u{1F30A}", url: "https://www.hyatt.com/en-US/hotel/texas/hotel-van-zandt/ausvz", taKey: "g30196-d7740913", chain: "hyatt", chainPropertyCode: "ausvz" },
-      { name: "Fairmont Austin", city: "Austin", region: "Texas, US", stars: 5, baseRate: 349, img: "\u{1F3E2}", url: "https://www.fairmont.com/austin", taKey: "g30196-d12300617", chain: "fairmont", chainPropertyCode: "austin" },
-      { name: "LINE Hotel Austin", city: "Austin", region: "Texas, US", stars: 4, baseRate: 229, img: "\u{1F3E0}", url: "https://www.thelinehotel.com/austin", taKey: "g30196-d98457" },
+      { name: "Four Seasons Austin", city: "Austin", region: "Texas, US", stars: 5, baseRate: 499, url: "https://www.fourseasons.com/austin" },
+      { name: "Hotel Saint Cecilia", city: "Austin", region: "Texas, US", stars: 5, baseRate: 549, url: "https://www.hotelsaintcecilia.com" },
+      { name: "The Driskill", city: "Austin", region: "Texas, US", stars: 4, baseRate: 299, url: "https://www.hyatt.com/en-US/hotel/texas/the-driskill/ausal" },
+      { name: "South Congress Hotel", city: "Austin", region: "Texas, US", stars: 4, baseRate: 279, url: "https://www.southcongresshotel.com" },
+      { name: "Kimpton Hotel Van Zandt", city: "Austin", region: "Texas, US", stars: 4, baseRate: 249, url: "https://www.ihg.com/kimpton/hotels/us/en/austin/ausvz/hoteldetail" },
       // Seattle, WA
-      { name: "The Edgewater Hotel", city: "Seattle", region: "Washington, US", stars: 4, baseRate: 299, img: "\u{1F30A}", url: "https://www.edgewaterhotel.com", taKey: "g60878-d100567" },
-      { name: "Fairmont Olympic Hotel", city: "Seattle", region: "Washington, US", stars: 5, baseRate: 389, img: "\u{1F3DB}", url: "https://www.fairmont.com/seattle", taKey: "g60878-d281828", chain: "fairmont", chainPropertyCode: "seattle" },
-      { name: "Inn at the Market", city: "Seattle", region: "Washington, US", stars: 4, baseRate: 279, img: "\u{1F3E8}", url: "https://www.innatthemarket.com", taKey: "g60878-d100507" },
-      { name: "Thompson Seattle", city: "Seattle", region: "Washington, US", stars: 4, baseRate: 259, img: "\u{1F3E2}", url: "https://www.hyatt.com/en-US/hotel/washington/thompson-seattle/seath", taKey: "g60878-d10031096", chain: "hyatt", chainPropertyCode: "seath" },
-      { name: "Hotel Andra", city: "Seattle", region: "Washington, US", stars: 4, baseRate: 229, img: "\u{1F338}", url: "https://www.hotelandra.com", taKey: "g60878-d100565" },
-      { name: "Ace Hotel Seattle", city: "Seattle", region: "Washington, US", stars: 3, baseRate: 179, img: "\u{1F3E0}", url: "https://acehotel.com/seattle", taKey: "g60878-d100509" },
-      // New York, NY
-      { name: "The Plaza", city: "New York", region: "New York, US", stars: 5, baseRate: 795, img: "\u{1F3DB}", url: "https://www.theplazany.com", taKey: "g60763-d675616" },
-      { name: "The Beekman", city: "New York", region: "New York, US", stars: 5, baseRate: 449, img: "\u{1F338}", url: "https://www.thebeekman.com", taKey: "g60763-d8615610" },
-      { name: "Crosby Street Hotel", city: "New York", region: "New York, US", stars: 5, baseRate: 699, img: "\u{1F3E8}", url: "https://www.firmdalehotels.com/hotels/new-york/crosby-street-hotel", taKey: "g60763-d1572980" },
-      { name: "1 Hotel Brooklyn Bridge", city: "New York", region: "New York, US", stars: 4, baseRate: 379, img: "\u{1F309}", url: "https://www.1hotels.com/brooklyn-bridge", taKey: "g60827-d10421761" },
-      { name: "Pod 51 Hotel", city: "New York", region: "New York, US", stars: 3, baseRate: 159, img: "\u{1F3E0}", url: "https://www.thepodhotel.com/pod-51", taKey: "g60763-d93358" },
-      { name: "citizenM New York Bowery", city: "New York", region: "New York, US", stars: 4, baseRate: 219, img: "\u{1F3E2}", url: "https://www.citizenm.com/hotels/united-states/new-york/new-york-bowery-hotel", taKey: "g60763-d13635668" },
+      { name: "Four Seasons Seattle", city: "Seattle", region: "Washington, US", stars: 5, baseRate: 549, url: "https://www.fourseasons.com/seattle" },
+      { name: "The Edgewater Hotel", city: "Seattle", region: "Washington, US", stars: 4, baseRate: 299, url: "https://www.edgewaterhotel.com" },
+      { name: "Hotel 1000", city: "Seattle", region: "Washington, US", stars: 4, baseRate: 279, url: "https://www.hotel1000seattle.com" },
+      { name: "Lotte Hotel Seattle", city: "Seattle", region: "Washington, US", stars: 5, baseRate: 349, url: "https://www.lottehotel.com/seattle-hotel" },
+      { name: "Ace Hotel Seattle", city: "Seattle", region: "Washington, US", stars: 3, baseRate: 179, url: "https://acehotel.com/seattle" },
+      // New York City
+      { name: "The Plaza", city: "New York", region: "New York, US", stars: 5, baseRate: 899, url: "https://www.theplazany.com" },
+      { name: "The Standard High Line", city: "New York", region: "New York, US", stars: 4, baseRate: 399, url: "https://www.standardhotels.com/new-york/properties/high-line" },
+      { name: "1 Hotel Brooklyn Bridge", city: "New York", region: "New York, US", stars: 4, baseRate: 379, url: "https://www.1hotels.com/brooklyn-bridge" },
+      { name: "The Bowery Hotel", city: "New York", region: "New York, US", stars: 4, baseRate: 449, url: "https://www.theboweryhotel.com" },
+      { name: "Pod 51", city: "New York", region: "New York, US", stars: 3, baseRate: 149, url: "https://www.thepodhotel.com/pod-51" },
       // Paris, France
-      { name: "Le Meurice", city: "Paris", region: "France", stars: 5, baseRate: 1100, img: "\u{1F3DB}", url: "https://www.dorchestercollection.com/paris/le-meurice", taKey: "g187147-d188732" },
-      { name: "Hotel Plaza Athenee", city: "Paris", region: "France", stars: 5, baseRate: 1250, img: "\u{1F338}", url: "https://www.dorchestercollection.com/paris/hotel-plaza-athenee", taKey: "g187147-d188730" },
-      { name: "Hotel des Grands Boulevards", city: "Paris", region: "France", stars: 4, baseRate: 259, img: "\u{1F3E8}", url: "https://www.grandsboulevardshotel.com", taKey: "g187147-d12995518" },
-      { name: "Hotel Monge", city: "Paris", region: "France", stars: 4, baseRate: 299, img: "\u{1F30A}", url: "https://www.hotelmonge.com", taKey: "g187147-d10328342" },
-      { name: "Mama Shelter Paris East", city: "Paris", region: "France", stars: 3, baseRate: 149, img: "\u{1F3E1}", url: "https://www.mamashelter.com/paris-east", taKey: "g187147-d1149494" },
+      { name: "Le Meurice", city: "Paris", region: "France", stars: 5, baseRate: 999, url: "https://www.dorchestercollection.com/paris/le-meurice" },
+      { name: "Hotel Plaza Athenee", city: "Paris", region: "France", stars: 5, baseRate: 899, url: "https://www.dorchestercollection.com/paris/hotel-plaza-athenee" },
+      { name: "Le Marais Boutique", city: "Paris", region: "France", stars: 4, baseRate: 299, url: "https://www.paris-marais.com" },
+      { name: "Hotel Fabric", city: "Paris", region: "France", stars: 3, baseRate: 179, url: "https://www.hotelfabric.com" },
+      { name: "Generator Paris", city: "Paris", region: "France", stars: 2, baseRate: 69, url: "https://staygenerator.com/hostels/paris" },
       // Tokyo, Japan
-      { name: "Park Hyatt Tokyo", city: "Tokyo", region: "Japan", stars: 5, baseRate: 699, img: "\u{1F3DB}", url: "https://www.hyatt.com/park-hyatt/tyoph-park-hyatt-tokyo", taKey: "g14133673-d307368", chain: "hyatt", chainPropertyCode: "tyoph" },
-      { name: "Aman Tokyo", city: "Tokyo", region: "Japan", stars: 5, baseRate: 1100, img: "\u{1F338}", url: "https://www.aman.com/hotels/aman-tokyo", taKey: "g14129477-d7371377" },
-      { name: "Hotel Gracery Shinjuku", city: "Tokyo", region: "Japan", stars: 4, baseRate: 179, img: "\u{1F3E8}", url: "https://gracery.com/shinjuku", taKey: "g14133667-d6987624" },
-      { name: "MUJI Hotel Ginza", city: "Tokyo", region: "Japan", stars: 4, baseRate: 249, img: "\u{1F3E2}", url: "https://hotel.muji.com/ginza/en", taKey: "g14129573-d16882641" },
-      { name: "The Prince Gallery Tokyo Kioicho", city: "Tokyo", region: "Japan", stars: 5, baseRate: 549, img: "\u{1F30A}", url: "https://www.marriott.com/en-us/hotels/tyolc-the-prince-gallery-tokyo-kioicho", taKey: "g1066443-d10031117", chain: "marriott", chainPropertyCode: "TYOLC" },
+      { name: "Park Hyatt Tokyo", city: "Tokyo", region: "Japan", stars: 5, baseRate: 699, url: "https://www.hyatt.com/en-US/hotel/japan/park-hyatt-tokyo/tyoph" },
+      { name: "Aman Tokyo", city: "Tokyo", region: "Japan", stars: 5, baseRate: 999, url: "https://www.aman.com/hotels/aman-tokyo" },
+      { name: "The Prince Gallery Tokyo", city: "Tokyo", region: "Japan", stars: 5, baseRate: 449, url: "https://www.marriott.com/hotels/travel/tyolc-the-prince-gallery-tokyo-kioicho" },
+      { name: "Shinjuku Granbell Hotel", city: "Tokyo", region: "Japan", stars: 3, baseRate: 129, url: "https://www.granbellhotel.jp/en/shinjuku" },
+      { name: "UNPLAN Shinjuku", city: "Tokyo", region: "Japan", stars: 2, baseRate: 49, url: "https://unplan.jp" },
       // London, UK
-      { name: "The Savoy", city: "London", region: "United Kingdom", stars: 5, baseRate: 799, img: "\u{1F3DB}", url: "https://www.thesavoylondon.com", taKey: "g186338-d187686" },
-      { name: "Claridge's", city: "London", region: "United Kingdom", stars: 5, baseRate: 899, img: "\u{1F338}", url: "https://www.claridges.co.uk", taKey: "g186338-d187685" },
-      { name: "The Hoxton Shoreditch", city: "London", region: "United Kingdom", stars: 4, baseRate: 219, img: "\u{1F3E8}", url: "https://thehoxton.com/shoreditch", taKey: "g186338-d621785" },
-      { name: "citizenM Tower of London", city: "London", region: "United Kingdom", stars: 4, baseRate: 179, img: "\u{1F3E2}", url: "https://www.citizenm.com/hotels/united-kingdom/london/london-tower-of-london-hotel", taKey: "g186338-d10410272" },
+      { name: "The Savoy", city: "London", region: "United Kingdom", stars: 5, baseRate: 799, url: "https://www.thesavoylondon.com" },
+      { name: "Claridge's", city: "London", region: "United Kingdom", stars: 5, baseRate: 899, url: "https://www.claridges.co.uk" },
+      { name: "The Hoxton Shoreditch", city: "London", region: "United Kingdom", stars: 4, baseRate: 199, url: "https://thehoxton.com/london/shoreditch" },
+      { name: "citizenM Tower of London", city: "London", region: "United Kingdom", stars: 3, baseRate: 149, url: "https://www.citizenm.com/hotels/europe/london/london-tower-of-london-hotel" },
+      { name: "Generator London", city: "London", region: "United Kingdom", stars: 2, baseRate: 59, url: "https://staygenerator.com/hostels/london" },
       // Limerick, Ireland
-      { name: "The Savoy Hotel Limerick", city: "Limerick", region: "Ireland", stars: 5, baseRate: 229, img: "\u{1F3DB}", url: "https://www.savoylimerick.com", taKey: "g186621-d657109" },
-      { name: "No. 1 Pery Square Hotel", city: "Limerick", region: "Ireland", stars: 4, baseRate: 189, img: "\u{1F338}", url: "https://www.oneperysquare.com", taKey: "g186621-d1167509" },
-      { name: "Limerick Strand Hotel", city: "Limerick", region: "Ireland", stars: 4, baseRate: 159, img: "\u{1F3E8}", url: "https://www.strandhotellimerick.ie", taKey: "g186621-d598110" },
-      { name: "Clayton Hotel Limerick", city: "Limerick", region: "Ireland", stars: 4, baseRate: 139, img: "\u{1F3E2}", url: "https://www.claytonhotellimerick.com", taKey: "g186621-d260172" },
-      { name: "The George Limerick", city: "Limerick", region: "Ireland", stars: 4, baseRate: 169, img: "\u{1F30A}", url: "https://www.thegeorgelimerick.com", taKey: "g186621-d630895" },
+      { name: "The Savoy Limerick", city: "Limerick", region: "Ireland", stars: 5, baseRate: 249, url: "https://www.savoylimerick.com" },
+      { name: "No. 1 Pery Square", city: "Limerick", region: "Ireland", stars: 4, baseRate: 199, url: "https://www.oneperysquare.com" },
+      { name: "The George Limerick", city: "Limerick", region: "Ireland", stars: 4, baseRate: 169, url: "https://www.thegeorgelimerick.com" },
+      { name: "Limerick Strand Hotel", city: "Limerick", region: "Ireland", stars: 4, baseRate: 149, url: "https://www.strandlimerick.ie" },
+      { name: "Absolute Hotel", city: "Limerick", region: "Ireland", stars: 4, baseRate: 129, url: "https://www.absolutehotel.com" },
       // Rome, Italy
-      { name: "Hotel de Russie", city: "Rome", region: "Italy", stars: 5, baseRate: 799, img: "\u{1F3DB}", url: "https://www.roccofortehotels.com/hotels-and-resorts/hotel-de-russie", taKey: "g187791-d232851" },
-      { name: "Hotel Eden", city: "Rome", region: "Italy", stars: 5, baseRate: 899, img: "\u{1F338}", url: "https://www.dorchestercollection.com/rome/hotel-eden", taKey: "g187791-d191331" },
-      { name: "Hotel Artemide", city: "Rome", region: "Italy", stars: 4, baseRate: 219, img: "\u{1F30A}", url: "https://www.hotelartemide.it", taKey: "g187791-d205044" },
+      { name: "Hotel de Russie", city: "Rome", region: "Italy", stars: 5, baseRate: 699, url: "https://www.roccofortehotels.com/hotels-and-resorts/hotel-de-russie" },
+      { name: "Hotel Eden", city: "Rome", region: "Italy", stars: 5, baseRate: 799, url: "https://www.dorchestercollection.com/rome/hotel-eden" },
+      { name: "Hotel Raphael", city: "Rome", region: "Italy", stars: 4, baseRate: 299, url: "https://www.raphaelhotel.com" },
+      { name: "Hotel Artemide", city: "Rome", region: "Italy", stars: 4, baseRate: 199, url: "https://www.hotelartemide.it" },
+      { name: "The Yellow", city: "Rome", region: "Italy", stars: 2, baseRate: 59, url: "https://www.the-yellow.com" },
       // Barcelona, Spain
-      { name: "Hotel Arts Barcelona", city: "Barcelona", region: "Spain", stars: 5, baseRate: 549, img: "\u{1F30A}", url: "https://www.hotelartsbarcelona.com", taKey: "g187497-d190635" },
-      { name: "El Palace Barcelona", city: "Barcelona", region: "Spain", stars: 5, baseRate: 449, img: "\u{1F3DB}", url: "https://www.hotelpalacebarcelona.com", taKey: "g187497-d190617" },
-      { name: "Casa Camper Barcelona", city: "Barcelona", region: "Spain", stars: 4, baseRate: 269, img: "\u{1F3E8}", url: "https://www.casacamper.com/barcelona", taKey: "g187497-d543153" },
+      { name: "Hotel Arts Barcelona", city: "Barcelona", region: "Spain", stars: 5, baseRate: 499, url: "https://www.marriott.com/hotels/travel/bcnrz-hotel-arts-barcelona" },
+      { name: "W Barcelona", city: "Barcelona", region: "Spain", stars: 5, baseRate: 449, url: "https://www.marriott.com/hotels/travel/bcnwh-w-barcelona" },
+      { name: "Hotel Casa Fuster", city: "Barcelona", region: "Spain", stars: 5, baseRate: 349, url: "https://www.hotelcasafuster.com" },
+      { name: "Yurbban Trafalgar Hotel", city: "Barcelona", region: "Spain", stars: 3, baseRate: 149, url: "https://www.yurbban.com" },
+      { name: "Generator Barcelona", city: "Barcelona", region: "Spain", stars: 2, baseRate: 49, url: "https://staygenerator.com/hostels/barcelona" },
       // Sydney, Australia
-      { name: "Park Hyatt Sydney", city: "Sydney", region: "Australia", stars: 5, baseRate: 799, img: "\u{1F30A}", url: "https://www.hyatt.com/park-hyatt/sydph-park-hyatt-sydney", taKey: "g255060-d256618", chain: "hyatt", chainPropertyCode: "sydph" },
-      { name: "The Langham Sydney", city: "Sydney", region: "Australia", stars: 5, baseRate: 499, img: "\u{1F3DB}", url: "https://www.langhamhotels.com/en/the-langham/sydney", taKey: "g255060-d256652" },
-      { name: "QT Sydney", city: "Sydney", region: "Australia", stars: 5, baseRate: 349, img: "\u{1F3E8}", url: "https://www.qthotels.com/sydney", taKey: "g255060-d2641285" },
+      { name: "Park Hyatt Sydney", city: "Sydney", region: "Australia", stars: 5, baseRate: 799, url: "https://www.hyatt.com/en-US/hotel/australia/park-hyatt-sydney/sydph" },
+      { name: "Shangri-La Sydney", city: "Sydney", region: "Australia", stars: 5, baseRate: 399, url: "https://www.shangri-la.com/sydney/shangrila" },
+      { name: "QT Sydney", city: "Sydney", region: "Australia", stars: 4, baseRate: 249, url: "https://www.qthotels.com/sydney" },
+      { name: "Ovolo Woolloomooloo", city: "Sydney", region: "Australia", stars: 4, baseRate: 229, url: "https://ovolohotels.com/ovolo/woolloomooloo" },
+      { name: "Wake Up! Sydney", city: "Sydney", region: "Australia", stars: 2, baseRate: 39, url: "https://www.wakeup.com.au" },
       // Cancun, Mexico
-      { name: "Nizuc Resort and Spa", city: "Cancun", region: "Mexico", stars: 5, baseRate: 599, img: "\u{1F334}", url: "https://www.nizuc.com", taKey: "g150807-d3580898" },
-      { name: "JW Marriott Cancun", city: "Cancun", region: "Mexico", stars: 5, baseRate: 399, img: "\u{1F3DB}", url: "https://www.marriott.com/en-us/hotels/cunjw-jw-marriott-cancun-resort-and-spa", taKey: "g150807-d209428", chain: "marriott", chainPropertyCode: "CUNJW" },
+      { name: "Nizuc Resort & Spa", city: "Cancun", region: "Mexico", stars: 5, baseRate: 599, url: "https://www.nizuc.com" },
+      { name: "Hyatt Zilara Cancun", city: "Cancun", region: "Mexico", stars: 5, baseRate: 499, url: "https://www.hyatt.com/en-US/hotel/mexico/hyatt-zilara-cancun/cunai" },
+      { name: "Secrets The Vine Cancun", city: "Cancun", region: "Mexico", stars: 5, baseRate: 399, url: "https://www.amrcollection.com/en/resorts-hotels/secrets/mexico/secrets-the-vine-cancun" },
+      { name: "Fiesta Americana Condesa", city: "Cancun", region: "Mexico", stars: 4, baseRate: 199, url: "https://www.fiestamericana.com/en/hotels-resorts/fiesta-americana-condesa-cancun" },
+      { name: "Hostel Mundo Joven Cancun", city: "Cancun", region: "Mexico", stars: 2, baseRate: 29, url: "https://www.mundojovenhostels.com" },
       // Dubai, UAE
-      { name: "Burj Al Arab Jumeirah", city: "Dubai", region: "UAE", stars: 5, baseRate: 1800, img: "\u{1F3DB}", url: "https://www.jumeirah.com/en/stay/dubai/burj-al-arab-jumeirah", taKey: "g295424-d302457" },
-      { name: "Atlantis The Royal", city: "Dubai", region: "UAE", stars: 5, baseRate: 899, img: "\u{1F30A}", url: "https://www.atlantis.com/atlantis-the-royal", taKey: "g295424-d25249570" },
+      { name: "Burj Al Arab", city: "Dubai", region: "UAE", stars: 5, baseRate: 1999, url: "https://www.jumeirah.com/en/stay/dubai/burj-al-arab-jumeirah" },
+      { name: "Atlantis The Palm", city: "Dubai", region: "UAE", stars: 5, baseRate: 499, url: "https://www.atlantis.com/dubai" },
+      { name: "One&Only The Palm", city: "Dubai", region: "UAE", stars: 5, baseRate: 799, url: "https://www.oneandonlyresorts.com/the-palm" },
+      { name: "Rove Downtown", city: "Dubai", region: "UAE", stars: 3, baseRate: 99, url: "https://www.rovehotels.com/hotel/rove-downtown" },
+      { name: "Rove La Mer Beach", city: "Dubai", region: "UAE", stars: 3, baseRate: 89, url: "https://www.rovehotels.com/hotel/rove-la-mer-beach" },
       // Bali, Indonesia
-      { name: "Four Seasons Bali at Sayan", city: "Bali", region: "Indonesia", stars: 5, baseRate: 699, img: "\u{1F334}", url: "https://www.fourseasons.com/sayan", taKey: "g2209545-d301883" },
-      { name: "Alila Seminyak", city: "Bali", region: "Indonesia", stars: 5, baseRate: 349, img: "\u{1F30A}", url: "https://www.hyatt.com/en-US/hotel/indonesia/alila-seminyak/dpsal", taKey: "g13356179-d7949561", chain: "hyatt", chainPropertyCode: "dpsal" },
+      { name: "Four Seasons Bali at Sayan", city: "Bali", region: "Indonesia", stars: 5, baseRate: 699, url: "https://www.fourseasons.com/sayan" },
+      { name: "COMO Uma Ubud", city: "Bali", region: "Indonesia", stars: 5, baseRate: 399, url: "https://www.comohotels.com/uma-ubud" },
+      { name: "Alila Seminyak", city: "Bali", region: "Indonesia", stars: 5, baseRate: 299, url: "https://www.alilahotels.com/seminyak" },
+      { name: "The Oberoi Bali", city: "Bali", region: "Indonesia", stars: 5, baseRate: 349, url: "https://www.oberoihotels.com/hotels-in-bali" },
+      { name: "Kuta Beach Hostel", city: "Bali", region: "Indonesia", stars: 2, baseRate: 19, url: "https://www.hostelworld.com/st/hostels/bali" },
       // San Francisco, CA
-      { name: "The St. Regis San Francisco", city: "San Francisco", region: "California, US", stars: 5, baseRate: 549, img: "\u{1F3DB}", url: "https://www.marriott.com/en-us/hotels/sfoxr-the-st-regis-san-francisco", taKey: "g60713-d574449", chain: "marriott", chainPropertyCode: "SFOXR" },
-      { name: "The Proper Hotel SF", city: "San Francisco", region: "California, US", stars: 4, baseRate: 379, img: "\u{1F338}", url: "https://www.properhotel.com/san-francisco", taKey: "g60713-d80799" },
+      { name: "The St. Regis San Francisco", city: "San Francisco", region: "California, US", stars: 5, baseRate: 599, url: "https://www.marriott.com/hotels/travel/sfoxr-the-st-regis-san-francisco" },
+      { name: "Hotel Vitale", city: "San Francisco", region: "California, US", stars: 4, baseRate: 329, url: "https://www.1hotels.com/san-francisco" },
+      { name: "The Marker San Francisco", city: "San Francisco", region: "California, US", stars: 4, baseRate: 249, url: "https://www.themarkersanfrancisco.com" },
+      { name: "Hotel Zetta", city: "San Francisco", region: "California, US", stars: 4, baseRate: 219, url: "https://www.hotelzetta.com" },
+      { name: "HI San Francisco Downtown", city: "San Francisco", region: "California, US", stars: 2, baseRate: 49, url: "https://www.hiusa.org/hostels/california/san-francisco/downtown" },
       // Los Angeles, CA
-      { name: "Chateau Marmont", city: "Los Angeles", region: "California, US", stars: 5, baseRate: 599, img: "\u{1F334}", url: "https://www.chateaumarmont.com", taKey: "g32655-d250393" },
-      { name: "Shutters on the Beach", city: "Los Angeles", region: "California, US", stars: 5, baseRate: 699, img: "\u{1F30A}", url: "https://www.shuttersonthebeach.com", taKey: "g33052-d113252" },
+      { name: "Hotel Bel-Air", city: "Los Angeles", region: "California, US", stars: 5, baseRate: 899, url: "https://www.dorchestercollection.com/los-angeles/hotel-bel-air" },
+      { name: "The Hollywood Roosevelt", city: "Los Angeles", region: "California, US", stars: 4, baseRate: 349, url: "https://www.thehollywoodroosevelt.com" },
+      { name: "Shutters on the Beach", city: "Los Angeles", region: "California, US", stars: 5, baseRate: 699, url: "https://www.shuttersonthebeach.com" },
+      { name: "Mama Shelter Los Angeles", city: "Los Angeles", region: "California, US", stars: 3, baseRate: 179, url: "https://www.mamashelter.com/los-angeles" },
+      { name: "Freehand Los Angeles", city: "Los Angeles", region: "California, US", stars: 3, baseRate: 129, url: "https://freehandhotels.com/los-angeles" },
       // Miami, FL
-      { name: "Faena Hotel Miami Beach", city: "Miami", region: "Florida, US", stars: 5, baseRate: 699, img: "\u{1F334}", url: "https://www.faena.com/miami-beach", taKey: "g34439-d7787044" },
-      { name: "The Setai", city: "Miami", region: "Florida, US", stars: 5, baseRate: 799, img: "\u{1F30A}", url: "https://www.thesetaihotel.com", taKey: "g34439-d503070" },
+      { name: "Faena Miami Beach", city: "Miami", region: "Florida, US", stars: 5, baseRate: 799, url: "https://www.faena.com/miami-beach" },
+      { name: "The Setai Miami Beach", city: "Miami", region: "Florida, US", stars: 5, baseRate: 699, url: "https://www.thesetaihotel.com" },
+      { name: "The Standard Spa Miami Beach", city: "Miami", region: "Florida, US", stars: 4, baseRate: 299, url: "https://www.standardhotels.com/miami/properties/miami-beach" },
+      { name: "The Confidante", city: "Miami", region: "Florida, US", stars: 4, baseRate: 279, url: "https://www.theconfidantehotel.com" },
+      { name: "Generator Miami", city: "Miami", region: "Florida, US", stars: 2, baseRate: 49, url: "https://staygenerator.com/hostels/miami" },
       // Nashville, TN
-      { name: "The Hermitage Hotel", city: "Nashville", region: "Tennessee, US", stars: 5, baseRate: 449, img: "\u{1F3DB}", url: "https://www.thehermitagehotel.com", taKey: "g55229-d111960" },
-      { name: "Graduate Nashville", city: "Nashville", region: "Tennessee, US", stars: 4, baseRate: 259, img: "\u{1F3E8}", url: "https://www.graduatehotels.com/nashville", taKey: "g55229-d17761819" },
-      { name: "Noelle Nashville", city: "Nashville", region: "Tennessee, US", stars: 4, baseRate: 289, img: "\u{1F338}", url: "https://www.noelle-nashville.com", taKey: "g55229-d12907868" },
+      { name: "The Hermitage Hotel", city: "Nashville", region: "Tennessee, US", stars: 5, baseRate: 449, url: "https://www.thehermitagehotel.com" },
+      { name: "Noelle Nashville", city: "Nashville", region: "Tennessee, US", stars: 4, baseRate: 299, url: "https://www.noelle-nashville.com" },
+      { name: "Graduate Nashville", city: "Nashville", region: "Tennessee, US", stars: 3, baseRate: 199, url: "https://www.graduatehotels.com/nashville" },
+      { name: "Bobby Hotel", city: "Nashville", region: "Tennessee, US", stars: 4, baseRate: 279, url: "https://www.bobbyhotel.com" },
+      { name: "Dream Nashville", city: "Nashville", region: "Tennessee, US", stars: 4, baseRate: 249, url: "https://www.dreamhotels.com/nashville" },
       // Maui, HI
-      { name: "Four Seasons Resort Maui", city: "Maui", region: "Hawaii, US", stars: 5, baseRate: 999, img: "\u{1F334}", url: "https://www.fourseasons.com/maui", taKey: "g609129-d87397" },
-      { name: "Andaz Maui at Wailea", city: "Maui", region: "Hawaii, US", stars: 5, baseRate: 699, img: "\u{1F30A}", url: "https://www.hyatt.com/andaz/oggaw-andaz-maui-at-wailea-resort", taKey: "g609129-d4459053", chain: "hyatt", chainPropertyCode: "oggaw" },
-      { name: "Hotel Wailea", city: "Maui", region: "Hawaii, US", stars: 5, baseRate: 599, img: "\u{1F338}", url: "https://www.hotelwailea.com", taKey: "g609129-d247776" },
-      // Amsterdam
-      { name: "Waldorf Astoria Amsterdam", city: "Amsterdam", region: "Netherlands", stars: 5, baseRate: 599, img: "\u{1F3DB}", url: "https://www.hilton.com/en/hotels/amswaqa-waldorf-astoria-amsterdam", taKey: "g188590-d5555141", chain: "hilton", chainPropertyCode: "AMSWAQA" },
-      { name: "Pulitzer Amsterdam", city: "Amsterdam", region: "Netherlands", stars: 5, baseRate: 449, img: "\u{1F30A}", url: "https://www.pulitzeramsterdam.com", taKey: "g188590-d189387" },
-      // Seattle, WA (additional)
-      { name: "Hotel 1000", city: "Seattle", region: "Washington, US", stars: 4, baseRate: 299, img: "\u{1F3E2}", url: "https://www.hotel1000seattle.com", taKey: "g60878-d613399", chain: "hilton", chainPropertyCode: "SEALXOL" },
-      { name: "Four Seasons Hotel Seattle", city: "Seattle", region: "Washington, US", stars: 5, baseRate: 499, img: "\u{1F3DB}", url: "https://www.fourseasons.com/seattle", taKey: "g60878-d1152288" },
-      { name: "Kimpton Hotel Monaco Seattle", city: "Seattle", region: "Washington, US", stars: 4, baseRate: 249, img: "\u{1F338}", url: "https://www.ihg.com/kimptonhotels/hotels/us/en/hotel-monaco-seattle-wa/seasm/hoteldetail", taKey: "g60878-d100504", chain: "ihg", chainPropertyCode: "SEASM", chainBrandCode: "KI" },
-      // Portland, OR
-      { name: "Kimpton RiverPlace Hotel", city: "Portland", region: "Oregon, US", stars: 4, baseRate: 225, img: "\u{1F30A}", url: "https://www.ihg.com/kimptonhotels/hotels/us/en/riverplace-hotel-portland-or/pdxpr/hoteldetail", taKey: "g52024-d96143", chain: "ihg", chainPropertyCode: "PDXPR", chainBrandCode: "KI" },
-      { name: "Hotel Lucia", city: "Portland", region: "Oregon, US", stars: 4, baseRate: 179, img: "\u{1F338}", url: "https://www.hotellucia.com", taKey: "g52024-d250254" },
-      { name: "Dossier Hotel", city: "Portland", region: "Oregon, US", stars: 4, baseRate: 199, img: "\u{1F3E2}", url: "https://www.dossierhotel.com", taKey: "g52024-d96164" },
-      { name: "Heathman Hotel", city: "Portland", region: "Oregon, US", stars: 4, baseRate: 199, img: "\u{1F3DB}", url: "https://www.heathmanhotel.com", taKey: "g52024-d96154" },
-      { name: "The Porter Portland", city: "Portland", region: "Oregon, US", stars: 4, baseRate: 219, img: "\u{1F3E2}", url: "https://www.hilton.com/en/hotels/pdxcuqq-the-porter-portland", taKey: "g52024-d13350988", chain: "hilton", chainPropertyCode: "PDXCUQQ" },
-      // San Diego, CA
-      { name: "Pendry San Diego", city: "San Diego", region: "California, US", stars: 5, baseRate: 349, img: "\u{1F3E2}", url: "https://www.pendry.com/san-diego", taKey: "g60750-d10844211" },
-      { name: "Hotel del Coronado", city: "San Diego", region: "California, US", stars: 5, baseRate: 499, img: "\u{1F3DB}", url: "https://hoteldel.com", taKey: "g32250-d125137", chain: "hilton", chainPropertyCode: "SANQQQQ" },
-      { name: "The US Grant", city: "San Diego", region: "California, US", stars: 4, baseRate: 319, img: "\u{1F3DB}", url: "https://www.marriott.com/en-us/hotels/sanlc-the-us-grant-a-luxury-collection-hotel-san-diego", taKey: "g60750-d80668", chain: "marriott", chainPropertyCode: "SANLC" },
-      { name: "The Lafayette Hotel", city: "San Diego", region: "California, US", stars: 4, baseRate: 259, img: "\u{1F3DB}", url: "https://www.lafayettehotelsd.com", taKey: "g60750-d80618" },
-      { name: "Hotel La Jolla", city: "San Diego", region: "California, US", stars: 4, baseRate: 329, img: "\u{1F30A}", url: "https://hotellajolla.com", taKey: "g32578-d119731", chain: "hilton", chainPropertyCode: "SANCUQQ" },
-      // Denver, CO
-      { name: "The Crawford Hotel", city: "Denver", region: "Colorado, US", stars: 4, baseRate: 349, img: "\u{1F3DB}", url: "https://www.thecrawfordhotel.com", taKey: "g33388-d6577001" },
-      { name: "The Brown Palace Hotel and Spa", city: "Denver", region: "Colorado, US", stars: 4, baseRate: 289, img: "\u{1F3DB}", url: "https://www.brownpalace.com", taKey: "g33388-d83088", chain: "marriott", chainPropertyCode: "DENAK" },
-      { name: "Halcyon, a hotel in Cherry Creek", city: "Denver", region: "Colorado, US", stars: 4, baseRate: 329, img: "\u{1F3E2}", url: "https://www.halcyonhotelcherrycreek.com", taKey: "g33388-d10065561" },
-      { name: "The Oxford Hotel", city: "Denver", region: "Colorado, US", stars: 4, baseRate: 259, img: "\u{1F3DB}", url: "https://www.theoxfordhotel.com", taKey: "g33388-d83093" },
-      { name: "The Ritz-Carlton, Denver", city: "Denver", region: "Colorado, US", stars: 5, baseRate: 399, img: "\u{1F3DB}", url: "https://www.ritzcarlton.com/en/hotels/denrz-the-ritz-carlton-denver", taKey: "g33388-d878358", chain: "marriott", chainPropertyCode: "DENRZ" },
-      // Scottsdale, AZ
-      { name: "Fairmont Scottsdale Princess", city: "Scottsdale", region: "Arizona, US", stars: 5, baseRate: 379, img: "\u{1F334}", url: "https://www.fairmont.com/scottsdale", taKey: "g31350-d74190", chain: "fairmont", chainPropertyCode: "scottsdale" },
-      { name: "The Phoenician", city: "Scottsdale", region: "Arizona, US", stars: 5, baseRate: 449, img: "\u{1F334}", url: "https://www.phoenician.com", taKey: "g31350-d74199", chain: "marriott", chainPropertyCode: "PHXLC" },
-      { name: "Hotel Valley Ho", city: "Scottsdale", region: "Arizona, US", stars: 4, baseRate: 279, img: "\u{1F338}", url: "https://www.hotelvalleyho.com", taKey: "g31350-d579764" },
-      { name: "Mountain Shadows Resort", city: "Scottsdale", region: "Arizona, US", stars: 4, baseRate: 399, img: "\u{1F334}", url: "https://www.mountainshadows.com", taKey: "g31300-d12246243" },
-      { name: "Andaz Scottsdale Resort & Bungalows", city: "Scottsdale", region: "Arizona, US", stars: 4, baseRate: 449, img: "\u{1F334}", url: "https://www.andazscottsdale.com", taKey: "g31350-d10596080", chain: "hyatt", chainPropertyCode: "PHXAZ" },
-      // Palm Springs, CA
-      { name: "Parker Palm Springs", city: "Palm Springs", region: "California, US", stars: 5, baseRate: 449, img: "\u{1F334}", url: "https://www.parkerpalmsprings.com", taKey: "g32847-d223072" },
-      { name: "ARRIVE Palm Springs", city: "Palm Springs", region: "California, US", stars: 4, baseRate: 249, img: "\u{1F3E2}", url: "https://www.arrivehotels.com/palm-springs", taKey: "g32847-d10004403" },
-      { name: "Ace Hotel & Swim Club", city: "Palm Springs", region: "California, US", stars: 3, baseRate: 199, img: "\u{1F338}", url: "https://www.acehotel.com/palmsprings", taKey: "g32847-d77284" },
-      { name: "The Saguaro Palm Springs", city: "Palm Springs", region: "California, US", stars: 3, baseRate: 179, img: "\u{1F338}", url: "https://thesaguaro.com", taKey: "g32847-d119371" },
-      // Napa Valley, CA
-      { name: "Archer Hotel Napa", city: "Napa", region: "California, US", stars: 4, baseRate: 349, img: "\u{1F338}", url: "https://archerhotel.com/napa", taKey: "g32766-d10638319" },
-      { name: "Carneros Resort and Spa", city: "Napa", region: "California, US", stars: 5, baseRate: 499, img: "\u{1F334}", url: "https://www.carnerosresort.com", taKey: "g32766-d281284" },
-      { name: "The Meritage Resort and Spa", city: "Napa", region: "California, US", stars: 4, baseRate: 359, img: "\u{1F334}", url: "https://www.meritageresort.com", taKey: "g32766-d587487" },
-      { name: "Meadowood Napa Valley", city: "St. Helena", region: "California, US", stars: 5, baseRate: 795, img: "\u{1F3DB}", url: "https://www.meadowood.com", taKey: "g33000-d82222" },
-      { name: "Napa Valley Lodge", city: "Yountville", region: "California, US", stars: 3, baseRate: 329, img: "\u{1F3E1}", url: "https://www.napavalleylodge.com", taKey: "g33300-d111938" },
-      // Chicago, IL
-      { name: "The Langham, Chicago", city: "Chicago", region: "Illinois, US", stars: 5, baseRate: 395, img: "\u{1F3DB}", url: "https://www.langhamhotels.com/en/the-langham/chicago", taKey: "g35805-d4046139" },
-      { name: "Palmer House, a Hilton Hotel", city: "Chicago", region: "Illinois, US", stars: 4, baseRate: 229, img: "\u{1F3DB}", url: "https://www.hilton.com/en/hotels/chiphhh-palmer-house", taKey: "g35805-d111501", chain: "hilton", chainPropertyCode: "CHIPHHH" },
-      { name: "The Drake Hotel", city: "Chicago", region: "Illinois, US", stars: 4, baseRate: 279, img: "\u{1F3DB}", url: "https://www.hilton.com/en/hotels/chidhhh-the-drake", taKey: "g35805-d87645", chain: "hilton", chainPropertyCode: "CHIDHHH" },
-      { name: "Virgin Hotels Chicago", city: "Chicago", region: "Illinois, US", stars: 4, baseRate: 279, img: "\u{1F338}", url: "https://virginhotels.com/chicago", taKey: "g35805-d6883336" },
-      { name: "Four Seasons Hotel Chicago", city: "Chicago", region: "Illinois, US", stars: 5, baseRate: 595, img: "\u{1F3DB}", url: "https://www.fourseasons.com/chicago", taKey: "g35805-d114591" },
-      // Boston, MA
-      { name: "Fairmont Copley Plaza", city: "Boston", region: "Massachusetts, US", stars: 4, baseRate: 349, img: "\u{1F3DB}", url: "https://www.fairmont.com/copley-plaza-boston", taKey: "g60745-d111444", chain: "fairmont", chainPropertyCode: "copley-plaza-boston" },
-      { name: "The Liberty, a Luxury Collection Hotel", city: "Boston", region: "Massachusetts, US", stars: 4, baseRate: 379, img: "\u{1F3DB}", url: "https://www.marriott.com/en-us/hotels/boslc-the-liberty-a-luxury-collection-hotel-boston", taKey: "g60745-d647006", chain: "marriott", chainPropertyCode: "BOSLC" },
-      { name: "Boston Harbor Hotel", city: "Boston", region: "Massachusetts, US", stars: 5, baseRate: 495, img: "\u{1F30A}", url: "https://www.bhh.com", taKey: "g60745-d89575" },
-      { name: "XV Beacon Hotel", city: "Boston", region: "Massachusetts, US", stars: 5, baseRate: 449, img: "\u{1F338}", url: "https://www.xvbeacon.com", taKey: "g60745-d94337" },
-      { name: "The Verb Hotel", city: "Boston", region: "Massachusetts, US", stars: 4, baseRate: 209, img: "\u{1F338}", url: "https://www.theverbhotel.com", taKey: "g60745-d6485213" },
-      // Washington, DC
-      { name: "The Hay-Adams", city: "Washington", region: "DC, US", stars: 5, baseRate: 449, img: "\u{1F3DB}", url: "https://www.hayadams.com", taKey: "g28970-d84117" },
-      { name: "Waldorf Astoria Washington DC", city: "Washington", region: "DC, US", stars: 5, baseRate: 499, img: "\u{1F3DB}", url: "https://www.hilton.com/en/hotels/dcawawa-waldorf-astoria-washington-dc", taKey: "g28970-d8662491", chain: "hilton", chainPropertyCode: "DCAWAWA" },
-      { name: "Grand Hyatt Washington", city: "Washington", region: "DC, US", stars: 4, baseRate: 249, img: "\u{1F3E8}", url: "https://www.hyatt.com/grand-hyatt/en-US/wasgh-grand-hyatt-washington", taKey: "g28970-d84067", chain: "hyatt", chainPropertyCode: "WASGH" },
-      { name: "JW Marriott Washington, DC", city: "Washington", region: "DC, US", stars: 4, baseRate: 299, img: "\u{1F3E8}", url: "https://www.marriott.com/en-us/hotels/wasjw-jw-marriott-washington-dc", taKey: "g28970-d84079", chain: "marriott", chainPropertyCode: "WASJW" },
-      { name: "InterContinental The Willard", city: "Washington", region: "DC, US", stars: 5, baseRate: 349, img: "\u{1F3DB}", url: "https://www.ihg.com/intercontinental/hotels/us/en/washington/washa/hoteldetail", taKey: "g28970-d84131", chain: "ihg", chainPropertyCode: "WASHA", chainBrandCode: "IC" },
-      // New Orleans, LA
-      { name: "Hotel Monteleone", city: "New Orleans", region: "Louisiana, US", stars: 4, baseRate: 259, img: "\u{1F3DB}", url: "https://www.hotelmonteleone.com", taKey: "g60864-d89148" },
-      { name: "The Roosevelt New Orleans", city: "New Orleans", region: "Louisiana, US", stars: 5, baseRate: 279, img: "\u{1F3DB}", url: "https://www.hilton.com/en/hotels/msyrhwa-the-roosevelt-new-orleans", taKey: "g60864-d111970", chain: "hilton", chainPropertyCode: "MSYRHWA" },
-      { name: "Bourbon Orleans Hotel", city: "New Orleans", region: "Louisiana, US", stars: 4, baseRate: 229, img: "\u{1F3DB}", url: "https://www.bourbonorleans.com", taKey: "g60864-d89050" },
-      { name: "Royal Sonesta New Orleans", city: "New Orleans", region: "Louisiana, US", stars: 4, baseRate: 269, img: "\u{1F3E8}", url: "https://neworleansroyal.sonesta.com", taKey: "g60864-d93034" },
-      { name: "One11 Hotel", city: "New Orleans", region: "Louisiana, US", stars: 4, baseRate: 349, img: "\u{1F338}", url: "https://www.one11hotel.com", taKey: "g60864-d20261054" },
-      // Savannah, GA
-      { name: "Kehoe House", city: "Savannah", region: "Georgia, US", stars: 4, baseRate: 299, img: "\u{1F3E1}", url: "https://www.kehoehouse.com", taKey: "g60814-d75425" },
-      { name: "The Marshall House", city: "Savannah", region: "Georgia, US", stars: 4, baseRate: 239, img: "\u{1F3DB}", url: "https://www.marshallhouse.com", taKey: "g60814-d86782" },
-      { name: "The Gastonian", city: "Savannah", region: "Georgia, US", stars: 4, baseRate: 289, img: "\u{1F3E1}", url: "https://www.thegastonian.com", taKey: "g60814-d115704" },
-      { name: "Eliza Thompson House", city: "Savannah", region: "Georgia, US", stars: 4, baseRate: 219, img: "\u{1F3E1}", url: "https://www.elizathompsonhouse.com", taKey: "g60814-d115706" },
-      { name: "Hyatt Regency Savannah", city: "Savannah", region: "Georgia, US", stars: 4, baseRate: 199, img: "\u{1F3E8}", url: "https://www.hyatt.com/hyatt-regency/en-US/savrs-hyatt-regency-savannah", taKey: "g60814-d86777", chain: "hyatt", chainPropertyCode: "SAVRS" },
-      // Key West, FL
-      { name: "The Gardens Hotel", city: "Key West", region: "Florida, US", stars: 4, baseRate: 349, img: "\u{1F338}", url: "https://www.gardenshotel.com", taKey: "g34345-d227346" },
-      { name: "Santa Maria Suites", city: "Key West", region: "Florida, US", stars: 4, baseRate: 399, img: "\u{1F338}", url: "https://www.santamariasuites.com", taKey: "g34345-d646903" },
-      { name: "Southernmost Beach Resort", city: "Key West", region: "Florida, US", stars: 4, baseRate: 329, img: "\u{1F30A}", url: "https://www.southernmostresorts.com", taKey: "g34345-d224530" },
-      { name: "Hyatt Centric Key West", city: "Key West", region: "Florida, US", stars: 4, baseRate: 359, img: "\u{1F334}", url: "https://www.hyatt.com/hyatt-centric/en-US/kwest-hyatt-centric-key-west-resort-and-spa", taKey: "g34345-d209387", chain: "hyatt", chainPropertyCode: "KWEST" },
-      { name: "The Perry Hotel Key West", city: "Key West", region: "Florida, US", stars: 4, baseRate: 299, img: "\u{1F30A}", url: "https://www.perrykeywest.com", taKey: "g34345-d12238971" },
-      // San Francisco, CA (additional)
-      { name: "Fairmont San Francisco", city: "San Francisco", region: "California, US", stars: 4, baseRate: 399, img: "\u{1F3DB}", url: "https://www.fairmont.com/san-francisco", taKey: "g60713-d81397", chain: "fairmont", chainPropertyCode: "san-francisco" },
-      { name: "Palace Hotel", city: "San Francisco", region: "California, US", stars: 4, baseRate: 349, img: "\u{1F3DB}", url: "https://www.sfpalace.com", taKey: "g60713-d115617", chain: "marriott", chainPropertyCode: "SFOLC" },
-      { name: "1 Hotel San Francisco", city: "San Francisco", region: "California, US", stars: 5, baseRate: 449, img: "\u{1F30A}", url: "https://www.1hotels.com/san-francisco", taKey: "g60713-d506418" },
-      // Los Angeles, CA (additional)
-      { name: "The Beverly Hills Hotel", city: "Los Angeles", region: "California, US", stars: 5, baseRate: 995, img: "\u{1F3DB}", url: "https://www.dorchestercollection.com/los-angeles/the-beverly-hills-hotel", taKey: "g32070-d76093" },
-      { name: "The LINE LA", city: "Los Angeles", region: "California, US", stars: 4, baseRate: 249, img: "\u{1F3E2}", url: "https://www.thelinehotel.com/los-angeles", taKey: "g32655-d77852" },
-      { name: "Hotel Figueroa", city: "Los Angeles", region: "California, US", stars: 4, baseRate: 279, img: "\u{1F338}", url: "https://www.hotelfigueroa.com", taKey: "g32655-d124956", chain: "hyatt", chainPropertyCode: "LAXUF" },
-      // Miami, FL (additional)
-      { name: "Fontainebleau Miami Beach", city: "Miami", region: "Florida, US", stars: 4, baseRate: 399, img: "\u{1F30A}", url: "https://www.fontainebleau.com/miamibeach", taKey: "g34439-d85177" },
-      { name: "Andaz Miami Beach", city: "Miami", region: "Florida, US", stars: 5, baseRate: 379, img: "\u{1F30A}", url: "https://www.hyatt.com/andaz/miaob-andaz-miami-beach", taKey: "g34439-d6959850", chain: "hyatt", chainPropertyCode: "MIAOB" },
-      { name: "Four Seasons at The Surf Club", city: "Miami", region: "Florida, US", stars: 5, baseRate: 899, img: "\u{1F334}", url: "https://www.fourseasons.com/surfside", taKey: "g34671-d12095745" },
-      // Nashville, TN (additional)
-      { name: "Thompson Nashville", city: "Nashville", region: "Tennessee, US", stars: 4, baseRate: 349, img: "\u{1F3E2}", url: "https://www.hyatt.com/thompson/bnath-thompson-nashville", taKey: "g55229-d10395858", chain: "hyatt", chainPropertyCode: "BNATH" },
-      { name: "JW Marriott Nashville", city: "Nashville", region: "Tennessee, US", stars: 5, baseRate: 399, img: "\u{1F3E2}", url: "https://www.marriott.com/en-us/hotels/bnajw-jw-marriott-nashville", taKey: "g55229-d14095446", chain: "marriott", chainPropertyCode: "BNAJW" },
-      // Montreal, Canada
-      { name: "Fairmont The Queen Elizabeth", city: "Montreal", region: "Quebec, Canada", stars: 4, baseRate: 259, img: "\u{1F3DB}", url: "https://www.fairmont.com/queen-elizabeth-montreal", taKey: "g155032-d185747", chain: "fairmont", chainPropertyCode: "queen-elizabeth-montreal" },
-      { name: "The Ritz-Carlton Montreal", city: "Montreal", region: "Quebec, Canada", stars: 5, baseRate: 549, img: "\u{1F3DB}", url: "https://www.ritzcarlton.com/en/hotels/yulrm-the-ritz-carlton-montreal", taKey: "g155032-d155207", chain: "marriott", chainPropertyCode: "YULRM" },
-      { name: "Hotel Nelligan", city: "Montreal", region: "Quebec, Canada", stars: 4, baseRate: 249, img: "\u{1F338}", url: "https://hotelnelligan.com", taKey: "g155032-d263978" },
-      { name: "Hotel William Gray", city: "Montreal", region: "Quebec, Canada", stars: 4, baseRate: 299, img: "\u{1F338}", url: "https://www.hotelwilliamgray.com", taKey: "g155032-d10439823" },
-      { name: "Le Mount Stephen", city: "Montreal", region: "Quebec, Canada", stars: 5, baseRate: 349, img: "\u{1F3DB}", url: "https://www.lemountstephen.com", taKey: "g155032-d12294679" },
-      // Vancouver, Canada
-      { name: "Fairmont Hotel Vancouver", city: "Vancouver", region: "British Columbia, Canada", stars: 4, baseRate: 299, img: "\u{1F3DB}", url: "https://www.fairmont.com/hotel-vancouver", taKey: "g154943-d220237", chain: "fairmont", chainPropertyCode: "hotel-vancouver" },
-      { name: "Rosewood Hotel Georgia", city: "Vancouver", region: "British Columbia, Canada", stars: 5, baseRate: 399, img: "\u{1F3DB}", url: "https://www.rosewoodhotelgeorgia.com", taKey: "g154943-d1063797" },
-      { name: "Loden Hotel", city: "Vancouver", region: "British Columbia, Canada", stars: 5, baseRate: 299, img: "\u{1F338}", url: "https://www.theloden.com", taKey: "g154943-d677531" },
-      { name: "Wedgewood Hotel & Spa", city: "Vancouver", region: "British Columbia, Canada", stars: 5, baseRate: 349, img: "\u{1F338}", url: "https://www.wedgewoodhotel.com", taKey: "g154943-d156564" },
-      { name: "OPUS Vancouver", city: "Vancouver", region: "British Columbia, Canada", stars: 4, baseRate: 249, img: "\u{1F3E2}", url: "https://www.opushotel.com", taKey: "g154943-d224689" },
-      // Lisbon, Portugal
-      { name: "Four Seasons Hotel Ritz Lisbon", city: "Lisbon", region: "Portugal", stars: 5, baseRate: 500, img: "\u{1F3DB}", url: "https://www.fourseasons.com/lisbon", taKey: "g189158-d229311" },
-      { name: "Pestana Palace Lisboa", city: "Lisbon", region: "Portugal", stars: 5, baseRate: 350, img: "\u{1F3DB}", url: "https://www.pestanapalacelisbon.com", taKey: "g189158-d229306" },
-      { name: "Bairro Alto Hotel", city: "Lisbon", region: "Portugal", stars: 5, baseRate: 300, img: "\u{1F338}", url: "https://www.bairroaltohotel.com", taKey: "g189158-d548451" },
-      { name: "Hotel Avenida Palace", city: "Lisbon", region: "Portugal", stars: 5, baseRate: 250, img: "\u{1F3DB}", url: "https://www.hotelavenidapalace.pt/en", taKey: "g189158-d195643" },
-      // Florence, Italy
-      { name: "Four Seasons Hotel Firenze", city: "Florence", region: "Italy", stars: 5, baseRate: 900, img: "\u{1F3DB}", url: "https://www.fourseasons.com/florence", taKey: "g187895-d866681" },
-      { name: "Hotel Lungarno", city: "Florence", region: "Italy", stars: 4, baseRate: 450, img: "\u{1F30A}", url: "https://www.lungarnocollection.com/hotel-lungarno", taKey: "g187895-d195006" },
-      { name: "Hotel Savoy Florence", city: "Florence", region: "Italy", stars: 5, baseRate: 600, img: "\u{1F3DB}", url: "https://www.roccofortehotels.com/hotels-and-resorts/hotel-savoy", taKey: "g187895-d195855" },
-      { name: "Portrait Firenze", city: "Florence", region: "Italy", stars: 5, baseRate: 700, img: "\u{1F338}", url: "https://www.portraitfirenze.com", taKey: "g187895-d5827160" },
-      // Edinburgh, Scotland
-      { name: "The Balmoral Hotel", city: "Edinburgh", region: "Scotland", stars: 5, baseRate: 500, img: "\u{1F3DB}", url: "https://www.roccofortehotels.com/hotels-and-resorts/the-balmoral-hotel", taKey: "g186525-d216610" },
-      { name: "The Caledonian", city: "Edinburgh", region: "Scotland", stars: 5, baseRate: 350, img: "\u{1F3DB}", url: "https://www.hilton.com/en/hotels/ednchwa-waldorf-astoria-edinburgh-the-caledonian", taKey: "g186525-d188782", chain: "hilton", chainPropertyCode: "EDNCHWA" },
-      { name: "Prestonfield House", city: "Edinburgh", region: "Scotland", stars: 5, baseRate: 350, img: "\u{1F3DB}", url: "https://www.prestonfield.com", taKey: "g186525-d189563" },
-      { name: "The Witchery by the Castle", city: "Edinburgh", region: "Scotland", stars: 5, baseRate: 500, img: "\u{1F338}", url: "https://www.thewitchery.com", taKey: "g186525-d188997" },
-      // Dublin, Ireland
-      { name: "The Merrion Hotel", city: "Dublin", region: "Ireland", stars: 5, baseRate: 450, img: "\u{1F3DB}", url: "https://www.merrionhotel.com", taKey: "g186605-d208232" },
-      { name: "The Shelbourne", city: "Dublin", region: "Ireland", stars: 5, baseRate: 400, img: "\u{1F3DB}", url: "https://www.marriott.com/en-us/hotels/dubdt-the-shelbourne-autograph-collection", taKey: "g186605-d187627", chain: "marriott", chainPropertyCode: "DUBDT" },
-      { name: "The Westbury", city: "Dublin", region: "Ireland", stars: 5, baseRate: 350, img: "\u{1F3E2}", url: "https://www.doylecollection.com/hotels/the-westbury-hotel", taKey: "g186605-d209084" },
-      { name: "The Dean Dublin", city: "Dublin", region: "Ireland", stars: 4, baseRate: 250, img: "\u{1F3E2}", url: "https://thedean.ie/dublin", taKey: "g186605-d7274480" },
-      // Santorini, Greece
-      { name: "Canaves Oia Suites", city: "Santorini", region: "Greece", stars: 5, baseRate: 600, img: "\u{1F30A}", url: "https://www.canaves.com", taKey: "g482941-d9456057" },
-      { name: "Katikies Santorini", city: "Santorini", region: "Greece", stars: 5, baseRate: 700, img: "\u{1F30A}", url: "https://www.katikies.com", taKey: "g482941-d231226" },
-      { name: "Grace Hotel Santorini", city: "Santorini", region: "Greece", stars: 5, baseRate: 800, img: "\u{1F30A}", url: "https://auberge.com/grace-hotel", taKey: "g635864-d1088707" },
-      { name: "Andronis Luxury Suites", city: "Santorini", region: "Greece", stars: 5, baseRate: 650, img: "\u{1F30A}", url: "https://www.andronis.com/hotels/andronis-luxury-suites", taKey: "g482941-d657033" },
-      // Vienna, Austria
-      { name: "Hotel Sacher Wien", city: "Vienna", region: "Austria", stars: 5, baseRate: 600, img: "\u{1F3DB}", url: "https://www.sacher.com/en/vienna", taKey: "g190454-d206598" },
-      { name: "Hotel Imperial Vienna", city: "Vienna", region: "Austria", stars: 5, baseRate: 500, img: "\u{1F3DB}", url: "https://www.marriott.com/en-us/hotels/vieil-hotel-imperial-a-luxury-collection-hotel-vienna", taKey: "g190454-d195098", chain: "marriott", chainPropertyCode: "VIEIL" },
-      { name: "Park Hyatt Vienna", city: "Vienna", region: "Austria", stars: 5, baseRate: 550, img: "\u{1F3DB}", url: "https://www.hyatt.com/park-hyatt/vieph", taKey: "g190454-d6603500", chain: "hyatt", chainPropertyCode: "VIEPH" },
-      { name: "The Ritz-Carlton, Vienna", city: "Vienna", region: "Austria", stars: 5, baseRate: 500, img: "\u{1F3DB}", url: "https://www.ritzcarlton.com/en/hotels/vierz-the-ritz-carlton-vienna", taKey: "g190454-d3385403", chain: "marriott", chainPropertyCode: "VIERZ" },
-      // Copenhagen, Denmark
-      { name: "Hotel d'Angleterre", city: "Copenhagen", region: "Denmark", stars: 5, baseRate: 600, img: "\u{1F3DB}", url: "https://www.dangleterre.com", taKey: "g189541-d232092" },
-      { name: "Nimb Hotel", city: "Copenhagen", region: "Denmark", stars: 5, baseRate: 700, img: "\u{1F338}", url: "https://www.nimb.dk", taKey: "g189541-d1218107" },
-      { name: "Hotel Sanders", city: "Copenhagen", region: "Denmark", stars: 4, baseRate: 400, img: "\u{1F338}", url: "https://www.hotelsanders.com", taKey: "g189541-d12704075" },
-      { name: "Copenhagen Admiral Hotel", city: "Copenhagen", region: "Denmark", stars: 4, baseRate: 200, img: "\u{1F30A}", url: "https://www.admiralhotel.dk", taKey: "g189541-d229647" },
-      // Singapore
-      { name: "Raffles Hotel Singapore", city: "Singapore", region: "Singapore", stars: 5, baseRate: 900, img: "\u{1F3DB}", url: "https://www.raffles.com/singapore", taKey: "g294265-d301583" },
-      { name: "Marina Bay Sands", city: "Singapore", region: "Singapore", stars: 5, baseRate: 500, img: "\u{1F3E2}", url: "https://www.marinabaysands.com", taKey: "g294265-d1770798" },
-      { name: "The Fullerton Hotel Singapore", city: "Singapore", region: "Singapore", stars: 5, baseRate: 350, img: "\u{1F3DB}", url: "https://www.fullertonhotels.com", taKey: "g294265-d306173" },
-      { name: "Capella Singapore", city: "Singapore", region: "Singapore", stars: 5, baseRate: 600, img: "\u{1F334}", url: "https://www.capellahotels.com/singapore", taKey: "g294264-d1307604" },
-      // Kyoto, Japan
-      { name: "The Ritz-Carlton, Kyoto", city: "Kyoto", region: "Japan", stars: 5, baseRate: 800, img: "\u{1F3DB}", url: "https://www.ritzcarlton.com/en/hotels/ukyrz-the-ritz-carlton-kyoto", taKey: "g298564-d5977426", chain: "marriott", chainPropertyCode: "UKYRZ" },
-      { name: "Park Hyatt Kyoto", city: "Kyoto", region: "Japan", stars: 5, baseRate: 1000, img: "\u{1F338}", url: "https://www.hyatt.com/park-hyatt/itmph", taKey: "g298564-d17637198", chain: "hyatt", chainPropertyCode: "ITMPH" },
-      { name: "Aman Kyoto", city: "Kyoto", region: "Japan", stars: 5, baseRate: 1200, img: "\u{1F3E0}", url: "https://www.aman.com/resorts/aman-kyoto", taKey: "g298564-d19385498" },
-      { name: "Hoshinoya Kyoto", city: "Kyoto", region: "Japan", stars: 5, baseRate: 600, img: "\u{1F338}", url: "https://hoshinoya.com/kyoto/en", taKey: "g298564-d1547518" },
-      // Tulum, Mexico
-      { name: "Papaya Playa Project", city: "Tulum", region: "Mexico", stars: 4, baseRate: 350, img: "\u{1F334}", url: "https://www.papayaplayaproject.com", taKey: "g150813-d614351" },
-      { name: "Nomade Tulum", city: "Tulum", region: "Mexico", stars: 4, baseRate: 350, img: "\u{1F334}", url: "https://www.nomade.com", taKey: "g150813-d9459838" },
-      { name: "Be Tulum", city: "Tulum", region: "Mexico", stars: 5, baseRate: 400, img: "\u{1F30A}", url: "https://www.betulum.com", taKey: "g23240074-d1676322" },
-      { name: "Our Habitas Tulum", city: "Tulum", region: "Mexico", stars: 4, baseRate: 400, img: "\u{1F3E0}", url: "https://www.ourhabitas.com/tulum", taKey: "g150813-d12264593" },
-      // Marrakech, Morocco
-      { name: "La Mamounia", city: "Marrakech", region: "Morocco", stars: 5, baseRate: 600, img: "\u{1F3DB}", url: "https://www.mamounia.com/en", taKey: "g293734-d301256" },
-      { name: "Royal Mansour Marrakech", city: "Marrakech", region: "Morocco", stars: 5, baseRate: 1500, img: "\u{1F3DB}", url: "https://www.royalmansour.com/en/marrakech", taKey: "g293734-d1676197" },
-      { name: "El Fenn", city: "Marrakech", region: "Morocco", stars: 5, baseRate: 350, img: "\u{1F338}", url: "https://www.el-fenn.com", taKey: "g293734-d557733" },
-      { name: "Riad Dar Anika", city: "Marrakech", region: "Morocco", stars: 4, baseRate: 150, img: "\u{1F3E1}", url: "https://www.riaddaranika.com", taKey: "g293734-d609383" },
-      // Cape Town, South Africa
-      { name: "Mount Nelson, A Belmond Hotel", city: "Cape Town", region: "South Africa", stars: 5, baseRate: 500, img: "\u{1F3DB}", url: "https://www.belmond.com/hotels/africa/south-africa/cape-town/belmond-mount-nelson-hotel", taKey: "g312659-d302610" },
-      { name: "One&Only Cape Town", city: "Cape Town", region: "South Africa", stars: 5, baseRate: 600, img: "\u{1F3E2}", url: "https://www.oneandonlyresorts.com/cape-town", taKey: "g312659-d1236689" },
-      { name: "Ellerman House", city: "Cape Town", region: "South Africa", stars: 5, baseRate: 700, img: "\u{1F338}", url: "https://www.ellerman.co.za", taKey: "g312654-d304197" },
-      { name: "The Table Bay Hotel", city: "Cape Town", region: "South Africa", stars: 5, baseRate: 300, img: "\u{1F3E8}", url: "https://www.suninternational.com/table-bay", taKey: "g312659-d302762" },
-    ].map((h, i) => ({ ...h, id: "h-" + i, variance: 0.25 + (i % 7) * 0.03 }));
+      { name: "Four Seasons Maui", city: "Maui", region: "Hawaii, US", stars: 5, baseRate: 999, url: "https://www.fourseasons.com/maui" },
+      { name: "Andaz Maui at Wailea", city: "Maui", region: "Hawaii, US", stars: 5, baseRate: 699, url: "https://www.hyatt.com/en-US/hotel/hawaii/andaz-maui-at-wailea-resort/oggaw" },
+      { name: "Hotel Wailea", city: "Maui", region: "Hawaii, US", stars: 5, baseRate: 599, url: "https://www.hotelwailea.com" },
+      { name: "Hyatt Regency Maui", city: "Maui", region: "Hawaii, US", stars: 4, baseRate: 449, url: "https://www.hyatt.com/en-US/hotel/hawaii/hyatt-regency-maui-resort-and-spa/ogghr" },
+      { name: "Maui Seaside Hotel", city: "Maui", region: "Hawaii, US", stars: 3, baseRate: 179, url: "https://www.mauiseaside.com" },
+      // Amsterdam, Netherlands
+      { name: "Waldorf Astoria Amsterdam", city: "Amsterdam", region: "Netherlands", stars: 5, baseRate: 599, url: "https://www.hilton.com/en/hotels/amswawa-waldorf-astoria-amsterdam" },
+      { name: "Pulitzer Amsterdam", city: "Amsterdam", region: "Netherlands", stars: 5, baseRate: 449, url: "https://www.pulitzeramsterdam.com" },
+      { name: "Sir Adam Hotel", city: "Amsterdam", region: "Netherlands", stars: 4, baseRate: 229, url: "https://www.sirhotels.com/adam" },
+      { name: "Hotel V Nesplein", city: "Amsterdam", region: "Netherlands", stars: 4, baseRate: 199, url: "https://www.hotelv.nl/nesplein" },
+      { name: "ClinkNOORD", city: "Amsterdam", region: "Netherlands", stars: 2, baseRate: 49, url: "https://www.clinkhostels.com/amsterdam/clinknoord" },
+    ].map((h, i) => ({ ...h, id: `h-${i}`, variance: 0.25 + (i % 7) * 0.03 }));
 
     // =====================================================================
-    //  RATE ENGINE
-    //  ---------------------------------------------------------------
-    //  DEMO MODE: Generates realistic simulated rates.
-    //  PRODUCTION: Replace fetchRates() with a real API call.
-    //  See README.md for integration instructions (Amadeus, SerpAPI, etc.)
+    //  RATE SIMULATION
     // =====================================================================
-    function generateDemoRate(hotel, checkIn) {
+    function generateRate(hotel, checkIn) {
       const d = new Date(checkIn);
       const dow = d.getDay();
       const month = d.getMonth();
       const charSum = hotel.id.split("").reduce((a, c) => a + c.charCodeAt(0), 0);
       const seed = (charSum * 31 + d.getDate() * 17 + month * 53 + dow * 7) % 100;
-      let mult = 1;
-      if (dow === 5 || dow === 6) mult += 0.18;  // weekend premium
-      if (dow === 0) mult += 0.08;
-      if (month >= 5 && month <= 8) mult += 0.22; // summer premium
-      if (month === 11 || month === 0) mult += 0.15; // holiday premium
-      const noise = (seed / 100 - 0.5) * hotel.variance;
-      const rate = Math.round(hotel.baseRate * (mult + noise));
-      return { rate: Math.max(Math.round(hotel.baseRate * 0.65), rate), available: seed > 5 };
+      let multiplier = 1;
+      if (dow === 5 || dow === 6) multiplier += 0.15;
+      if (dow === 0) multiplier += 0.08;
+      if (month >= 5 && month <= 8) multiplier += 0.20;
+      if (month === 11) multiplier += 0.18;
+      const noise = (seed / 100 - 0.5) * (hotel.variance || 0.3);
+      const rate = Math.round(hotel.baseRate * (multiplier + noise));
+      const available = seed > 6;
+      return { rate: Math.max(Math.round(hotel.baseRate * 0.6), rate), available };
     }
 
-    let USE_LIVE_API = true;
-    let LIVE_API_AVAILABLE = null;
+    function nightsBetween(d1, d2) {
+      return Math.max(1, Math.round((new Date(d2) - new Date(d1)) / 86400000));
+    }
 
-    async function fetchRates(hotel, checkIn, checkOut) {
-      if (USE_LIVE_API && hotel.taKey) {
-        try {
-          const params = new URLSearchParams({ hotel_key: hotel.taKey, chk_in: checkIn, chk_out: checkOut });
-          const res = await fetch(`/api/rates?${params}`);
-          const data = await res.json();
-          if (data.error) {
-            console.warn("API error, falling back to demo:", data.error);
-            return generateDemoRate(hotel, checkIn);
-          }
-          LIVE_API_AVAILABLE = true;
-          if (data.rate != null && data.available) {
-            return {
-              rate: data.rate,
-              available: true,
-              source: "live",
-              providers: data.providers,
-            };
-          }
-          return { rate: null, available: false, source: "live" };
-        } catch (err) {
-          console.warn("API unreachable, falling back to demo:", err.message);
-          USE_LIVE_API = false;
-          LIVE_API_AVAILABLE = false;
-          return generateDemoRate(hotel, checkIn);
-        }
-      }
-      return generateDemoRate(hotel, checkIn);
+    function formatDate(dateStr) {
+      if (!dateStr) return "";
+      const d = new Date(dateStr + "T12:00:00");
+      return d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+    }
+
+    function formatDateShort(dateStr) {
+      if (!dateStr) return "";
+      const d = new Date(dateStr + "T12:00:00");
+      return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    }
+
+    function formatCurrency(n) {
+      return "$" + n.toLocaleString();
     }
 
     // =====================================================================
-    //  UTILITIES
+    //  BOOKING URL BUILDER — chain deep links + Google Hotels fallback
     // =====================================================================
-    function nightsBetween(a, b) { return Math.max(1, Math.round((new Date(b) - new Date(a)) / 86400000)); }
-    function fmtDate(s) { if (!s) return ""; return new Date(s + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" }); }
-    function fmtUSD(n) { return "$" + n.toLocaleString(); }
-
-    function formatMMDDYYYY(ds) { const [y,m,d] = ds.split("-"); return `${m}/${d}/${y}`; }
-    function parseIHGDate(ds) { const [y,m,d] = ds.split("-"); return { day: d, monthYear: `${m}${y}` }; }
-
-    function buildProviderUrl(providerName, hotelName, city, checkIn, checkOut) {
-      const q = encodeURIComponent(`${hotelName} ${city}`);
-      const pn = (providerName || "").toLowerCase();
-      if (pn.includes("booking.com"))
-        return `https://www.booking.com/searchresults.html?ss=${q}&checkin=${checkIn}&checkout=${checkOut}&group_adults=2&no_rooms=1`;
-      if (pn.includes("expedia"))
-        return `https://www.expedia.com/go/hotel/search/Destination/${checkIn}/${checkOut}?CityName=${encodeURIComponent(city)}&ChainName=${encodeURIComponent(hotelName)}&NumRoom=1`;
-      return `https://www.google.com/travel/hotels?q=${q}&dates=${checkIn},${checkOut}`;
-    }
-
     function buildBookingUrl(hotel, checkIn, checkOut) {
-      switch (hotel.chain) {
-        case "marriott":
-          return `https://www.marriott.com/reservation/availabilitySearch.mi?propertyCode=${hotel.chainPropertyCode}&fromDate=${formatMMDDYYYY(checkIn)}&toDate=${formatMMDDYYYY(checkOut)}`;
-        case "hilton":
-          return `https://www.hilton.com/en/book/reservation/rooms/?ctyhocn=${hotel.chainPropertyCode}&arrivalDate=${checkIn}&departureDate=${checkOut}&room1NumAdults=2`;
-        case "hyatt": {
-          const sc = hotel.chainPropertyCode.toLowerCase();
-          return `https://www.hyatt.com/shop/rooms/${sc}?location=${sc}&checkinDate=${checkIn}&checkoutDate=${checkOut}&adults=2&rooms=1`;
-        }
-        case "ihg": {
-          const ci = parseIHGDate(checkIn), co = parseIHGDate(checkOut);
-          return `https://www.ihg.com/redirect?path=rates&brandCode=${hotel.chainBrandCode}&hotelCode=${hotel.chainPropertyCode}&checkInDate=${ci.day}&checkInMonthYear=${ci.monthYear}&checkOutDate=${co.day}&checkOutMonthYear=${co.monthYear}&numberOfAdults=2`;
-        }
-        case "wyndham":
-          return `https://www.wyndhamhotels.com/hotels/${hotel.chainPropertyCode}/rooms-rates?checkin_date=${formatMMDDYYYY(checkIn)}&checkout_date=${formatMMDDYYYY(checkOut)}&adults=2&rooms=1`;
-        case "bestwestern":
-          return `https://www.bestwestern.com/en_US/book/hotel-rooms/${hotel.chainSlug}/propertyCode.${hotel.chainPropertyCode}.html?checkIn=${checkIn}&checkOut=${checkOut}`;
-        case "choice":
-          return `https://www.choicehotels.com/reservations/hotels/${hotel.chainPropertyCode}?checkInDate=${checkIn}&checkOutDate=${checkOut}&adults=2`;
-        default: {
-          const q = encodeURIComponent(`${hotel.name} ${hotel.city}`);
-          return `https://www.google.com/travel/hotels?q=${q}&dates=${checkIn},${checkOut}`;
-        }
+      // Direct hotel URL is the primary path
+      if (hotel.url) {
+        return hotel.url;
       }
+      // Google Hotels fallback
+      return `https://www.google.com/travel/hotels?q=${encodeURIComponent(hotel.name + " " + hotel.city)}&dates=${checkIn},${checkOut}`;
     }
 
     // =====================================================================
-    //  COMPONENTS
+    //  OPTION DOT COLORS
     // =====================================================================
-    function Stars({ n }) {
-      return <span style={{ color: "#D4A053", fontSize: 12, letterSpacing: 1 }}>{"★".repeat(n)}{"☆".repeat(5 - n)}</span>;
-    }
-
-    // --- Hotel Search ---
-    function SearchPanel({ selected, onToggle, clearSignal }) {
-      const [q, setQ] = useState("");
-      const [open, setOpen] = useState(false);
-      const ref = useRef(null);
-
-      useEffect(() => { if (clearSignal > 0) { setQ(""); setOpen(false); } }, [clearSignal]);
-
-      useEffect(() => {
-        const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
-        document.addEventListener("mousedown", handler);
-        return () => document.removeEventListener("mousedown", handler);
-      }, []);
-
-      const term = q.trim().toLowerCase();
-      const results = term.length >= 2
-        ? HOTELS.filter(h => (h.name + " " + h.city + " " + h.region).toLowerCase().includes(term)).slice(0, 15)
-        : [];
-
-      const grouped = {};
-      results.forEach(h => { const k = h.city + ", " + h.region; if (!grouped[k]) grouped[k] = []; grouped[k].push(h); });
-      const allCities = [...new Set(HOTELS.map(h => h.city))].sort();
-
-      return (
-        <div style={{ position: "relative" }} ref={ref}>
-          <label style={S.label}>Search Hotels Worldwide</label>
-          <div style={S.searchWrap}>
-            <span style={S.searchIcon}>&#x2315;</span>
-            <input style={S.searchInput} placeholder={"Any city (" + allCities.slice(0, 5).join(", ") + "...)"} value={q}
-              onChange={(e) => { setQ(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)} />
-            {q && <span style={S.clearBtn} onClick={() => { setQ(""); setOpen(false); }}>&times;</span>}
-          </div>
-          {open && term.length >= 2 && (
-            <div style={S.dropdown}>
-              {results.length === 0 ? (
-                <div style={S.noResults}>
-                  <div>No hotels for "{q}"</div>
-                  <div style={{ fontSize: 11, color: "#999", marginTop: 6 }}>Try: {allCities.join(", ")}</div>
-                </div>
-              ) : Object.entries(grouped).map(([city, hotels]) => (
-                <div key={city}>
-                  <div style={S.cityHead}>{city}</div>
-                  {hotels.map(h => {
-                    const isSel = selected.some(s => s.id === h.id);
-                    const full = !isSel && selected.length >= 5;
-                    return (
-                      <div key={h.id} style={{ ...S.item, opacity: full ? 0.35 : 1, background: isSel ? "rgba(212,160,83,0.08)" : "transparent" }}
-                        onClick={() => { if (!full) onToggle(h); }}>
-                        <span style={{ fontSize: 20, marginRight: 10 }}>{h.img}</span>
-                        <div style={{ flex: 1 }}>
-                          <div style={S.hName}>{h.name}</div>
-                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                            <Stars n={h.stars} />
-                            <span style={{ fontSize: 11, color: "#666" }}>~{fmtUSD(h.baseRate)}/night</span>
-                          </div>
-                        </div>
-                        <span style={{ ...S.badge, background: isSel ? "#D4A053" : "transparent", color: isSel ? "#fff" : "#999", border: isSel ? "none" : "1.5px solid #ccc" }}>
-                          {isSel ? "\u2713" : "+"}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-              ))}
-            </div>
-          )}
-          {selected.length > 0 && (
-            <div style={S.chips}>
-              {selected.map(h => (
-                <span key={h.id} style={S.chip}>
-                  {h.img} {h.name}
-                  <span style={S.chipX} onClick={() => onToggle(h)}>&times;</span>
-                </span>
-              ))}
-            </div>
-          )}
-          <div style={S.hint}>{selected.length}/5 hotels selected</div>
-        </div>
-      );
-    }
-
-    // --- Date Range Picker (unified calendar) ---
-    const CAL_MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
-
-    function DateRangePicker({ checkIn, checkOut, onChange, minDate }) {
-      const [open, setOpen] = useState(false);
-      const [phase, setPhase] = useState("in");
-      const [tempIn, setTempIn] = useState(null);
-      const [hover, setHover] = useState(null);
-      const ref = useRef(null);
-      const [vm, setVm] = useState(() => {
-        const d = checkIn ? new Date(checkIn + "T12:00:00") : new Date();
-        return { y: d.getFullYear(), m: d.getMonth() };
-      });
-
-      useEffect(() => {
-        const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
-        document.addEventListener("mousedown", h);
-        return () => document.removeEventListener("mousedown", h);
-      }, []);
-
-      const openCal = () => {
-        setPhase("in"); setTempIn(null); setHover(null);
-        const d = checkIn ? new Date(checkIn + "T12:00:00") : new Date();
-        setVm({ y: d.getFullYear(), m: d.getMonth() });
-        setOpen(true);
-      };
-
-      const nav = (dir) => setVm(p => {
-        let m = p.m + dir, y = p.y;
-        if (m < 0) { m = 11; y--; } if (m > 11) { m = 0; y++; }
-        return { y, m };
-      });
-
-      const pick = (ds) => {
-        if (phase === "in") { setTempIn(ds); setPhase("out"); setHover(null); }
-        else {
-          if (ds <= tempIn) { setTempIn(ds); setHover(null); }
-          else { onChange(tempIn, ds); setOpen(false); }
-        }
-      };
-
-      const toStr = (y, m, d) => `${y}-${String(m+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
-      const m2y = vm.m === 11 ? vm.y + 1 : vm.y;
-      const m2m = vm.m === 11 ? 0 : vm.m + 1;
-
-      const renderMonth = (y, m) => {
-        const dim = new Date(y, m+1, 0).getDate();
-        const fd = new Date(y, m, 1).getDay();
-        const cells = [];
-        for (let i = 0; i < fd; i++) cells.push(null);
-        for (let d = 1; d <= dim; d++) cells.push(toStr(y, m, d));
-        return (
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ textAlign: "center", fontSize: 12, fontWeight: 600, color: "#333", marginBottom: 6 }}>{CAL_MONTHS[m]} {y}</div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)" }}>
-              {["Su","Mo","Tu","We","Th","Fr","Sa"].map(d => (
-                <div key={d} style={{ textAlign: "center", fontSize: 9, color: "#999", padding: "3px 0", fontWeight: 700 }}>{d}</div>
-              ))}
-              {cells.map((ds, i) => {
-                if (!ds) return <div key={`e${i}`} />;
-                const past = ds < minDate;
-                const start = phase === "out" && ds === tempIn;
-                const endD = phase === "out" && hover && hover > tempIn ? hover : null;
-                const end = endD && ds === endD;
-                const inR = phase === "out" && tempIn && endD && ds > tempIn && ds < endD;
-                const dn = parseInt(ds.split("-")[2]);
-                return (
-                  <div key={ds} onClick={() => !past && pick(ds)}
-                    onMouseEnter={() => { if (!past && phase === "out") setHover(ds); }}
-                    style={{
-                      textAlign: "center", padding: "5px 0", fontSize: 12, lineHeight: "22px",
-                      cursor: past ? "default" : "pointer",
-                      color: past ? "#ccc" : (start || end) ? "#fff" : inR ? "#1a1a2e" : "#444",
-                      background: (start || end) ? "#D4A053" : inR ? "rgba(212,160,83,0.18)" : "transparent",
-                      borderRadius: start ? "50% 0 0 50%" : end ? "0 50% 50% 0" : 0,
-                      fontWeight: (start || end) ? 700 : 400,
-                    }}>
-                    {dn}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        );
-      };
-
-      const label = checkIn && checkOut
-        ? `${fmtDate(checkIn)} \u2192 ${fmtDate(checkOut)}  \u00B7  ${nightsBetween(checkIn, checkOut)} night${nightsBetween(checkIn, checkOut) > 1 ? "s" : ""}`
-        : "Select dates";
-
-      return (
-        <div style={{ flex: 1, position: "relative" }} ref={ref}>
-          <div onClick={openCal} style={{
-            padding: "8px 12px", fontSize: 12, background: "#f5f6f8", border: "1px solid #e0e0e0",
-            borderRadius: 6, color: checkIn && checkOut ? "#1a1a2e" : "#999", cursor: "pointer", fontFamily: "'DM Sans', sans-serif",
-          }}>{label}</div>
-          {open && (
-            <div onMouseLeave={() => setHover(null)} style={{
-              position: "absolute", top: "calc(100% + 4px)", left: 0, zIndex: 200,
-              background: "#fff", border: "1px solid #e4e6ea", borderRadius: 10,
-              padding: 16, boxShadow: "0 8px 30px rgba(0,0,0,0.12)", width: 380,
-            }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-                <button onClick={() => nav(-1)} style={{ background: "none", border: "1px solid #e0e0e0", color: "#888", fontSize: 16, cursor: "pointer", borderRadius: 4, padding: "2px 8px", lineHeight: 1 }}>&lsaquo;</button>
-                <div style={{ fontSize: 11, fontWeight: 600, color: phase === "in" ? "#D4A053" : "#5cb85c", letterSpacing: 0.3 }}>
-                  {phase === "in" ? "Select check-in" : "Select check-out"}
-                </div>
-                <button onClick={() => nav(1)} style={{ background: "none", border: "1px solid #e0e0e0", color: "#888", fontSize: 16, cursor: "pointer", borderRadius: 4, padding: "2px 8px", lineHeight: 1 }}>&rsaquo;</button>
-              </div>
-              <div style={{ display: "flex", gap: 12 }}>
-                {renderMonth(vm.y, vm.m)}
-                {renderMonth(m2y, m2m)}
-              </div>
-              {tempIn && phase === "out" && (
-                <div style={{ textAlign: "center", fontSize: 10, color: "#888", marginTop: 8 }}>
-                  Check-in: <strong style={{ color: "#D4A053" }}>{fmtDate(tempIn)}</strong> — now pick check-out
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      );
-    }
-
-    // --- Date Ranges ---
-    function DatePanel({ ranges, onUpdate, onAdd, onRemove }) {
-      const today = new Date().toISOString().split("T")[0];
-      return (
-        <div>
-          <label style={S.label}>Date Ranges</label>
-          <div style={S.hint}>Add 2-10 date ranges to compare</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 10 }}>
-            {ranges.map((dr, i) => (
-              <div key={i} style={S.dateRow}>
-                <span style={S.dateIdx}>#{i + 1}</span>
-                <DateRangePicker checkIn={dr.checkIn} checkOut={dr.checkOut} minDate={today}
-                  onChange={(ci, co) => onUpdate(i, ci, co)} />
-                {ranges.length > 2 && <button style={S.rmBtn} onClick={() => onRemove(i)}>&times;</button>}
-              </div>
-            ))}
-          </div>
-          {ranges.length < 10
-            ? <button style={S.addBtn} onClick={onAdd}>+ Add Date Range</button>
-            : <div style={{ ...S.hint, color: "#D4A053", marginTop: 8 }}>Maximum 10 date ranges</div>}
-        </div>
-      );
-    }
-
-    // --- Results Table ---
-    function ResultsTable({ data, hotels, dates, best }) {
-      return (
-        <div style={S.tWrap}>
-          <table style={S.table}>
-            <thead>
-              <tr>
-                <th style={{ ...S.th, minWidth: 200, position: "sticky", left: 0, zIndex: 2, background: "#f8f9fb" }}>Hotel</th>
-                {dates.map((dr, i) => (
-                  <th key={i} style={{ ...S.th, minWidth: 170 }}>
-                    <div style={{ fontSize: 13, fontWeight: 700 }}>{fmtDate(dr.checkIn)} &ndash; {fmtDate(dr.checkOut)}</div>
-                    <div style={{ fontSize: 11, fontWeight: 400, opacity: 0.5, marginTop: 2 }}>
-                      {nightsBetween(dr.checkIn, dr.checkOut)} night{nightsBetween(dr.checkIn, dr.checkOut) > 1 ? "s" : ""}
-                    </div>
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {hotels.map(h => (
-                <tr key={h.id}>
-                  <td style={{ ...S.td, position: "sticky", left: 0, zIndex: 1, background: "#fff" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <span style={{ fontSize: 22 }}>{h.img}</span>
-                      <div>
-                        <div style={{ fontWeight: 600, fontSize: 13, color: "#1a1a2e" }}>{h.name}</div>
-                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                          <Stars n={h.stars} />
-                          <span style={{ fontSize: 10, color: "#999" }}>{h.city}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </td>
-                  {dates.map((dr, di) => {
-                    const r = data[h.id] && data[h.id][di];
-                    if (!r) return <td key={di} style={S.td}><span style={{ animation: "pulse 1s infinite", color: "#bbb" }}>...</span></td>;
-                    const isB = best && best.hid === h.id && best.di === di;
-                    if (!r.available) return (
-                      <td key={di} style={{ ...S.td, opacity: 0.4 }}>
-                        <div style={{ fontSize: 12, color: "#ff6b6b" }}>No rooms available</div>
-                      </td>
-                    );
-                    const n = nightsBetween(dr.checkIn, dr.checkOut);
-                    const tot = r.rate * n;
-                    const bookUrl = buildBookingUrl(h, dr.checkIn, dr.checkOut);
-                    const allRates = dates.map((_, j) => data[h.id] && data[h.id][j]).filter(x => x && x.available).map(x => x.rate);
-                    const avgRate = allRates.length > 1 ? Math.round(allRates.reduce((a,b) => a+b, 0) / allRates.length) : null;
-                    const delta = avgRate ? r.rate - avgRate : null;
-                    return (
-                      <td key={di} style={{ ...S.td, background: isB ? "rgba(212,160,83,0.08)" : "transparent", borderLeft: isB ? "2px solid #D4A053" : "1px solid #f0f0f0" }}>
-                        {isB && <div style={S.bestTag}>BEST RATE</div>}
-                        <div style={{ fontSize: 9, color: "#999", letterSpacing: 0.5, marginBottom: 2 }}>BEST AVAILABLE MARKET RATE</div>
-                        <div style={{ fontSize: 20, fontWeight: 700, color: isB ? "#D4A053" : "#1a1a2e", fontFamily: "'DM Serif Display', Georgia, serif" }}>{fmtUSD(r.rate)}</div>
-                        {r.providers && r.providers[0] && (
-                          <div style={{ fontSize: 10, color: "#777", marginTop: 1, marginBottom: 2 }}>via {r.providers[0].name}</div>
-                        )}
-                        <div style={{ fontSize: 11, color: "#888", margin: "2px 0 4px" }}>avg/night &middot; {fmtUSD(tot)} total</div>
-                        {delta !== null && delta !== 0 && (
-                          <div style={{ fontSize: 10, color: delta < 0 ? "#5cb85c" : "#ff6b6b", marginBottom: 6, fontWeight: 500 }}>
-                            {delta < 0 ? `${fmtUSD(Math.abs(delta))}/nt cheaper` : `${fmtUSD(delta)}/nt more`} vs avg
-                          </div>
-                        )}
-                        {delta === 0 && <div style={{ fontSize: 10, color: "#999", marginBottom: 6 }}>avg across dates</div>}
-                        <a className="book-link" href={bookUrl} target="_blank" rel="noopener noreferrer"
-                          style={{ ...S.bookBtn, background: isB ? "#D4A053" : "transparent", color: isB ? "#fff" : "#D4A053", border: isB ? "none" : "1px solid #D4A053" }}>
-                          Book Direct &rarr;
-                        </a>
-                        {r.providers && r.providers[0] && (() => {
-                          const prov = r.providers[0];
-                          const pn = (prov.name || "").toLowerCase();
-                          const isDirect = pn.includes("booking.com") || pn.includes("expedia");
-                          const provUrl = buildProviderUrl(prov.name, h.name, h.city, dr.checkIn, dr.checkOut);
-                          const label = isDirect
-                            ? `${fmtUSD(prov.rate)} on ${prov.name}`
-                            : `${fmtUSD(prov.rate)} on ${prov.name} (via Google Hotels)`;
-                          return (
-                            <a href={provUrl} target="_blank" rel="noopener noreferrer"
-                              style={{ display: "block", fontSize: 11, color: "#D4A053", marginTop: 5, textDecoration: "none", fontWeight: 500 }}>
-                              {label} &rsaquo;
-                            </a>
-                          );
-                        })()}
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      );
-    }
-
-    // --- Summary Cards ---
-    function Summary({ data, hotels, dates, best }) {
-      if (!best) return null;
-      const hotel = hotels.find(h => h.id === best.hid);
-      const dr = dates[best.di];
-      const n = nightsBetween(dr.checkIn, dr.checkOut);
-      let allTotals = [];
-      let worstTotal = 0;
-      hotels.forEach(h => dates.forEach((d, di) => {
-        const r = data[h.id] && data[h.id][di];
-        if (r && r.available) {
-          const t = r.rate * nightsBetween(d.checkIn, d.checkOut);
-          allTotals.push(t);
-          if (t > worstTotal) worstTotal = t;
-        }
-      }));
-      const avg = allTotals.length ? Math.round(allTotals.reduce((a, b) => a + b, 0) / allTotals.length) : 0;
-      const saveVsAvg = avg - best.total;
-      const saveVsWorst = worstTotal - best.total;
-
-      return (
-        <div style={S.sumRow}>
-          <div style={S.sumCard}><div style={S.sumLbl}>Best Rate</div><div style={S.sumVal}>{fmtUSD(best.rate)}</div><div style={S.sumDet}>per night (est.)</div></div>
-          <div style={S.sumCard}><div style={S.sumLbl}>Best Dates</div><div style={{ ...S.sumVal, fontSize: 16 }}>{fmtDate(dr.checkIn)} &ndash; {fmtDate(dr.checkOut)}</div><div style={S.sumDet}>{hotel && hotel.name}</div></div>
-          <div style={S.sumCard}><div style={S.sumLbl}>Est. Total</div><div style={S.sumVal}>{fmtUSD(best.total)}</div><div style={S.sumDet}>{n} night{n > 1 ? "s" : ""}</div></div>
-          <div style={S.sumCard}><div style={S.sumLbl}>You Could Save</div><div style={{ ...S.sumVal, color: saveVsWorst > 0 ? "#5cb85c" : "#1a1a2e" }}>{saveVsWorst > 0 ? fmtUSD(saveVsWorst) : "\u2014"}</div><div style={S.sumDet}>{saveVsWorst > 0 ? "vs. most expensive option" : ""}</div></div>
-        </div>
-      );
-    }
+    const OPTION_COLORS = [
+      { dot: "#85B7EB", bg: "#E6F1FB", text: "#0C447C", dark: "#042C53" },
+      { dot: "#5DCAA5", bg: "#E1F5EE", text: "#085041", dark: "#04342C" },
+      { dot: "#ED93B1", bg: "#FBEAF0", text: "#72243E", dark: "#4B1528" },
+      { dot: "#AFA9EC", bg: "#EEEDFE", text: "#3C3489", dark: "#26215C" },
+      { dot: "#F0997B", bg: "#FAECE7", text: "#712B13", dark: "#4A1B0C" },
+      { dot: "#FAC775", bg: "#FAEEDA", text: "#633806", dark: "#412402" },
+      { dot: "#97C459", bg: "#EAF3DE", text: "#27500A", dark: "#173404" },
+      { dot: "#F7C1C1", bg: "#FCEBEB", text: "#791F1F", dark: "#501313" },
+      { dot: "#B4B2A9", bg: "#F1EFE8", text: "#444441", dark: "#2C2C2A" },
+      { dot: "#85B7EB", bg: "#E6F1FB", text: "#0C447C", dark: "#042C53" },
+    ];
 
     // =====================================================================
-    //  MAIN APP
+    //  APP COMPONENT
     // =====================================================================
     function App() {
-      const [sel, setSel] = useState([]);
-      const [dates, setDates] = useState([{ checkIn: "", checkOut: "" }, { checkIn: "", checkOut: "" }]);
-      const [data, setData] = useState(null);
+      const [searchQuery, setSearchQuery] = useState("");
+      const [searchResults, setSearchResults] = useState([]);
+      const [selectedHotels, setSelectedHotels] = useState([]);
+      const [dateRanges, setDateRanges] = useState([
+        { checkIn: "", checkOut: "" },
+        { checkIn: "", checkOut: "" },
+      ]);
+      const [results, setResults] = useState(null);
+      const [bestOverall, setBestOverall] = useState(null);
+      const [showResults, setShowResults] = useState(false);
       const [loading, setLoading] = useState(false);
-      const [best, setBest] = useState(null);
-      const [show, setShow] = useState(false);
+      const [hasSearched, setHasSearched] = useState(false);
+      const searchRef = useRef(null);
 
-      const [clearSig, setClearSig] = useState(0);
-      const toggle = (h) => { setSel(p => p.some(x => x.id === h.id) ? p.filter(x => x.id !== h.id) : p.length < 5 ? [...p, h] : p); setShow(false); setClearSig(c => c + 1); };
+      // Search hotels
+      const handleSearch = useCallback(() => {
+        if (!searchQuery.trim()) return;
+        const q = searchQuery.toLowerCase();
+        const matches = HOTELS.filter(
+          (h) =>
+            h.name.toLowerCase().includes(q) ||
+            h.city.toLowerCase().includes(q) ||
+            h.region.toLowerCase().includes(q)
+        );
+        setSearchResults(matches);
+        setHasSearched(true);
+      }, [searchQuery]);
 
-      const updDate = (i, checkIn, checkOut) => {
-        setDates(p => { const n = [...p]; n[i] = { checkIn, checkOut }; return n; });
-        setShow(false);
+      // Toggle hotel selection
+      const toggleHotel = (hotel) => {
+        setSelectedHotels((prev) =>
+          prev.find((h) => h.id === hotel.id)
+            ? prev.filter((h) => h.id !== hotel.id)
+            : prev.length < 5
+            ? [...prev, hotel]
+            : prev
+        );
+        setShowResults(false);
       };
 
-      const addDate = () => { if (dates.length < 10) setDates(p => [...p, { checkIn: "", checkOut: "" }]); };
-      const rmDate = (i) => { setDates(p => p.filter((_, j) => j !== i)); setShow(false); };
-
-      const valid = dates.filter(d => d.checkIn && d.checkOut && d.checkOut > d.checkIn);
-      const canGo = sel.length >= 1 && valid.length >= 2;
-
-      const compare = async () => {
-        setLoading(true); setShow(true); setBest(null); setData({});
-        const res = {}; let b = null;
-        for (const hotel of sel) {
-          res[hotel.id] = {};
-          for (let di = 0; di < valid.length; di++) {
-            const dr = valid[di];
-            const r = await fetchRates(hotel, dr.checkIn, dr.checkOut);
-            res[hotel.id][di] = r;
-            if (r.available) {
-              const t = r.rate * nightsBetween(dr.checkIn, dr.checkOut);
-              if (!b || t < b.total) b = { hid: hotel.id, di: di, rate: r.rate, total: t };
-            }
-            setData({...res}); setBest(b ? {...b} : null);
+      // Date range management
+      const updateDate = (idx, field, value) => {
+        setDateRanges((prev) => {
+          const next = [...prev];
+          next[idx] = { ...next[idx], [field]: value };
+          if (field === "checkIn" && next[idx].checkOut && next[idx].checkOut <= value) {
+            const co = new Date(value);
+            co.setDate(co.getDate() + 1);
+            next[idx].checkOut = co.toISOString().split("T")[0];
           }
-        }
-        setLoading(false);
+          return next;
+        });
+        setShowResults(false);
       };
 
-      const cities = [...new Set(HOTELS.map(h => h.city))];
+      const addDateRange = () => {
+        if (dateRanges.length < 10) {
+          setDateRanges((prev) => [...prev, { checkIn: "", checkOut: "" }]);
+        }
+      };
+
+      const removeDateRange = (idx) => {
+        if (dateRanges.length > 2) {
+          setDateRanges((prev) => prev.filter((_, i) => i !== idx));
+          setShowResults(false);
+        }
+      };
+
+      const validDates = dateRanges.filter(
+        (d) => d.checkIn && d.checkOut && d.checkOut > d.checkIn
+      );
+      const canCompare = selectedHotels.length >= 1 && validDates.length >= 2;
+
+      // Compare rates
+      const compareRates = () => {
+        setLoading(true);
+        setShowResults(false);
+        setBestOverall(null);
+
+        setTimeout(() => {
+          const res = {};
+          let best = null;
+          selectedHotels.forEach((hotel) => {
+            res[hotel.id] = {};
+            validDates.forEach((dr, di) => {
+              const rateData = generateRate(hotel, dr.checkIn);
+              res[hotel.id][di] = rateData;
+              if (rateData.available) {
+                const nights = nightsBetween(dr.checkIn, dr.checkOut);
+                const total = rateData.rate * nights;
+                if (!best || total < best.total) {
+                  best = { hotelId: hotel.id, dateIdx: di, rate: rateData.rate, total, nights };
+                }
+              }
+            });
+          });
+          setResults({ ...res });
+          setBestOverall(best);
+          setLoading(false);
+          setShowResults(true);
+        }, 500);
+      };
+
+      // Calculate savings for the banner
+      const calcSavings = () => {
+        if (!bestOverall || !results) return 0;
+        let secondBest = Infinity;
+        selectedHotels.forEach((hotel) => {
+          validDates.forEach((dr, di) => {
+            const r = results[hotel.id]?.[di];
+            if (r && r.available) {
+              const nights = nightsBetween(dr.checkIn, dr.checkOut);
+              const total = r.rate * nights;
+              if (total > bestOverall.total && total < secondBest) {
+                secondBest = total;
+              }
+            }
+          });
+        });
+        return secondBest === Infinity ? 0 : secondBest - bestOverall.total;
+      };
+
+      const bestHotel = bestOverall ? selectedHotels.find((h) => h.id === bestOverall.hotelId) : null;
+
+      // Current step
+      const currentStep = showResults ? 3 : validDates.length >= 2 ? 2 : hasSearched ? 1 : 0;
 
       return (
-        <div style={S.app}>
-          <header style={S.header}>
-            <div style={S.headerIn}>
-              <div>
-                <h1 style={S.h1}><span style={{ color: "#D4A053" }}>&#x27D0;</span> Hotel Rate Scanner</h1>
-                <p style={S.sub}>Compare hotel rates across flexible dates. {HOTELS.length} hotels in {cities.length} destinations.</p>
-              </div>
-              <div style={S.headerBadge}>MULTI-DATE</div>
-            </div>
-          </header>
+        <div style={{ minHeight: "100vh" }}>
 
-          <div style={S.main}>
-            <div style={S.grid}>
-              <div style={S.card}><div style={S.cNum}>01</div><SearchPanel selected={sel} onToggle={toggle} clearSignal={clearSig} /></div>
-              <div style={S.card}><div style={S.cNum}>02</div><DatePanel ranges={dates} onUpdate={updDate} onAdd={addDate} onRemove={rmDate} /></div>
+          {/* ============ NAV BAR ============ */}
+          <nav style={{
+            maxWidth: 760, margin: "0 auto", padding: "12px 20px",
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div style={{
+                width: 28, height: 28, borderRadius: 6, background: "#2C1810",
+                display: "flex", alignItems: "center", justifyContent: "center",
+              }}>
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                  <rect x="1" y="3" width="12" height="9" rx="1.5" stroke="#C4A882" strokeWidth="1.2"/>
+                  <path d="M1 6h12" stroke="#C4A882" strokeWidth="1.2"/>
+                  <rect x="3" y="8" width="2" height="2" rx="0.5" fill="#C4A882"/>
+                </svg>
+              </div>
+              <span style={{ fontSize: 15, fontWeight: 600, color: "#1a1a1a" }}>Rate Scanner</span>
             </div>
-            <div style={{ textAlign: "center", marginTop: 24 }}>
-              <button style={{ ...S.cmpBtn, opacity: canGo ? 1 : 0.35, cursor: canGo ? "pointer" : "not-allowed" }} disabled={!canGo || loading} onClick={compare}>
-                {loading ? <span style={{ animation: "pulse 1s infinite" }}>Scanning rates...</span> : "Compare Rates"}
-              </button>
-              {!canGo && <div style={{ fontSize: 12, color: "#666", marginTop: 6 }}>Select at least 1 hotel and enter 2+ valid date ranges</div>}
+            <div style={{ display: "flex", gap: 20, fontSize: 13 }}>
+              <a href="#" style={{ fontWeight: 500, color: "#1a1a1a" }}>Scanner</a>
+              <a href="#how" style={{ color: "#888" }}>How it works</a>
+              <a href="#about" style={{ color: "#888" }}>About</a>
+            </div>
+          </nav>
+
+          {/* ============ HERO ============ */}
+          <div style={{
+            maxWidth: 760, margin: "0 auto 20px", padding: "0 16px",
+          }}>
+            <div style={{
+              background: "linear-gradient(135deg, #2C1810 0%, #1A0F0A 100%)",
+              borderRadius: 14, padding: "48px 32px 40px", textAlign: "center",
+            }} className="fade-up">
+              <p style={{
+                fontSize: 11, letterSpacing: 3, color: "#C4A882",
+                textTransform: "uppercase", margin: "0 0 12px", fontWeight: 500,
+              }}>For flexible travelers</p>
+              <h1 style={{
+                fontFamily: "'DM Serif Display', Georgia, serif",
+                fontSize: 28, fontWeight: 400, color: "#F5E6D8",
+                margin: "0 0 10px", lineHeight: 1.25,
+              }}>
+                You know where you're staying.<br/>Find the cheapest time to go.
+              </h1>
+              <p style={{
+                fontSize: 14, color: "#A89280", margin: "0 0 28px",
+                maxWidth: 420, marginLeft: "auto", marginRight: "auto", lineHeight: 1.6,
+              }}>
+                Pick your hotel, add the dates you're considering, and see which one saves you the most. Then book direct.
+              </p>
+
+              {/* Search bar */}
+              <div style={{
+                display: "flex", gap: 8, maxWidth: 460, margin: "0 auto",
+              }}>
+                <div style={{
+                  flex: 1, background: "rgba(255,255,255,0.08)",
+                  borderRadius: 8, padding: "12px 16px", textAlign: "left",
+                  border: "1px solid rgba(255,255,255,0.12)",
+                }}>
+                  <label style={{
+                    fontSize: 10, color: "#C4A882", letterSpacing: 1,
+                    textTransform: "uppercase", display: "block", marginBottom: 2,
+                  }}>Search hotels by city</label>
+                  <input
+                    type="text"
+                    placeholder="Santa Barbara, Tokyo, Limerick..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+                    ref={searchRef}
+                    style={{ fontSize: 14, fontWeight: 500 }}
+                  />
+                </div>
+                <button
+                  onClick={handleSearch}
+                  className="btn-primary"
+                  style={{
+                    background: "#C4A882", color: "#1A0F0A", border: "none",
+                    padding: "12px 28px", borderRadius: 8, fontSize: 14,
+                    fontWeight: 600, fontFamily: "'DM Sans', sans-serif",
+                  }}
+                >Search</button>
+              </div>
             </div>
           </div>
 
-          {show && data && (
-            <div style={{ animation: "fadeUp 0.5s ease" }}>
-              <div style={S.divider}><span style={S.divLine} /><span style={S.divTxt}>Results</span><span style={S.divLine} /></div>
-              <Summary data={data} hotels={sel} dates={valid} best={best} />
-              <ResultsTable data={data} hotels={sel} dates={valid} best={best} />
-              <div style={S.foot}>
-                {LIVE_API_AVAILABLE
-                  ? <><strong style={{color:"#5cb85c"}}>&#9679; Live market rates</strong> — estimated rates for date comparison. Final price confirmed on hotel website.</>
-                  : <><strong>Demo mode:</strong> Rates are simulated. Start the server for live pricing.</>}
-                <br />"Book My Stay" opens the hotel's official booking page with your dates pre-selected.
-              </div>
+          {/* ============ MAIN CONTENT ============ */}
+          <div style={{ maxWidth: 760, margin: "0 auto", padding: "0 16px 48px" }}>
+
+            {/* Step indicators */}
+            <div style={{
+              display: "flex", alignItems: "center", margin: "0 0 20px",
+              padding: "0 4px",
+            }}>
+              {[
+                { label: "Pick hotels", step: 1 },
+                { label: "Add your dates", step: 2 },
+                { label: "See your savings", step: 3 },
+              ].map((s, i) => (
+                <React.Fragment key={i}>
+                  {i > 0 && (
+                    <div style={{
+                      flex: 1, height: 1,
+                      background: currentStep >= s.step ? "#2C1810" : "#ddd",
+                      margin: "0 12px",
+                      transition: "background 0.3s",
+                    }} />
+                  )}
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <div style={{
+                      width: 24, height: 24, borderRadius: "50%",
+                      background: currentStep >= s.step ? "#2C1810" : "#ddd",
+                      color: currentStep >= s.step ? "#F5E6D8" : "#888",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      fontSize: 11, fontWeight: 600,
+                      transition: "all 0.3s",
+                    }}>{s.step}</div>
+                    <span style={{
+                      fontSize: 12, fontWeight: 500,
+                      color: currentStep >= s.step ? "#1a1a1a" : "#999",
+                      transition: "color 0.3s",
+                    }}>{s.label}</span>
+                  </div>
+                </React.Fragment>
+              ))}
             </div>
-          )}
+
+            {/* ============ HOTEL SELECTION ============ */}
+            {hasSearched && (
+              <div className="fade-up" style={{
+                background: "#fff", border: "1px solid #eee",
+                borderRadius: 12, padding: 20, marginBottom: 16,
+              }}>
+                <div style={{
+                  display: "flex", alignItems: "center",
+                  justifyContent: "space-between", marginBottom: 12,
+                }}>
+                  <label style={{
+                    fontSize: 11, fontWeight: 600, color: "#888",
+                    letterSpacing: 1.5, textTransform: "uppercase",
+                  }}>Which hotels are you considering?</label>
+                  <span style={{ fontSize: 11, color: "#aaa" }}>
+                    {selectedHotels.length} of 5 selected
+                  </span>
+                </div>
+
+                {searchResults.length === 0 ? (
+                  <p style={{ fontSize: 13, color: "#888", padding: "8px 0" }}>
+                    No hotels found for "{searchQuery}". Try another city.
+                  </p>
+                ) : (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                    {searchResults.map((hotel) => {
+                      const isSelected = selectedHotels.find((h) => h.id === hotel.id);
+                      return (
+                        <div
+                          key={hotel.id}
+                          className="hotel-pill"
+                          onClick={() => toggleHotel(hotel)}
+                          style={{
+                            display: "flex", alignItems: "center", gap: 6,
+                            background: isSelected ? "#FAEEDA" : "#f5f5f3",
+                            borderRadius: 100, padding: "8px 14px 8px 10px",
+                            fontSize: 13, fontWeight: isSelected ? 600 : 400,
+                            color: isSelected ? "#412402" : "#666",
+                            cursor: "pointer",
+                            border: isSelected ? "1px solid #EF9F27" : "1px solid transparent",
+                          }}
+                        >
+                          {isSelected ? (
+                            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                              <circle cx="7" cy="7" r="6" fill="#BA7517"/>
+                              <path d="M4.5 7L6 8.5L9.5 5" stroke="white" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+                            </svg>
+                          ) : (
+                            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                              <circle cx="7" cy="7" r="6" stroke="#ccc" strokeWidth="1"/>
+                            </svg>
+                          )}
+                          {hotel.name}
+                          <span style={{
+                            fontSize: 11, color: isSelected ? "#854F0B" : "#aaa",
+                            fontWeight: 400,
+                          }}>
+                            {"★".repeat(hotel.stars)}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ============ DATE RANGES ============ */}
+            {selectedHotels.length > 0 && (
+              <div className="fade-up" style={{
+                background: "#fff", border: "1px solid #eee",
+                borderRadius: 12, padding: 20, marginBottom: 16,
+              }}>
+                <label style={{
+                  fontSize: 11, fontWeight: 600, color: "#888",
+                  letterSpacing: 1.5, textTransform: "uppercase",
+                  display: "block", marginBottom: 12,
+                }}>Which dates could work for you?</label>
+
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {dateRanges.map((dr, idx) => {
+                    const c = OPTION_COLORS[idx];
+                    const nights = dr.checkIn && dr.checkOut && dr.checkOut > dr.checkIn
+                      ? nightsBetween(dr.checkIn, dr.checkOut) : 0;
+                    return (
+                      <div key={idx} style={{
+                        display: "flex", alignItems: "center", gap: 10,
+                        background: "#f9f9f7", borderRadius: 8, padding: "10px 14px",
+                      }}>
+                        <div style={{
+                          width: 10, height: 10, borderRadius: "50%",
+                          background: c.dot, flexShrink: 0,
+                        }} />
+                        <span style={{
+                          fontSize: 11, fontWeight: 600, color: "#aaa",
+                          textTransform: "uppercase", letterSpacing: 1,
+                          minWidth: 68,
+                        }}>Option {String.fromCharCode(65 + idx)}</span>
+                        <input
+                          type="date"
+                          value={dr.checkIn}
+                          onChange={(e) => updateDate(idx, "checkIn", e.target.value)}
+                          style={{ flex: 1 }}
+                        />
+                        <span style={{ fontSize: 12, color: "#aaa" }}>→</span>
+                        <input
+                          type="date"
+                          value={dr.checkOut}
+                          onChange={(e) => updateDate(idx, "checkOut", e.target.value)}
+                          style={{ flex: 1 }}
+                        />
+                        {nights > 0 && (
+                          <span style={{
+                            fontSize: 12, color: "#aaa", whiteSpace: "nowrap",
+                          }}>
+                            {nights} night{nights > 1 ? "s" : ""}
+                          </span>
+                        )}
+                        {dateRanges.length > 2 && (
+                          <svg
+                            width="14" height="14" viewBox="0 0 14 14" fill="none"
+                            style={{ cursor: "pointer", flexShrink: 0 }}
+                            onClick={() => removeDateRange(idx)}
+                          >
+                            <path d="M3.5 3.5L10.5 10.5M10.5 3.5L3.5 10.5" stroke="#bbb" strokeWidth="1.2" strokeLinecap="round"/>
+                          </svg>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {dateRanges.length < 10 && (
+                  <button
+                    onClick={addDateRange}
+                    style={{
+                      fontSize: 12, color: "#854F0B", cursor: "pointer",
+                      background: "none", border: "none", padding: "8px 0 0",
+                      fontWeight: 600, fontFamily: "'DM Sans', sans-serif",
+                    }}
+                  >+ Add another date range</button>
+                )}
+              </div>
+            )}
+
+            {/* ============ COMPARE CTA ============ */}
+            {selectedHotels.length > 0 && (
+              <div style={{ textAlign: "center", margin: "24px 0" }}>
+                <button
+                  onClick={compareRates}
+                  disabled={!canCompare || loading}
+                  className="btn-primary"
+                  style={{
+                    background: canCompare ? "#2C1810" : "#ccc",
+                    color: canCompare ? "#F5E6D8" : "#888",
+                    border: "none", padding: "14px 52px",
+                    borderRadius: 10, fontSize: 15, fontWeight: 600,
+                    fontFamily: "'DM Sans', sans-serif",
+                    cursor: canCompare ? "pointer" : "not-allowed",
+                    opacity: loading ? 0.7 : 1,
+                  }}
+                >
+                  {loading ? "Scanning rates..." : "Show me the rates"}
+                </button>
+                {canCompare && (
+                  <p style={{ fontSize: 12, color: "#aaa", marginTop: 8 }}>
+                    {selectedHotels.length} hotel{selectedHotels.length > 1 ? "s" : ""} × {validDates.length} date range{validDates.length > 1 ? "s" : ""} = {selectedHotels.length * validDates.length} rate lookups
+                  </p>
+                )}
+                {!canCompare && selectedHotels.length > 0 && (
+                  <p style={{ fontSize: 12, color: "#aaa", marginTop: 8 }}>
+                    {validDates.length < 2 ? "Add at least 2 date ranges to compare" : "Select at least 1 hotel"}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* ============ RESULTS ============ */}
+            {showResults && results && (
+              <div className="fade-up" style={{
+                background: "#fff", border: "1px solid #eee",
+                borderRadius: 12, overflow: "hidden", marginBottom: 16,
+              }}>
+                {/* Best deal banner */}
+                {bestOverall && bestHotel && (
+                  <div style={{
+                    background: "#FAEEDA", padding: "16px 20px",
+                    display: "flex", alignItems: "center", justifyContent: "space-between",
+                    flexWrap: "wrap", gap: 12,
+                  }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                        <circle cx="10" cy="10" r="9" fill="#BA7517"/>
+                        <path d="M6 10L9 13L14 7" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                      <div>
+                        <p style={{ fontSize: 14, fontWeight: 600, color: "#412402", margin: 0 }}>
+                          Option {String.fromCharCode(65 + bestOverall.dateIdx)} saves you {formatCurrency(calcSavings())} at {bestHotel.name}
+                        </p>
+                        <p style={{ fontSize: 12, color: "#854F0B", margin: "2px 0 0" }}>
+                          {formatCurrency(bestOverall.rate)}/night · {formatCurrency(bestOverall.total)} for {bestOverall.nights} night{bestOverall.nights > 1 ? "s" : ""}
+                        </p>
+                      </div>
+                    </div>
+                    <a
+                      href={buildBookingUrl(bestHotel, validDates[bestOverall.dateIdx].checkIn, validDates[bestOverall.dateIdx].checkOut)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="btn-primary"
+                      style={{
+                        background: "#2C1810", color: "#F5E6D8",
+                        padding: "8px 20px", borderRadius: 8,
+                        fontSize: 13, fontWeight: 600, whiteSpace: "nowrap",
+                        textDecoration: "none", display: "inline-block",
+                      }}
+                    >Book direct</a>
+                  </div>
+                )}
+
+                {/* Rate table */}
+                <div style={{ overflowX: "auto" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                    <thead>
+                      <tr>
+                        <th style={{
+                          textAlign: "left", padding: "12px 16px",
+                          fontWeight: 500, fontSize: 12, color: "#999",
+                          borderBottom: "1px solid #eee",
+                        }}>Hotel</th>
+                        {validDates.map((dr, di) => {
+                          const c = OPTION_COLORS[di];
+                          return (
+                            <th key={di} style={{
+                              textAlign: "center", padding: "12px 16px",
+                              fontWeight: 500, fontSize: 11,
+                              borderBottom: "1px solid #eee",
+                            }}>
+                              <span style={{
+                                display: "inline-flex", alignItems: "center", gap: 4,
+                                background: c.bg, color: c.text,
+                                padding: "3px 10px", borderRadius: 100,
+                              }}>
+                                <span style={{
+                                  width: 6, height: 6, borderRadius: "50%",
+                                  background: c.dot, display: "inline-block",
+                                }} />
+                                Option {String.fromCharCode(65 + di)} · {formatDateShort(dr.checkIn)}–{formatDateShort(dr.checkOut)}
+                              </span>
+                            </th>
+                          );
+                        })}
+                        <th style={{ padding: "12px 16px", borderBottom: "1px solid #eee" }} />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {selectedHotels.map((hotel) => {
+                        const isBestHotel = bestOverall && hotel.id === bestOverall.hotelId;
+                        return (
+                          <tr key={hotel.id} className="result-row" style={{
+                            borderBottom: "1px solid #f5f5f3",
+                            background: isBestHotel ? "rgba(186, 117, 23, 0.03)" : "transparent",
+                          }}>
+                            <td style={{ padding: "14px 16px" }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                <span style={{ fontWeight: 500, color: "#1a1a1a" }}>{hotel.name}</span>
+                                {isBestHotel && (
+                                  <span style={{
+                                    fontSize: 9, fontWeight: 700, color: "#854F0B",
+                                    background: "#FAEEDA", padding: "2px 6px",
+                                    borderRadius: 100, letterSpacing: 0.5,
+                                  }}>BEST VALUE</span>
+                                )}
+                              </div>
+                              <p style={{ fontSize: 11, color: "#aaa", margin: "2px 0 0" }}>
+                                {hotel.stars}-star · {hotel.region}
+                              </p>
+                            </td>
+                            {validDates.map((dr, di) => {
+                              const r = results[hotel.id]?.[di];
+                              const isBest = bestOverall && hotel.id === bestOverall.hotelId && di === bestOverall.dateIdx;
+                              const nights = nightsBetween(dr.checkIn, dr.checkOut);
+                              if (!r) return <td key={di} />;
+                              return (
+                                <td key={di} style={{ textAlign: "center", padding: "14px 16px" }}>
+                                  {r.available ? (
+                                    <>
+                                      <p style={{
+                                        fontWeight: isBest ? 600 : 500, margin: 0,
+                                        fontSize: 15,
+                                        fontFamily: isBest ? "'DM Serif Display', Georgia, serif" : "inherit",
+                                        color: isBest ? "#412402" : "#1a1a1a",
+                                      }}>{formatCurrency(r.rate)}</p>
+                                      <p style={{
+                                        fontSize: 11, margin: "1px 0 0",
+                                        color: isBest ? "#854F0B" : "#aaa",
+                                      }}>{formatCurrency(r.rate * nights)} total</p>
+                                    </>
+                                  ) : (
+                                    <span style={{ fontSize: 12, color: "#ccc" }}>Sold out</span>
+                                  )}
+                                </td>
+                              );
+                            })}
+                            <td style={{ padding: "14px 16px", textAlign: "right" }}>
+                              <a
+                                href={buildBookingUrl(hotel, validDates[0].checkIn, validDates[0].checkOut)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className={isBestHotel ? "btn-primary" : "btn-outline"}
+                                style={{
+                                  fontSize: 12, fontWeight: 500,
+                                  padding: "7px 16px", borderRadius: 8,
+                                  textDecoration: "none", display: "inline-block",
+                                  ...(isBestHotel
+                                    ? { background: "#2C1810", color: "#F5E6D8" }
+                                    : { background: "transparent", color: "#888", border: "1px solid #ddd" }
+                                  ),
+                                }}
+                              >Book</a>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* ============ HOW IT WORKS (optional section) ============ */}
+            {!hasSearched && (
+              <div id="how" className="fade-up" style={{
+                maxWidth: 560, margin: "40px auto 0", textAlign: "center",
+              }}>
+                <p style={{
+                  fontSize: 11, letterSpacing: 2, color: "#aaa",
+                  textTransform: "uppercase", fontWeight: 600, marginBottom: 20,
+                }}>How it works</p>
+                <div style={{
+                  display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 16,
+                }}>
+                  {[
+                    { num: "1", title: "Pick your hotels", desc: "Search any destination and select up to 5 hotels you're considering." },
+                    { num: "2", title: "Add your dates", desc: "Enter 2 or more date ranges you'd be flexible with." },
+                    { num: "3", title: "Book the best rate", desc: "See which combination is cheapest, then book direct with the hotel." },
+                  ].map((step) => (
+                    <div key={step.num} style={{ padding: "0 4px" }}>
+                      <div style={{
+                        width: 32, height: 32, borderRadius: "50%",
+                        background: "#FAEEDA", color: "#854F0B",
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        fontSize: 13, fontWeight: 700, margin: "0 auto 10px",
+                      }}>{step.num}</div>
+                      <p style={{ fontSize: 13, fontWeight: 600, margin: "0 0 4px", color: "#1a1a1a" }}>{step.title}</p>
+                      <p style={{ fontSize: 12, color: "#888", lineHeight: 1.5, margin: 0 }}>{step.desc}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* ============ FOOTER ============ */}
+            <div style={{ textAlign: "center", padding: "32px 0 0" }}>
+              <p style={{ fontSize: 11, color: "#aaa", margin: 0 }}>
+                Rates are estimated for demo purposes. "Book direct" links to the hotel's official website.
+              </p>
+              <p style={{ fontSize: 11, color: "#aaa", margin: "4px 0 0" }}>
+                Built by Paul Totah · <a href="https://www.linkedin.com/in/paultotah/" target="_blank" rel="noopener noreferrer" style={{ textDecoration: "underline", color: "#888" }}>LinkedIn</a>
+              </p>
+            </div>
+
+          </div>
         </div>
       );
     }
-
-    // =====================================================================
-    //  STYLES
-    // =====================================================================
-    const S = {
-      app: { fontFamily: "'DM Sans', sans-serif", background: "#f0f2f5", color: "#1a1a2e", minHeight: "100vh", paddingBottom: 60 },
-      header: { background: "#fff", borderBottom: "1px solid #e4e6ea", padding: "32px 32px 28px" },
-      headerIn: { maxWidth: 960, margin: "0 auto", display: "flex", justifyContent: "space-between", alignItems: "flex-start" },
-      h1: { fontFamily: "'DM Serif Display', Georgia, serif", fontSize: 32, fontWeight: 400, margin: 0, letterSpacing: -0.5, color: "#1a1a2e" },
-      sub: { fontSize: 14, color: "#888", margin: "6px 0 0", fontWeight: 300 },
-      headerBadge: { fontSize: 10, fontWeight: 700, letterSpacing: 2.5, color: "#D4A053", border: "1px solid rgba(212,160,83,0.35)", padding: "5px 12px", borderRadius: 4, marginTop: 6 },
-      main: { maxWidth: 960, margin: "0 auto", padding: "28px 32px" },
-      grid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 },
-      card: { background: "#fff", border: "1px solid #e4e6ea", borderRadius: 12, padding: 24, position: "relative", boxShadow: "0 1px 3px rgba(0,0,0,0.06)" },
-      cNum: { position: "absolute", top: 14, right: 18, fontSize: 11, fontWeight: 700, color: "rgba(212,160,83,0.4)", letterSpacing: 1 },
-      label: { display: "block", fontSize: 13, fontWeight: 600, color: "#333", marginBottom: 8, letterSpacing: 0.3 },
-      hint: { fontSize: 11, color: "#999", marginTop: 6 },
-      searchWrap: { position: "relative" },
-      searchIcon: { position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", fontSize: 16, color: "#aaa" },
-      searchInput: { width: "100%", padding: "10px 32px 10px 36px", fontSize: 13, background: "#f5f6f8", border: "1px solid #e0e0e0", borderRadius: 8, color: "#1a1a2e", outline: "none", fontFamily: "'DM Sans', sans-serif" },
-      clearBtn: { position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", cursor: "pointer", color: "#999", fontSize: 16, lineHeight: 1 },
-      dropdown: { position: "absolute", top: "100%", left: 0, right: 0, background: "#fff", border: "1px solid #e4e6ea", borderRadius: 10, marginTop: 4, maxHeight: 340, overflowY: "auto", zIndex: 100, boxShadow: "0 8px 30px rgba(0,0,0,0.12)" },
-      cityHead: { fontSize: 10, fontWeight: 700, letterSpacing: 1.5, color: "#D4A053", padding: "10px 14px 4px", textTransform: "uppercase" },
-      item: { display: "flex", alignItems: "center", padding: "8px 14px", cursor: "pointer" },
-      hName: { fontSize: 13, fontWeight: 500, color: "#1a1a2e" },
-      badge: { width: 24, height: 24, borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 600, flexShrink: 0 },
-      noResults: { padding: 16, fontSize: 13, color: "#999", textAlign: "center" },
-      chips: { display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 },
-      chip: { display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 10px", background: "rgba(212,160,83,0.1)", border: "1px solid rgba(212,160,83,0.25)", borderRadius: 20, fontSize: 12, color: "#b8860b" },
-      chipX: { cursor: "pointer", fontWeight: 700, fontSize: 14, marginLeft: 2, opacity: 0.6 },
-      dateRow: { display: "flex", alignItems: "center", gap: 8 },
-      dateIdx: { fontSize: 11, fontWeight: 600, color: "#aaa", width: 24, textAlign: "center", flexShrink: 0 },
-      dateIn: { flex: 1, padding: "8px 10px", fontSize: 12, background: "#f5f6f8", border: "1px solid #e0e0e0", borderRadius: 6, color: "#1a1a2e", fontFamily: "'DM Sans', sans-serif", outline: "none", minWidth: 0 },
-      rmBtn: { background: "none", border: "none", color: "#ff6b6b", fontSize: 18, cursor: "pointer", padding: "2px 6px", lineHeight: 1, flexShrink: 0 },
-      addBtn: { background: "none", border: "1px dashed #ccc", color: "#999", fontSize: 12, padding: "7px 14px", borderRadius: 6, cursor: "pointer", marginTop: 8, fontFamily: "'DM Sans', sans-serif" },
-      cmpBtn: { fontFamily: "'DM Serif Display', Georgia, serif", fontSize: 18, padding: "14px 48px", background: "#D4A053", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontWeight: 400, letterSpacing: 0.3 },
-      divider: { display: "flex", alignItems: "center", gap: 16, maxWidth: 960, margin: "8px auto 24px", padding: "0 32px" },
-      divLine: { flex: 1, height: 1, background: "#e0e0e0" },
-      divTxt: { fontSize: 11, fontWeight: 700, letterSpacing: 2, color: "#aaa", textTransform: "uppercase" },
-      sumRow: { display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, maxWidth: 960, margin: "0 auto 24px", padding: "0 32px" },
-      sumCard: { background: "#fff", border: "1px solid #e4e6ea", borderRadius: 10, padding: "16px 18px", textAlign: "center", boxShadow: "0 1px 3px rgba(0,0,0,0.06)" },
-      sumLbl: { fontSize: 10, fontWeight: 600, letterSpacing: 1, color: "#999", textTransform: "uppercase", marginBottom: 6 },
-      sumVal: { fontFamily: "'DM Serif Display', Georgia, serif", fontSize: 24, color: "#D4A053", fontWeight: 400 },
-      sumDet: { fontSize: 11, color: "#999", marginTop: 4 },
-      tWrap: { maxWidth: 960, margin: "0 auto", padding: "0 32px", overflowX: "auto" },
-      table: { width: "100%", borderCollapse: "collapse", fontSize: 13 },
-      th: { textAlign: "left", padding: "12px 16px", borderBottom: "2px solid #e4e6ea", color: "#666", fontWeight: 600, fontSize: 12, background: "#f8f9fb" },
-      td: { padding: 16, borderBottom: "1px solid #f0f0f0", borderLeft: "1px solid #f0f0f0", verticalAlign: "top" },
-      bestTag: { fontSize: 9, fontWeight: 700, letterSpacing: 1.5, color: "#D4A053", marginBottom: 4 },
-      bookBtn: { fontFamily: "'DM Sans', sans-serif", fontSize: 11, fontWeight: 600, padding: "6px 14px", borderRadius: 5, cursor: "pointer", letterSpacing: 0.2, display: "inline-block", textAlign: "center" },
-      foot: { maxWidth: 960, margin: "24px auto 0", padding: "0 32px", fontSize: 11, color: "#999", textAlign: "center", lineHeight: 1.6 },
-    };
 
     ReactDOM.render(<App />, document.getElementById("root"));
   </script>
