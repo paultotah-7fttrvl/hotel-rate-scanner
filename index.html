@@ -304,7 +304,7 @@
         }
         default: {
           const q = encodeURIComponent(`${hotel.name} ${hotel.city}`);
-          return `https://www.google.com/travel/hotels?q=${q}&dates=${checkIn},${checkOut}`;
+          return `https://www.booking.com/searchresults.html?ss=${q}&checkin=${checkIn}&checkout=${checkOut}&group_adults=2&no_rooms=1&selected_currency=USD`;
         }
       }
     }
