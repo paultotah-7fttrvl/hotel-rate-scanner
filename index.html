@@ -284,29 +284,9 @@
     // =====================================================================
     //  BOOKING URL BUILDER — chain deep links + Google Hotels fallback
     // =====================================================================
-    function formatMMDDYYYY(ds) { const [y,m,d] = ds.split("-"); return `${m}/${d}/${y}`; }
-    function parseIHGDate(ds) { const [y,m,d] = ds.split("-"); return { day: d, monthYear: `${m}${y}` }; }
-
     function buildBookingUrl(hotel, checkIn, checkOut) {
-      switch (hotel.chain) {
-        case "marriott":
-          return `https://www.marriott.com/reservation/availabilitySearch.mi?propertyCode=${hotel.chainPropertyCode}&fromDate=${formatMMDDYYYY(checkIn)}&toDate=${formatMMDDYYYY(checkOut)}`;
-        case "hilton":
-          return `https://www.hilton.com/en/book/reservation/rooms/?ctyhocn=${hotel.chainPropertyCode}&arrivalDate=${checkIn}&departureDate=${checkOut}&room1NumAdults=2`;
-        case "hyatt": {
-          const sc = hotel.chainPropertyCode.toLowerCase();
-          return `https://www.hyatt.com/shop/rooms/${sc}?location=${sc}&checkinDate=${checkIn}&checkoutDate=${checkOut}&adults=2&rooms=1`;
-        }
-        case "ihg": {
-          // Use the hotel's own IHG URL with date params appended
-          const base = hotel.url.split("?")[0];
-          return `${base}?qDtCI=${checkIn}&qDtCO=${checkOut}&qAdlt=2&qRms=1`;
-        }
-        default: {
-          const q = encodeURIComponent(`${hotel.name} ${hotel.city}`);
-          return `https://www.booking.com/searchresults.html?ss=${q}&checkin=${checkIn}&checkout=${checkOut}&group_adults=2&no_rooms=1&selected_currency=USD`;
-        }
-      }
+      const q = encodeURIComponent(`${hotel.name} ${hotel.city}`);
+      return `https://www.booking.com/searchresults.html?ss=${q}&checkin=${checkIn}&checkout=${checkOut}&group_adults=2&no_rooms=1&selected_currency=USD`;
     }
 
     // =====================================================================
