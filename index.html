@@ -113,7 +113,7 @@
     // =====================================================================
     const HOTELS = [
       // Santa Barbara, CA
-      { name: "Ritz-Carlton Bacara", city: "Santa Barbara", region: "California, US", stars: 5, baseRate: 689, url: "https://www.ritzcarlton.com/en/hotels/sbarz-the-ritz-carlton-bacara-santa-barbara/overview/", chain: "ritzcarlton", chainPropertyCode: "SBARZ" },
+      { name: "Ritz-Carlton Bacara", city: "Santa Barbara", region: "California, US", stars: 5, baseRate: 689, url: "https://www.ritzcarlton.com/en/hotels/sbarz-the-ritz-carlton-bacara-santa-barbara/overview/", chain: "ritzcarlton", chainPropertyCode: "SBARZ", chainSlug: "sbarz-the-ritz-carlton-bacara-santa-barbara" },
       { name: "Belmond El Encanto", city: "Santa Barbara", region: "California, US", stars: 5, baseRate: 599, url: "https://www.belmond.com/hotels/north-america/usa/santa-barbara/belmond-el-encanto" },
       { name: "Mar Monte Hotel", city: "Santa Barbara", region: "California, US", stars: 4, baseRate: 412, url: "https://www.hyatt.com/unbound-collection/en-US/sbars-mar-monte-hotel", chain: "hyatt", chainPropertyCode: "sbars" },
       { name: "Hotel Californian", city: "Santa Barbara", region: "California, US", stars: 4, baseRate: 349, url: "https://www.hotelcalifornian.com" },
@@ -292,7 +292,7 @@
         case "marriott":
           return `https://www.marriott.com/reservation/availabilitySearch.mi?propertyCode=${hotel.chainPropertyCode}&fromDate=${formatMMDDYYYY(checkIn)}&toDate=${formatMMDDYYYY(checkOut)}`;
         case "ritzcarlton":
-          return `https://www.ritzcarlton.com/reservation/availabilitySearch.mi?propertyCode=${hotel.chainPropertyCode}&fromDate=${formatMMDDYYYY(checkIn)}&toDate=${formatMMDDYYYY(checkOut)}`;
+          return `https://www.ritzcarlton.com/en/hotels/${hotel.chainSlug}/rooms-rates/?fromDate=${formatMMDDYYYY(checkIn)}&toDate=${formatMMDDYYYY(checkOut)}`;
         case "hilton":
           return `https://www.hilton.com/en/book/reservation/rooms/?ctyhocn=${hotel.chainPropertyCode}&arrivalDate=${checkIn}&departureDate=${checkOut}&room1NumAdults=2`;
         case "hyatt": {
