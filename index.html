@@ -511,8 +511,9 @@
     // =====================================================================
     function App() {
       const [searchQuery, setSearchQuery] = useState("");
-      const [searchResults, setSearchResults] = useState([]);
       const [selectedHotels, setSelectedHotels] = useState([]);
+      const [selectedCities, setSelectedCities] = useState([]);
+      const [hotelsByCityMap, setHotelsByCityMap] = useState({});
       const [dateRanges, setDateRanges] = useState([
         { checkIn: "", checkOut: "" },
         { checkIn: "", checkOut: "" },
@@ -521,12 +522,10 @@
       const [bestOverall, setBestOverall] = useState(null);
       const [showResults, setShowResults] = useState(false);
       const [loading, setLoading] = useState(false);
-      const [hasSearched, setHasSearched] = useState(false);
       const [showDropdown, setShowDropdown] = useState(false);
       const [dropdownCities, setDropdownCities] = useState([]);
       const searchRef = useRef(null);
       const searchWrapRef = useRef(null);
-      const checkOutRefs = useRef([]);
 
       // Close dropdown on outside click
       useEffect(() => {
@@ -539,49 +538,41 @@
         return () => document.removeEventListener("mousedown", handler);
       }, []);
 
-      // Search hotels — live as user types, show city dropdown
+      // Live city search — show dropdown as user types
       useEffect(() => {
         const q = searchQuery.trim().toLowerCase();
-        if (!q) {
-          setSearchResults([]);
-          setHasSearched(false);
-          setDropdownCities([]);
-          setShowDropdown(false);
-          return;
-        }
+        if (!q) { setDropdownCities([]); setShowDropdown(false); return; }
         const matches = HOTELS.filter(
           (h) =>
             h.name.toLowerCase().includes(q) ||
             h.city.toLowerCase().includes(q) ||
             h.region.toLowerCase().includes(q)
         );
-        // Unique cities from matches, sorted
         const cities = [...new Set(matches.map(h => h.city))].sort();
         setDropdownCities(cities);
         setShowDropdown(cities.length > 0);
-        // Only show hotels below if user has selected a city (not mid-typing)
       }, [searchQuery]);
 
       const selectCity = (city) => {
+        if (selectedCities.includes(city)) { setShowDropdown(false); setSearchQuery(""); return; }
+        if (selectedCities.length >= 3) { setShowDropdown(false); setSearchQuery(""); return; }
         const matches = HOTELS.filter(h => h.city === city);
-        setSearchResults(matches);
-        setHasSearched(true);
+        setSelectedCities(prev => [...prev, city]);
+        setHotelsByCityMap(prev => ({ ...prev, [city]: matches }));
         setShowDropdown(false);
-        setSearchQuery(city);
+        setSearchQuery("");
+      };
+
+      const removeCity = (city) => {
+        setSelectedCities(prev => prev.filter(c => c !== city));
+        setHotelsByCityMap(prev => { const n = {...prev}; delete n[city]; return n; });
+        setSelectedHotels(prev => prev.filter(h => h.city !== city));
+        setShowResults(false);
       };
 
       const handleSearch = () => {
-        const q = searchQuery.trim().toLowerCase();
-        if (!q) return;
-        const matches = HOTELS.filter(
-          (h) =>
-            h.name.toLowerCase().includes(q) ||
-            h.city.toLowerCase().includes(q) ||
-            h.region.toLowerCase().includes(q)
-        );
-        setSearchResults(matches);
-        setHasSearched(true);
-        setShowDropdown(false);
+        if (dropdownCities.length === 1) selectCity(dropdownCities[0]);
+        else if (dropdownCities.length > 1) setShowDropdown(true);
       };
 
       // Toggle hotel selection
@@ -676,7 +667,7 @@
       const bestHotel = bestOverall ? selectedHotels.find((h) => h.id === bestOverall.hotelId) : null;
 
       // Current step
-      const currentStep = showResults ? 3 : validDates.length >= 2 ? 2 : hasSearched ? 1 : 0;
+      const currentStep = showResults ? 3 : validDates.length >= 2 ? 2 : selectedCities.length > 0 ? 1 : 0;
 
       return (
         <div style={{ minHeight: "100vh" }}>
@@ -768,15 +759,31 @@
                 >Search</button>
                 {showDropdown && (
                   <div className="search-dropdown">
+                    {selectedCities.length >= 3 && (
+                      <div style={{ padding: "8px 16px", fontSize: 11, color: "#aaa", borderBottom: "1px solid #f0f0f0" }}>
+                        3-city max reached
+                      </div>
+                    )}
                     {dropdownCities.map(city => {
                       const count = HOTELS.filter(h => h.city === city).length;
+                      const alreadyAdded = selectedCities.includes(city);
+                      const atMax = selectedCities.length >= 3 && !alreadyAdded;
                       return (
                         <div
                           key={city}
                           className="search-dropdown-item"
-                          onMouseDown={() => selectCity(city)}
+                          onMouseDown={() => !atMax && selectCity(city)}
+                          style={{ opacity: atMax ? 0.4 : 1, cursor: atMax ? "not-allowed" : "pointer" }}
                         >
-                          <span>{city}</span>
+                          <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                            {alreadyAdded && (
+                              <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                                <circle cx="6" cy="6" r="5" fill="#BA7517"/>
+                                <path d="M3.5 6L5 7.5L8.5 4" stroke="white" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+                              </svg>
+                            )}
+                            {city}
+                          </span>
                           <span style={{ fontSize: 11, color: "#aaa" }}>{count} hotel{count !== 1 ? "s" : ""}</span>
                         </div>
                       );
@@ -828,141 +835,119 @@
               ))}
             </div>
 
-            {/* ============ HOTEL SELECTION ============ */}
-            {hasSearched && (
+            {/* ============ HOTEL SHORTLIST — unified city-grouped panel ============ */}
+            {selectedCities.length > 0 && (
               <div className="fade-up" style={{
                 background: "#fff", border: "1px solid #eee",
                 borderRadius: 12, padding: 20, marginBottom: 16,
               }}>
                 <div style={{
                   display: "flex", alignItems: "center",
-                  justifyContent: "space-between", marginBottom: 12,
+                  justifyContent: "space-between", marginBottom: 16,
                 }}>
                   <label style={{
                     fontSize: 11, fontWeight: 600, color: "#888",
                     letterSpacing: 1.5, textTransform: "uppercase",
-                  }}>Add hotels to your shortlist</label>
+                  }}>
+                    {selectedCities.length > 1 ? "Multi-city shortlist" : "Hotels"}
+                  </label>
                   <span style={{ fontSize: 11, color: "#aaa" }}>
                     {selectedHotels.length} of 5 selected
                   </span>
                 </div>
 
-                {searchResults.length === 0 ? (
-                  <p style={{ fontSize: 13, color: "#888", padding: "8px 0" }}>
-                    No hotels found for "{searchQuery}". Try another city.
-                  </p>
-                ) : (
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                    {searchResults.map((hotel) => {
-                      const isSelected = selectedHotels.find((h) => h.id === hotel.id);
-                      const atMax = selectedHotels.length >= 5 && !isSelected;
-                      return (
-                        <div
-                          key={hotel.id}
-                          className="hotel-pill"
-                          onClick={() => !atMax && toggleHotel(hotel)}
+                {selectedCities.map((city, cityIdx) => {
+                  const cityHotels = hotelsByCityMap[city] || [];
+                  const isLast = cityIdx === selectedCities.length - 1;
+                  return (
+                    <div key={city} style={{ marginBottom: isLast ? 0 : 20 }}>
+                      {/* City header row */}
+                      <div style={{
+                        display: "flex", alignItems: "center", gap: 8,
+                        marginBottom: 10,
+                      }}>
+                        <span style={{
+                          fontSize: 13, fontWeight: 600, color: "#1a1a1a",
+                        }}>{city}</span>
+                        <button
+                          onClick={() => removeCity(city)}
                           style={{
-                            display: "flex", alignItems: "center", gap: 6,
-                            background: isSelected ? "#FAEEDA" : atMax ? "#f9f9f7" : "#f5f5f3",
-                            borderRadius: 100, padding: "8px 14px 8px 10px",
-                            fontSize: 13, fontWeight: isSelected ? 600 : 400,
-                            color: isSelected ? "#412402" : atMax ? "#ccc" : "#666",
-                            cursor: atMax ? "not-allowed" : "pointer",
-                            border: isSelected ? "1px solid #EF9F27" : "1px solid transparent",
+                            display: "flex", alignItems: "center", justifyContent: "center",
+                            width: 18, height: 18, borderRadius: "50%",
+                            background: "#f0ede8", border: "none",
+                            cursor: "pointer", color: "#888", fontSize: 12, lineHeight: 1,
+                            fontFamily: "'DM Sans', sans-serif",
                           }}
-                        >
-                          {isSelected ? (
-                            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                              <circle cx="7" cy="7" r="6" fill="#BA7517"/>
-                              <path d="M4.5 7L6 8.5L9.5 5" stroke="white" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
-                            </svg>
-                          ) : (
-                            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                              <circle cx="7" cy="7" r="6" stroke="#ccc" strokeWidth="1"/>
-                            </svg>
-                          )}
-                          {hotel.name}
-                          <span style={{
-                            fontSize: 11, color: isSelected ? "#854F0B" : "#aaa",
-                            fontWeight: 400,
-                          }}>
-                            {"★".repeat(hotel.stars)}
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
+                          title={`Remove ${city}`}
+                        >×</button>
+                        <span style={{ fontSize: 11, color: "#bbb" }}>
+                          {cityHotels.length} hotel{cityHotels.length !== 1 ? "s" : ""}
+                        </span>
+                      </div>
+
+                      {/* Hotel pills */}
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                        {cityHotels.map((hotel) => {
+                          const isSelected = selectedHotels.find((h) => h.id === hotel.id);
+                          const atMax = selectedHotels.length >= 5 && !isSelected;
+                          return (
+                            <div
+                              key={hotel.id}
+                              className="hotel-pill"
+                              onClick={() => !atMax && toggleHotel(hotel)}
+                              style={{
+                                display: "flex", alignItems: "center", gap: 6,
+                                background: isSelected ? "#FAEEDA" : atMax ? "#f9f9f7" : "#f5f5f3",
+                                borderRadius: 100, padding: "7px 14px 7px 10px",
+                                fontSize: 13, fontWeight: isSelected ? 600 : 400,
+                                color: isSelected ? "#412402" : atMax ? "#ccc" : "#666",
+                                cursor: atMax ? "not-allowed" : "pointer",
+                                border: isSelected ? "1px solid #EF9F27" : "1px solid transparent",
+                              }}
+                            >
+                              {isSelected ? (
+                                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                                  <circle cx="7" cy="7" r="6" fill="#BA7517"/>
+                                  <path d="M4.5 7L6 8.5L9.5 5" stroke="white" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+                                </svg>
+                              ) : (
+                                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                                  <circle cx="7" cy="7" r="6" stroke="#ccc" strokeWidth="1"/>
+                                </svg>
+                              )}
+                              {hotel.name}
+                              <span style={{
+                                fontSize: 11,
+                                color: isSelected ? "#854F0B" : "#aaa",
+                                fontWeight: 400,
+                              }}>{"★".repeat(hotel.stars)}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* City divider */}
+                      {!isLast && (
+                        <div style={{ borderTop: "1px solid #f0f0f0", margin: "16px 0 0" }} />
+                      )}
+                    </div>
+                  );
+                })}
+
+                {selectedCities.length < 3 && (
+                  <p style={{
+                    fontSize: 12, color: "#bbb", marginTop: 16,
+                    display: "flex", alignItems: "center", gap: 4,
+                  }}>
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                      <circle cx="6" cy="6" r="5" stroke="#ccc" strokeWidth="1"/>
+                      <path d="M6 4v4M4 6h4" stroke="#ccc" strokeWidth="1.2" strokeLinecap="round"/>
+                    </svg>
+                    Search another city to compare across destinations
+                  </p>
                 )}
               </div>
             )}
-
-            {/* ============ SHORTLIST (always visible when hotels selected) ============ */}
-            {selectedHotels.length > 0 && (() => {
-              const cities = [...new Set(selectedHotels.map(h => h.city))];
-              const isMultiCity = cities.length > 1;
-              return (
-                <div className="fade-up" style={{
-                  background: "#fff", border: "1px solid #eee",
-                  borderRadius: 12, padding: 20, marginBottom: 16,
-                }}>
-                  <div style={{
-                    display: "flex", alignItems: "center",
-                    justifyContent: "space-between", marginBottom: 12,
-                  }}>
-                    <label style={{
-                      fontSize: 11, fontWeight: 600, color: "#888",
-                      letterSpacing: 1.5, textTransform: "uppercase",
-                    }}>Your shortlist</label>
-                    {isMultiCity && (
-                      <span style={{
-                        fontSize: 11, color: "#854F0B", background: "#FAEEDA",
-                        padding: "2px 8px", borderRadius: 100, fontWeight: 500,
-                      }}>Multi-city comparison</span>
-                    )}
-                  </div>
-                  {cities.map(city => (
-                    <div key={city} style={{ marginBottom: 12 }}>
-                      {isMultiCity && (
-                        <p style={{
-                          fontSize: 11, fontWeight: 600, color: "#aaa",
-                          textTransform: "uppercase", letterSpacing: 1,
-                          marginBottom: 6,
-                        }}>{city}</p>
-                      )}
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                        {selectedHotels.filter(h => h.city === city).map(hotel => (
-                          <div
-                            key={hotel.id}
-                            className="hotel-pill"
-                            style={{
-                              display: "flex", alignItems: "center", gap: 6,
-                              background: "#FAEEDA", borderRadius: 100,
-                              padding: "8px 10px 8px 14px",
-                              fontSize: 13, fontWeight: 600,
-                              color: "#412402",
-                              border: "1px solid #EF9F27",
-                            }}
-                          >
-                            {hotel.name}
-                            <span style={{ fontSize: 11, color: "#854F0B", fontWeight: 400 }}>
-                              {"★".repeat(hotel.stars)}
-                            </span>
-                            <svg
-                              width="14" height="14" viewBox="0 0 14 14" fill="none"
-                              style={{ cursor: "pointer", flexShrink: 0, marginLeft: 2 }}
-                              onClick={() => toggleHotel(hotel)}
-                            >
-                              <circle cx="7" cy="7" r="6" fill="#EF9F27"/>
-                              <path d="M4.5 4.5L9.5 9.5M9.5 4.5L4.5 9.5" stroke="white" strokeWidth="1.2" strokeLinecap="round"/>
-                            </svg>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              );
-            })()}
 
             {/* ============ DATE RANGES ============ */}
             {selectedHotels.length > 0 && (
@@ -1206,7 +1191,7 @@
             )}
 
             {/* ============ HOW IT WORKS (optional section) ============ */}
-            {!hasSearched && (
+            {selectedCities.length === 0 && (
               <div id="how" className="fade-up" style={{
                 maxWidth: 560, margin: "40px auto 0", textAlign: "center",
               }}>
