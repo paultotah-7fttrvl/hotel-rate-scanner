@@ -282,11 +282,36 @@
     }
 
     // =====================================================================
-    //  BOOKING URL BUILDER — chain deep links + Google Hotels fallback
+    //  BOOKING URL BUILDER — chain deep links + Booking.com fallback
     // =====================================================================
+    function formatMMDDYYYY(ds) { const [y,m,d] = ds.split("-"); return `${m}/${d}/${y}`; }
+    function parseIHGDate(ds) { const [y,m,d] = ds.split("-"); return { day: d, monthYear: `${m}${y}` }; }
+
     function buildBookingUrl(hotel, checkIn, checkOut) {
-      const q = encodeURIComponent(`${hotel.name} ${hotel.city}`);
-      return `https://www.booking.com/searchresults.html?ss=${q}&checkin=${checkIn}&checkout=${checkOut}&group_adults=2&no_rooms=1&selected_currency=USD`;
+      switch (hotel.chain) {
+        case "marriott":
+          return `https://www.marriott.com/reservation/availabilitySearch.mi?propertyCode=${hotel.chainPropertyCode}&fromDate=${formatMMDDYYYY(checkIn)}&toDate=${formatMMDDYYYY(checkOut)}`;
+        case "hilton":
+          return `https://www.hilton.com/en/book/reservation/rooms/?ctyhocn=${hotel.chainPropertyCode}&arrivalDate=${checkIn}&departureDate=${checkOut}&room1NumAdults=2`;
+        case "hyatt": {
+          const sc = hotel.chainPropertyCode.toLowerCase();
+          return `https://www.hyatt.com/shop/rooms/${sc}?location=${sc}&checkinDate=${checkIn}&checkoutDate=${checkOut}&adults=2&rooms=1`;
+        }
+        case "ihg": {
+          const ci = parseIHGDate(checkIn), co = parseIHGDate(checkOut);
+          return `https://www.ihg.com/redirect?path=rates&brandCode=${hotel.chainBrandCode}&hotelCode=${hotel.chainPropertyCode}&checkInDate=${ci.day}&checkInMonthYear=${ci.monthYear}&checkOutDate=${co.day}&checkOutMonthYear=${co.monthYear}&numberOfAdults=2`;
+        }
+        case "wyndham":
+          return `https://www.wyndhamhotels.com/hotels/${hotel.chainPropertyCode}/rooms-rates?checkin_date=${formatMMDDYYYY(checkIn)}&checkout_date=${formatMMDDYYYY(checkOut)}&adults=2&rooms=1`;
+        case "bestwestern":
+          return `https://www.bestwestern.com/en_US/book/hotel-rooms/${hotel.chainSlug}/propertyCode.${hotel.chainPropertyCode}.html?checkIn=${checkIn}&checkOut=${checkOut}`;
+        case "choice":
+          return `https://www.choicehotels.com/reservations/hotels/${hotel.chainPropertyCode}?checkInDate=${checkIn}&checkOutDate=${checkOut}&adults=2`;
+        default: {
+          const q = encodeURIComponent(`${hotel.name} ${hotel.city}`);
+          return `https://www.booking.com/searchresults.html?ss=${q}&checkin=${checkIn}&checkout=${checkOut}&group_adults=2&no_rooms=1&selected_currency=USD`;
+        }
+      }
     }
 
     // =====================================================================
