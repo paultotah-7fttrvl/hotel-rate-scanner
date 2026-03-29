@@ -113,7 +113,7 @@
     // =====================================================================
     const HOTELS = [
       // Santa Barbara, CA
-      { name: "Ritz-Carlton Bacara", city: "Santa Barbara", region: "California, US", stars: 5, baseRate: 689, url: "https://www.ritzcarlton.com/en/hotels/sbarc-the-ritz-carlton-bacara-santa-barbara", chain: "marriott", chainPropertyCode: "SBARC" },
+      { name: "Ritz-Carlton Bacara", city: "Santa Barbara", region: "California, US", stars: 5, baseRate: 689, url: "https://www.ritzcarlton.com/en/hotels/sbarz-the-ritz-carlton-bacara-santa-barbara/overview/", chain: "ritzcarlton", chainPropertyCode: "SBARZ" },
       { name: "Belmond El Encanto", city: "Santa Barbara", region: "California, US", stars: 5, baseRate: 599, url: "https://www.belmond.com/hotels/north-america/usa/santa-barbara/belmond-el-encanto" },
       { name: "Mar Monte Hotel", city: "Santa Barbara", region: "California, US", stars: 4, baseRate: 412, url: "https://www.hyatt.com/unbound-collection/en-US/sbars-mar-monte-hotel", chain: "hyatt", chainPropertyCode: "sbars" },
       { name: "Hotel Californian", city: "Santa Barbara", region: "California, US", stars: 4, baseRate: 349, url: "https://www.hotelcalifornian.com" },
@@ -231,7 +231,7 @@
       { name: "Four Seasons Maui", city: "Maui", region: "Hawaii, US", stars: 5, baseRate: 999, url: "https://www.fourseasons.com/maui" },
       { name: "Andaz Maui at Wailea", city: "Maui", region: "Hawaii, US", stars: 5, baseRate: 699, url: "https://www.hyatt.com/en-US/hotel/hawaii/andaz-maui-at-wailea-resort/oggaw", chain: "hyatt", chainPropertyCode: "oggaw" },
       { name: "Hotel Wailea", city: "Maui", region: "Hawaii, US", stars: 5, baseRate: 599, url: "https://www.hotelwailea.com" },
-      { name: "Hyatt Regency Maui", city: "Maui", region: "Hawaii, US", stars: 4, baseRate: 449, url: "https://www.hyatt.com/en-US/hotel/hawaii/hyatt-regency-maui-resort-and-spa/ogghr", chain: "hyatt", chainPropertyCode: "ogghr" },
+      { name: "Hyatt Regency Maui", city: "Maui", region: "Hawaii, US", stars: 4, baseRate: 449, url: "https://www.hyatt.com/en-US/hotel/hawaii/hyatt-regency-maui-resort-and-spa/oggrm", chain: "hyatt", chainPropertyCode: "oggrm" },
       { name: "Maui Seaside Hotel", city: "Maui", region: "Hawaii, US", stars: 3, baseRate: 179, url: "https://www.mauiseaside.com" },
       // Amsterdam, Netherlands
       { name: "Waldorf Astoria Amsterdam", city: "Amsterdam", region: "Netherlands", stars: 5, baseRate: 599, url: "https://www.hilton.com/en/hotels/amswawa-waldorf-astoria-amsterdam", chain: "hilton", chainPropertyCode: "AMSWAWA" },
@@ -285,12 +285,14 @@
     //  BOOKING URL BUILDER — chain deep links + Booking.com fallback
     // =====================================================================
     function formatMMDDYYYY(ds) { const [y,m,d] = ds.split("-"); return `${m}/${d}/${y}`; }
-    function parseIHGDate(ds) { const [y,m,d] = ds.split("-"); return { day: d, monthYear: `${m}${y}` }; }
+    function parseIHGDate(ds) { const [y,m,d] = ds.split("-"); return { day: d, monthYear: `${String(parseInt(m)-1).padStart(2,'0')}${y}` }; }
 
     function buildBookingUrl(hotel, checkIn, checkOut) {
       switch (hotel.chain) {
         case "marriott":
           return `https://www.marriott.com/reservation/availabilitySearch.mi?propertyCode=${hotel.chainPropertyCode}&fromDate=${formatMMDDYYYY(checkIn)}&toDate=${formatMMDDYYYY(checkOut)}`;
+        case "ritzcarlton":
+          return `https://www.ritzcarlton.com/reservation/availabilitySearch.mi?propertyCode=${hotel.chainPropertyCode}&fromDate=${formatMMDDYYYY(checkIn)}&toDate=${formatMMDDYYYY(checkOut)}`;
         case "hilton":
           return `https://www.hilton.com/en/book/reservation/rooms/?ctyhocn=${hotel.chainPropertyCode}&arrivalDate=${checkIn}&departureDate=${checkOut}&room1NumAdults=2`;
         case "hyatt": {
