@@ -3,1282 +3,1771 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Hotel Rate Scanner — Find the Cheapest Time to Go</title>
-  <meta name="description" content="You know where you're staying. Compare hotel rates across multiple dates and book the cheapest option direct." />
+  <title>Hotel Rate Matrix — Multi-Date Hotel Rate Comparison</title>
+  <meta name="description" content="Compare hotel rates across multiple date options in one view. Pick your hotels, add the dates that could work, and see exactly where you'd save money." />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet" />
   <style>
+    /* ── TOKENS ──────────────────────────────────────────── */
+    :root {
+      --bg:              #F7F6F3;
+      --surface:         #FFFFFF;
+      --surface-2:       #F2F1EE;
+      --border:          #E6E4DF;
+      --border-strong:   #C8C5BE;
+      --text-1:          #1A1A1A;
+      --text-2:          #5C5C5C;
+      --text-3:          #9C9C9C;
+      --ink:             #1A1A1A;
+      --gold:            #B07D2E;
+      --gold-light:      #C9963A;
+      --gold-bg:         #FEF8EC;
+      --gold-border:     #E8CE88;
+      --green:           #2A6B47;
+      --green-bg:        #F0FAF4;
+      --red:             #B83232;
+      --red-bg:          #FFF2F2;
+      --radius-sm:       6px;
+      --radius-md:       10px;
+      --radius-lg:       14px;
+      --radius-xl:       20px;
+      --radius-pill:     9999px;
+      --shadow-sm:       0 1px 3px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.03);
+      --shadow-md:       0 4px 16px rgba(0,0,0,0.07), 0 2px 6px rgba(0,0,0,0.04);
+      --shadow-lg:       0 8px 32px rgba(0,0,0,0.10), 0 2px 8px rgba(0,0,0,0.05);
+      --font-serif:      'DM Serif Display', Georgia, serif;
+      --font-sans:       'DM Sans', -apple-system, sans-serif;
+      --transition:      0.15s ease;
+    }
+
+    /* ── RESET ───────────────────────────────────────────── */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     html { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
-    body { font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif; background: #FAFAF8; color: #1a1a1a; line-height: 1.5; }
-
-    /* Scrollbar */
-    ::-webkit-scrollbar { height: 5px; width: 5px; }
+    body { font-family: var(--font-sans); background: var(--bg); color: var(--text-1); line-height: 1.5; }
+    a { color: inherit; text-decoration: none; }
+    button { font-family: var(--font-sans); cursor: pointer; border: none; background: none; padding: 0; }
+    input { font-family: var(--font-sans); }
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
     ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: #ccc; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: var(--radius-pill); }
 
-    /* Custom date range picker */
-    .drp-day { text-align: center; padding: 6px 2px; border-radius: 6px; font-size: 12px; cursor: pointer; transition: background 0.1s; }
-    .drp-day:hover:not(.drp-disabled) { background: #f0ede8; }
-    .drp-day.drp-disabled { color: #ddd; cursor: not-allowed; }
-    .drp-day.drp-start, .drp-day.drp-end { background: #2C1810 !important; color: #fff !important; font-weight: 700; }
-    .drp-day.drp-in-range { background: #FAEEDA; color: #412402; }
-    .drp-day.drp-today { outline: 1px solid #ddd; }
+    /* ── LAYOUT ──────────────────────────────────────────── */
+    .page { min-height: 100vh; }
+    .container { max-width: 860px; margin: 0 auto; padding: 0 24px; }
 
-    /* Search input */
-    input[type="text"] {
-      font-family: 'DM Sans', sans-serif;
-      font-size: 14px;
-      border: none;
-      outline: none;
-      background: transparent;
-      color: #F5E6D8;
-      width: 100%;
+    /* ── NAV ─────────────────────────────────────────────── */
+    .hero-section-wrap { position: relative; }
+    .nav {
+      position: sticky; top: 0; z-index: 200;
+      background: rgba(237,232,218,0.92);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border);
     }
-    input[type="text"]::placeholder { color: #8B7D6E; }
+    .nav-inner {
+      max-width: 860px; margin: 0 auto; padding: 0 24px;
+      height: 52px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .nav-logo {
+      font-family: var(--font-serif);
+      font-size: 17px; letter-spacing: -0.02em;
+      color: var(--text-1);
+    }
+    .nav-right { display: flex; align-items: center; gap: 6px; }
+    .nav-link {
+      font-size: 13px; font-weight: 500; color: var(--text-2);
+      padding: 5px 12px; border-radius: var(--radius-pill);
+      border: none; background: none; cursor: pointer;
+      transition: all var(--transition); font-family: var(--font-sans);
+    }
+    .nav-link:hover { background: rgba(0,0,0,0.05); color: var(--text-1); }
+    .nav-badge {
+      font-size: 10px; font-weight: 500;
+      letter-spacing: 0.04em;
+      color: var(--text-3);
+      border-radius: var(--radius-pill);
+      padding: 3px 8px;
+      border: 1px solid var(--border);
+    }
 
-    /* Animations */
+    /* ── HERO WRAP (visual background) ──────────────────── */
+    .hero-section-wrap {
+      background: linear-gradient(160deg, #EDE8DA 0%, #EEE9E0 35%, var(--bg) 100%);
+      overflow: hidden;
+    }
+    .hero-section-wrap::before {
+      content: '';
+      position: absolute; top: -80px; right: -80px;
+      width: 360px; height: 360px; border-radius: 50%;
+      background: radial-gradient(circle, rgba(176,125,46,0.13) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .hero-section-wrap::after {
+      content: '';
+      position: absolute; bottom: 0; left: -40px;
+      width: 240px; height: 240px; border-radius: 50%;
+      background: radial-gradient(circle, rgba(42,107,71,0.06) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    /* ── HERO ────────────────────────────────────────────── */
+    .hero {
+      padding: 72px 24px 56px;
+      text-align: center;
+      max-width: 620px;
+      margin: 0 auto;
+      position: relative; z-index: 1;
+    }
+    .hero-eyebrow {
+      font-size: 11px; font-weight: 600;
+      letter-spacing: 0.1em; text-transform: uppercase;
+      color: var(--text-3); margin-bottom: 18px;
+    }
+    .hero-headline {
+      font-family: var(--font-serif);
+      font-size: clamp(30px, 5vw, 46px);
+      line-height: 1.14; letter-spacing: -0.025em;
+      color: var(--text-1); margin-bottom: 16px;
+    }
+    .hero-headline em { font-style: italic; color: var(--text-2); }
+    .hero-value {
+      font-size: 17px; font-weight: 400;
+      color: var(--text-2); line-height: 1.6;
+      margin-bottom: 8px;
+    }
+    .hero-note { font-size: 13px; color: var(--text-3); }
+
+    /* ── MAIN CARD ───────────────────────────────────────── */
+    .main-card {
+      background: var(--surface);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-xl);
+      box-shadow: var(--shadow-md);
+      overflow: visible;
+      margin-bottom: 32px;
+    }
+    .main-card-section {
+      padding: 28px 32px;
+      border-bottom: 1px solid var(--border);
+    }
+    .main-card-section:last-child { border-bottom: none; }
+
+    /* ── SECTION LABELS ──────────────────────────────────── */
+    .section-label {
+      display: flex; align-items: center; gap: 10px;
+      margin-bottom: 16px;
+    }
+    .section-num {
+      width: 22px; height: 22px; border-radius: 50%;
+      background: var(--ink); color: white;
+      font-size: 10px; font-weight: 700;
+      display: inline-flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .section-title {
+      font-size: 13px; font-weight: 600;
+      letter-spacing: 0.01em;
+      color: var(--text-1);
+    }
+    .section-subtitle {
+      font-size: 12px; color: var(--text-3);
+      margin-left: auto;
+    }
+
+    /* ── HOTEL SEARCH ────────────────────────────────────── */
+    .search-wrap { position: relative; }
+    .search-box {
+      display: flex; align-items: center; gap: 10px;
+      background: var(--surface); border: 1.5px solid var(--border);
+      border-radius: var(--radius-md); padding: 12px 16px;
+      transition: border-color var(--transition), box-shadow var(--transition);
+    }
+    .search-box:focus-within {
+      border-color: var(--ink);
+      box-shadow: 0 0 0 3px rgba(26,26,26,0.07);
+    }
+    .search-box-icon { color: var(--text-3); flex-shrink: 0; line-height: 1; }
+    .search-box input {
+      flex: 1; border: none; outline: none;
+      font-size: 15px; background: transparent; color: var(--text-1);
+    }
+    .search-box input::placeholder { color: var(--text-3); }
+    .search-box-hint { font-size: 12px; color: var(--text-3); flex-shrink: 0; }
+
+    .search-dropdown {
+      position: absolute; top: calc(100% + 6px); left: 0; right: 0;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius-md); box-shadow: var(--shadow-lg);
+      z-index: 300; overflow: hidden;
+      animation: slideDown 0.18s ease-out;
+    }
+    .search-item {
+      display: flex; align-items: center; gap: 12px;
+      padding: 11px 16px; cursor: pointer;
+      transition: background var(--transition);
+      border-bottom: 1px solid var(--border);
+    }
+    .search-item:last-child { border-bottom: none; }
+    .search-item:hover, .search-item.active { background: var(--surface-2); }
+    .search-item-icon {
+      width: 34px; height: 34px; border-radius: var(--radius-sm);
+      background: var(--surface-2); border: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 15px; flex-shrink: 0;
+    }
+    .search-item-body { flex: 1; min-width: 0; }
+    .search-item-name { font-size: 14px; font-weight: 500; color: var(--text-1); }
+    .search-item-meta { font-size: 12px; color: var(--text-3); margin-top: 1px; }
+    .search-item-stars { font-size: 12px; flex-shrink: 0; }
+    .search-no-results { padding: 18px 16px; font-size: 13px; color: var(--text-3); text-align: center; }
+
+    /* ── HOTEL CHIPS ─────────────────────────────────────── */
+    .hotel-tray {
+      display: flex; flex-wrap: wrap; gap: 8px;
+      margin-top: 14px;
+    }
+    .hotel-chip {
+      display: inline-flex; align-items: center; gap: 7px;
+      background: var(--surface); border: 1.5px solid var(--border);
+      border-radius: var(--radius-pill); padding: 6px 6px 6px 12px;
+      font-size: 13px; font-weight: 500; color: var(--text-1);
+      box-shadow: var(--shadow-sm);
+      animation: fadeIn 0.2s ease-out;
+    }
+    .hotel-chip-city { font-weight: 400; color: var(--text-3); font-size: 12px; }
+    .hotel-chip-rm {
+      width: 20px; height: 20px; border-radius: 50%;
+      background: var(--surface-2); border: 1px solid var(--border);
+      display: inline-flex; align-items: center; justify-content: center;
+      font-size: 11px; color: var(--text-2); cursor: pointer;
+      transition: all var(--transition); line-height: 1;
+    }
+    .hotel-chip-rm:hover { background: var(--red-bg); color: var(--red); border-color: var(--red-bg); }
+    .tray-note { font-size: 12px; color: var(--text-3); margin-top: 10px; }
+
+    /* ── DATE ROWS ───────────────────────────────────────── */
+    .date-rows { display: flex; flex-direction: column; gap: 8px; }
+    .date-row {
+      display: flex; align-items: center; gap: 10px;
+      background: var(--surface); border: 1.5px solid var(--border);
+      border-radius: var(--radius-md); padding: 10px 14px;
+      box-shadow: var(--shadow-sm);
+      transition: border-color var(--transition);
+    }
+    .date-row:focus-within { border-color: var(--border-strong); }
+    .date-row-letter {
+      font-size: 10px; font-weight: 700;
+      letter-spacing: 0.08em;
+      color: var(--text-3); width: 20px; text-align: center; flex-shrink: 0;
+      text-transform: uppercase;
+    }
+    .date-row-divider { color: var(--border); font-size: 16px; flex-shrink: 0; }
+    .date-row-nights {
+      font-size: 11px; font-weight: 600;
+      color: var(--text-2); background: var(--surface-2);
+      border-radius: var(--radius-pill); padding: 3px 9px;
+      flex-shrink: 0; white-space: nowrap;
+    }
+    .date-row-nights.empty { opacity: 0; }
+    .date-row-rm {
+      width: 26px; height: 26px; border-radius: var(--radius-sm);
+      display: flex; align-items: center; justify-content: center;
+      color: var(--text-3); cursor: pointer; flex-shrink: 0;
+      transition: all var(--transition); font-size: 16px; line-height: 1;
+    }
+    .date-row-rm:hover { background: var(--red-bg); color: var(--red); }
+    .date-row-rm.hidden { opacity: 0; pointer-events: none; }
+
+    /* ── DATE PICKER TRIGGER ─────────────────────────────── */
+    .drp-wrap { position: relative; flex: 1; min-width: 0; }
+    .drp-trigger {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 14px; cursor: pointer; color: var(--text-1);
+      padding: 2px 0;
+    }
+    .drp-trigger.empty { color: var(--text-3); }
+    .drp-trigger-icon { font-size: 13px; color: var(--text-3); flex-shrink: 0; line-height: 1; }
+    .drp-trigger-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    /* ── DATE PICKER CALENDAR ────────────────────────────── */
+    .drp-cal {
+      position: absolute; top: calc(100% + 8px); left: 0;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius-lg); box-shadow: var(--shadow-lg);
+      z-index: 400; padding: 16px; min-width: 272px;
+      animation: slideDown 0.18s ease-out;
+    }
+    .drp-cal-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 12px;
+    }
+    .drp-cal-month { font-size: 14px; font-weight: 600; color: var(--text-1); }
+    .drp-cal-nav {
+      width: 28px; height: 28px; border-radius: var(--radius-sm);
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; transition: background var(--transition);
+      font-size: 14px; color: var(--text-2);
+    }
+    .drp-cal-nav:hover { background: var(--surface-2); }
+    .drp-wdays {
+      display: grid; grid-template-columns: repeat(7,1fr);
+      gap: 2px; margin-bottom: 4px;
+    }
+    .drp-wday {
+      text-align: center; font-size: 10px; font-weight: 600;
+      letter-spacing: 0.05em; text-transform: uppercase;
+      color: var(--text-3); padding: 3px 0;
+    }
+    .drp-days { display: grid; grid-template-columns: repeat(7,1fr); gap: 2px; }
+    .drp-day {
+      text-align: center; padding: 7px 2px; border-radius: var(--radius-sm);
+      font-size: 12px; cursor: pointer; transition: background 0.1s;
+    }
+    .drp-day:hover:not(.drp-disabled) { background: var(--surface-2); }
+    .drp-day.drp-disabled { color: var(--text-3); cursor: not-allowed; }
+    .drp-day.drp-start, .drp-day.drp-end {
+      background: var(--ink) !important; color: #fff !important; font-weight: 700;
+    }
+    .drp-day.drp-in-range { background: var(--surface-2); color: var(--text-2); }
+    .drp-day.drp-today { outline: 1.5px solid var(--border); outline-offset: -1px; }
+    .drp-hint {
+      font-size: 11px; color: var(--text-3); text-align: center;
+      margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border);
+    }
+    .drp-clear {
+      display: block; width: 100%; text-align: center;
+      font-size: 12px; color: var(--text-3); cursor: pointer;
+      margin-top: 6px; transition: color var(--transition);
+    }
+    .drp-clear:hover { color: var(--text-2); }
+
+    /* ── ADD DATE BUTTON ─────────────────────────────────── */
+    .add-date-btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: 13px; font-weight: 500; color: var(--text-2);
+      padding: 9px 14px; border-radius: var(--radius-md);
+      border: 1.5px dashed var(--border);
+      transition: all var(--transition); margin-top: 4px;
+    }
+    .add-date-btn:hover { border-color: var(--border-strong); color: var(--text-1); background: var(--surface); }
+    .add-date-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* ── CTA ─────────────────────────────────────────────── */
+    .cta-wrap { padding: 28px 32px; }
+    .cta-inner {
+      display: flex; align-items: center; gap: 20px;
+      flex-wrap: wrap;
+    }
+    .compare-btn {
+      flex: 1; min-width: 200px;
+      background: var(--ink); color: white;
+      font-size: 15px; font-weight: 600;
+      padding: 14px 28px; border-radius: var(--radius-md);
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      transition: all var(--transition);
+    }
+    .compare-btn:hover:not(:disabled) { opacity: 0.88; transform: translateY(-1px); box-shadow: var(--shadow-md); }
+    .compare-btn:active:not(:disabled) { transform: translateY(0); }
+    .compare-btn:disabled { background: var(--surface-2); color: var(--text-3); cursor: not-allowed; }
+    .cta-checklist { display: flex; flex-direction: column; gap: 5px; }
+    .cta-req { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--text-3); }
+    .cta-dot {
+      width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
+      border: 1.5px solid var(--border);
+    }
+    .cta-dot.met { background: var(--green); border-color: var(--green); }
+
+    /* ── RESULTS ─────────────────────────────────────────── */
+    .results-section { margin-bottom: 48px; }
+
+    /* Summary Cards */
+    .summary-cards {
+      display: grid; grid-template-columns: repeat(3,1fr); gap: 12px;
+      margin-bottom: 24px; animation: fadeUp 0.3s ease-out;
+    }
+    .scard {
+      background: var(--surface); border: 1.5px solid var(--border);
+      border-radius: var(--radius-lg); padding: 18px 20px;
+      box-shadow: var(--shadow-sm);
+    }
+    .scard.best { border-color: var(--gold-border); background: var(--gold-bg); }
+    .scard-label {
+      font-size: 10px; font-weight: 700;
+      letter-spacing: 0.09em; text-transform: uppercase;
+      color: var(--text-3); margin-bottom: 10px;
+    }
+    .scard.best .scard-label { color: var(--gold); }
+    .scard-value {
+      font-size: 24px; font-weight: 600; letter-spacing: -0.02em;
+      color: var(--text-1); line-height: 1.1; margin-bottom: 4px;
+      font-variant-numeric: tabular-nums;
+    }
+    .scard-meta { font-size: 12px; color: var(--text-2); line-height: 1.5; }
+
+    /* Table shell */
+    .results-table-card {
+      background: var(--surface); border: 1.5px solid var(--border);
+      border-radius: var(--radius-lg); box-shadow: var(--shadow-sm);
+      overflow: hidden; animation: fadeUp 0.35s ease-out;
+    }
+    .rtc-toolbar {
+      display: flex; align-items: center; gap: 10px;
+      padding: 12px 20px; border-bottom: 1px solid var(--border);
+      background: var(--surface-2);
+    }
+    .rtc-toolbar-label { font-size: 12px; font-weight: 600; color: var(--text-2); flex: 1; }
+    .sort-label { font-size: 11px; color: var(--text-3); }
+    .sort-btns { display: flex; gap: 4px; }
+    .sort-btn {
+      font-size: 11px; font-weight: 500; color: var(--text-2);
+      padding: 4px 10px; border-radius: var(--radius-pill);
+      border: 1px solid var(--border); background: var(--surface);
+      transition: all var(--transition); cursor: pointer;
+    }
+    .sort-btn.on { background: var(--ink); color: white; border-color: var(--ink); }
+
+    /* Table */
+    .rt { width: 100%; border-collapse: collapse; }
+    .rt th {
+      padding: 11px 16px;
+      font-size: 10px; font-weight: 700;
+      letter-spacing: 0.07em; text-transform: uppercase;
+      color: var(--text-3); background: var(--surface-2);
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+    .rt th:first-child { text-align: left; }
+    .rt th.date-th { text-align: center; min-width: 130px; }
+    .rt td { border-bottom: 1px solid var(--border); vertical-align: top; padding: 0; }
+    .rt tr:last-child td { border-bottom: none; }
+    .rt tr:hover .hotel-td { background: rgba(0,0,0,0.012); }
+
+    .hotel-td { padding: 16px; min-width: 180px; max-width: 200px; }
+    .hotel-td-name { font-size: 14px; font-weight: 600; color: var(--text-1); line-height: 1.3; }
+    .hotel-td-city { font-size: 12px; color: var(--text-3); margin-top: 3px; }
+    .hotel-td-stars { font-size: 11px; margin-top: 4px; }
+
+    .rate-td {
+      padding: 14px 12px; text-align: center;
+      position: relative; min-width: 130px;
+      transition: background var(--transition);
+    }
+    .rate-td.best { background: var(--gold-bg); }
+    .best-badge {
+      display: inline-flex; align-items: center; gap: 3px;
+      font-size: 9px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+      color: var(--gold); background: white;
+      border: 1px solid var(--gold-border); border-radius: var(--radius-pill);
+      padding: 2px 7px; margin-bottom: 6px;
+    }
+    .rate-adr {
+      font-size: 17px; font-weight: 600; letter-spacing: -0.01em;
+      color: var(--text-1); font-variant-numeric: tabular-nums;
+    }
+    .rate-total { font-size: 11px; color: var(--text-2); margin-top: 2px; }
+    .rate-nights { font-size: 11px; color: var(--text-3); }
+    .rate-book {
+      display: inline-flex; align-items: center; gap: 4px;
+      margin-top: 9px; font-size: 12px; font-weight: 600;
+      padding: 5px 12px; border-radius: var(--radius-pill);
+      border: 1.5px solid var(--border); color: var(--text-1);
+      background: white; transition: all var(--transition); cursor: pointer;
+      white-space: nowrap;
+    }
+    .rate-book:hover { background: var(--ink); color: white; border-color: var(--ink); }
+    .rate-book.gold { border-color: var(--gold-border); color: var(--gold); background: white; }
+    .rate-book.gold:hover { background: var(--gold-light); color: white; border-color: var(--gold-light); }
+    .rate-unavail { font-size: 12px; color: var(--text-3); }
+
+    /* Skeleton loading */
+    .skel {
+      background: linear-gradient(90deg, var(--surface-2) 25%, var(--border) 50%, var(--surface-2) 75%);
+      background-size: 200% 100%; border-radius: var(--radius-sm);
+      animation: shimmer 1.5s infinite;
+      display: block; margin: 0 auto;
+    }
+    .skel-r { width: 60px; height: 18px; }
+    .skel-t { width: 48px; height: 11px; margin-top: 6px; }
+    .skel-b { width: 54px; height: 24px; border-radius: var(--radius-pill); margin-top: 10px; }
+
+    /* ── DISCLOSURE ──────────────────────────────────────── */
+    .disclosure {
+      background: var(--surface-2); border: 1px solid var(--border);
+      border-radius: var(--radius-lg); padding: 22px 24px;
+      margin-bottom: 48px;
+    }
+    .disclosure-title {
+      font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+      color: var(--text-3); margin-bottom: 10px;
+    }
+    .disclosure p {
+      font-size: 13px; color: var(--text-2); line-height: 1.7;
+      margin-bottom: 6px;
+    }
+    .disclosure p:last-child { margin-bottom: 0; }
+
+    /* ── WHY BUILT ───────────────────────────────────────── */
+    .why-section {
+      border-top: 1px solid var(--border);
+      padding: 52px 0 64px;
+    }
+    .why-eyebrow {
+      font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
+      color: var(--text-3); margin-bottom: 14px;
+    }
+    .why-headline {
+      font-family: var(--font-serif);
+      font-size: clamp(22px, 3vw, 28px); letter-spacing: -0.02em;
+      color: var(--text-1); margin-bottom: 28px; max-width: 500px;
+    }
+    .why-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 20px; }
+    .why-card {
+      padding: 20px; background: var(--surface);
+      border-radius: var(--radius-lg); border: 1px solid var(--border);
+    }
+    .why-card-tag {
+      font-size: 10px; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase;
+      color: var(--text-3); margin-bottom: 10px;
+    }
+    .why-card-text { font-size: 13px; color: var(--text-2); line-height: 1.72; }
+
+    /* ── FOOTER ──────────────────────────────────────────── */
+    .footer {
+      border-top: 1px solid var(--border);
+      padding: 28px 24px;
+      display: flex; flex-direction: column; align-items: center; gap: 10px;
+    }
+    .footer-disclaimer {
+      font-size: 12px; color: var(--text-3); text-align: center;
+      line-height: 1.7; max-width: 560px;
+    }
+    .footer-author {
+      font-size: 12px; color: var(--text-3);
+      display: flex; align-items: center; gap: 6px;
+    }
+    .footer-divider { color: var(--border); }
+    .footer-text { font-size: 12px; color: var(--text-3); }
+    .footer-link {
+      font-size: 12px; color: var(--text-3); font-family: var(--font-sans);
+      background: none; border: none; cursor: pointer; padding: 0;
+      text-decoration: underline; transition: color var(--transition);
+    }
+    .footer-link:hover { color: var(--text-2); }
+    .footer-a {
+      font-size: 12px; color: var(--text-3);
+      text-decoration: underline; transition: color var(--transition);
+    }
+    .footer-a:hover { color: var(--text-2); }
+
+    /* ── ANIMATIONS ──────────────────────────────────────── */
     @keyframes fadeUp {
       from { opacity: 0; transform: translateY(12px); }
-      to { opacity: 1; transform: translateY(0); }
+      to   { opacity: 1; transform: translateY(0); }
     }
     @keyframes fadeIn {
       from { opacity: 0; }
-      to { opacity: 1; }
+      to   { opacity: 1; }
     }
     @keyframes slideDown {
-      from { opacity: 0; transform: translateY(-8px); }
-      to { opacity: 1; transform: translateY(0); }
+      from { opacity: 0; transform: translateY(-6px); }
+      to   { opacity: 1; transform: translateY(0); }
     }
-    @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.5; }
+    @keyframes shimmer {
+      0%   { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
     }
-    .fade-up { animation: fadeUp 0.4s ease-out both; }
-    .fade-in { animation: fadeIn 0.3s ease-out both; }
-    .slide-down { animation: slideDown 0.3s ease-out both; }
-
-    /* Pill hover */
-    .hotel-pill { transition: all 0.15s ease; }
-    .hotel-pill:hover { transform: translateY(-1px); }
-
-    /* Button hover */
-    .btn-primary {
-      transition: all 0.15s ease;
-      cursor: pointer;
+    @keyframes spin {
+      to { transform: rotate(360deg); }
     }
-    .btn-primary:hover { opacity: 0.9; transform: translateY(-1px); }
-    .btn-primary:active { transform: translateY(0); }
-
-    .btn-outline {
-      transition: all 0.15s ease;
-      cursor: pointer;
+    .spinner {
+      width: 16px; height: 16px; border-radius: 50%;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: white;
+      animation: spin 0.7s linear infinite;
+      flex-shrink: 0;
     }
-    .btn-outline:hover { background: #f5f5f3; }
 
-    /* Result row hover */
-    .result-row { transition: background 0.15s ease; }
-    .result-row:hover { background: rgba(0,0,0,0.015); }
+    /* ── SEARCH HELPER / DROPDOWN FOOTER ────────────────── */
+    .search-helper {
+      font-size: 12px; color: var(--text-3); margin-top: 7px;
+    }
+    .search-dropdown-footer {
+      padding: 8px 16px; font-size: 11px; color: var(--text-3);
+      border-top: 1px solid var(--border); background: var(--surface-2);
+      text-align: center;
+    }
 
-    /* Link styles */
-    a { color: inherit; text-decoration: none; }
-    a:hover { opacity: 0.8; }
-
-    /* Search dropdown */
-    .search-dropdown {
-      position: absolute; top: calc(100% + 6px); left: 0; right: 0;
-      background: #fff; border-radius: 10px; border: 1px solid #eee;
-      box-shadow: 0 8px 24px rgba(0,0,0,0.12); z-index: 100;
+    /* ── CITY BROWSE ─────────────────────────────────────── */
+    /* Inline panel — expands inside the card, no absolute positioning */
+    .search-browse-panel {
+      margin-top: 10px;
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-md);
+      background: var(--surface);
       overflow: hidden;
+      animation: fadeUp 0.16s ease-out;
     }
-    .search-dropdown-item {
-      padding: 10px 16px; cursor: pointer; font-size: 13px; color: #1a1a1a;
+    .city-browse-header {
+      padding: 10px 16px 8px;
+      font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+      color: var(--text-3); border-bottom: 1px solid var(--border);
+      background: var(--surface-2);
+    }
+    .city-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr);
+      gap: 1px; padding: 6px; background: var(--border);
+    }
+    .city-grid-inner {
+      display: contents;
+    }
+    .city-btn {
+      display: flex; flex-direction: column; align-items: flex-start;
+      padding: 11px 13px; border-radius: var(--radius-sm);
+      background: var(--surface); border: none; cursor: pointer;
+      text-align: left; font-family: var(--font-sans);
+      transition: background var(--transition);
+    }
+    .city-btn:hover { background: var(--gold-bg); }
+    .city-btn-name { font-size: 13px; font-weight: 500; color: var(--text-1); line-height: 1.3; }
+    .city-count {
+      font-size: 11px; color: var(--text-3); font-weight: 400; margin-top: 3px;
+    }
+    .city-back-btn {
+      display: flex; align-items: center; gap: 6px;
+      padding: 11px 16px; font-size: 13px; font-weight: 600; color: var(--text-2);
+      border-bottom: 1px solid var(--border); cursor: pointer;
+      transition: color var(--transition); background: var(--surface-2);
+    }
+    .city-back-btn:hover { color: var(--text-1); }
+    /* Hotel list inside browse panel — max height with scroll */
+    .city-hotel-list { max-height: 280px; overflow-y: auto; }
+
+    /* ── SUMMARY CARDS — interactive ────────────────────── */
+    .scard-clickable {
+      cursor: pointer; transition: all var(--transition);
+    }
+    .scard-clickable:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+    .scard-action {
+      font-size: 11px; color: var(--text-3); margin-top: 8px;
+      letter-spacing: 0.01em;
+    }
+    .scard-clickable:hover .scard-action { color: var(--text-2); }
+
+    /* ── TABLE CELL HIGHLIGHT ────────────────────────────── */
+    @keyframes cell-highlight {
+      0%   { box-shadow: inset 0 0 0 3px var(--gold), 0 0 20px rgba(176,125,46,0.25); background-color: rgba(176,125,46,0.14); }
+      40%  { box-shadow: inset 0 0 0 3px var(--gold-light), 0 0 10px rgba(176,125,46,0.12); background-color: rgba(176,125,46,0.08); }
+      100% { box-shadow: inset 0 0 0 0 transparent, 0 0 0 transparent; background-color: transparent; }
+    }
+    .rate-td.highlighted {
+      animation: cell-highlight 2.4s ease-out forwards;
+      position: relative; z-index: 1;
+    }
+
+    /* ── MODAL ───────────────────────────────────────────── */
+    .modal-overlay {
+      position: fixed; inset: 0; z-index: 500;
+      background: rgba(26,26,26,0.45);
+      backdrop-filter: blur(4px);
+      display: flex; align-items: flex-end; justify-content: center;
+      animation: fadeIn 0.18s ease-out;
+    }
+    @media (min-width: 600px) { .modal-overlay { align-items: center; } }
+    .modal-panel {
+      background: var(--surface); width: 100%; max-width: 620px;
+      border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+      box-shadow: var(--shadow-lg); max-height: 85vh; overflow-y: auto;
+      animation: slideUp 0.22s ease-out;
+    }
+    @media (min-width: 600px) {
+      .modal-panel {
+        border-radius: var(--radius-xl);
+        max-height: 80vh;
+      }
+    }
+    .modal-header {
       display: flex; align-items: center; justify-content: space-between;
-      transition: background 0.1s;
+      padding: 20px 24px 16px; border-bottom: 1px solid var(--border);
+      position: sticky; top: 0; background: var(--surface);
     }
-    .search-dropdown-item:hover { background: #f5f5f3; }
+    .modal-title {
+      font-family: var(--font-serif); font-size: 20px; letter-spacing: -0.02em;
+      color: var(--text-1);
+    }
+    .modal-close {
+      width: 32px; height: 32px; border-radius: 50%;
+      background: var(--surface-2); border: 1px solid var(--border);
+      font-size: 18px; color: var(--text-2); cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: all var(--transition); font-family: var(--font-sans);
+    }
+    .modal-close:hover { background: var(--border); color: var(--text-1); }
+    .modal-body { padding: 24px; }
+    .modal-body p {
+      font-size: 14px; color: var(--text-2); line-height: 1.7;
+      margin-bottom: 12px;
+    }
+    .modal-body p:last-child { margin-bottom: 0; }
+    .modal-grid {
+      display: grid; gap: 16px;
+      grid-template-columns: 1fr;
+    }
+    .modal-card {
+      padding: 18px; background: var(--surface-2);
+      border-radius: var(--radius-lg); border: 1px solid var(--border);
+    }
+    .modal-section-label {
+      font-size: 11px; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase;
+      color: var(--text-3); margin-bottom: 12px;
+    }
+    .modal-card-tag {
+      font-size: 10px; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase;
+      color: var(--text-3); margin-bottom: 8px;
+    }
+    .modal-card-text { font-size: 13px; color: var(--text-2); line-height: 1.7; }
+
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(16px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── RESPONSIVE ──────────────────────────────────────── */
+    @media (max-width: 620px) {
+      .summary-cards { grid-template-columns: 1fr; }
+      .why-grid { grid-template-columns: 1fr; gap: 12px; }
+      .main-card-section, .cta-wrap { padding: 20px; }
+      .hero { padding: 48px 0 40px; }
+      .city-grid { grid-template-columns: repeat(2, 1fr); background: var(--border); }
+    }
   </style>
 </head>
 <body>
-  <div id="root"></div>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useRef, useCallback } = React;
 
-  <script type="text/babel">
-    const { useState, useEffect, useRef, useCallback } = React;
+// ─── HOTELS DATA ──────────────────────────────────────────────────────────────
+// SerpAPI integration point: replace searchHotels() with a live API call to
+// GET /api/hotels/search?q=query for production. This array is the demo data source.
+const HOTELS = [
+  // Santa Barbara, CA
+  { name: "Ritz-Carlton Bacara", city: "Santa Barbara", region: "California, US", stars: 5, baseRate: 689, url: "https://www.ritzcarlton.com/en/hotels/sbarz-the-ritz-carlton-bacara-santa-barbara/overview/", chain: "marriott", chainPropertyCode: "SBARZ" },
+  { name: "Belmond El Encanto", city: "Santa Barbara", region: "California, US", stars: 5, baseRate: 599, url: "https://www.belmond.com/hotels/north-america/usa/santa-barbara/belmond-el-encanto" },
+  { name: "Mar Monte Hotel", city: "Santa Barbara", region: "California, US", stars: 4, baseRate: 412, url: "https://www.hyatt.com/unbound-collection/en-US/sbars-mar-monte-hotel", chain: "hyatt", chainPropertyCode: "sbars" },
+  { name: "Hotel Californian", city: "Santa Barbara", region: "California, US", stars: 4, baseRate: 349, url: "https://www.hotelcalifornian.com" },
+  { name: "Kimpton Canary Hotel", city: "Santa Barbara", region: "California, US", stars: 4, baseRate: 329, url: "https://www.ihg.com/kimpton/hotels/us/en/santa-barbara/sabcn/hoteldetail", chain: "ihg", chainPropertyCode: "SABCN", chainBrandCode: "KI" },
+  { name: "Santa Barbara Inn", city: "Santa Barbara", region: "California, US", stars: 3, baseRate: 249, url: "https://www.santabarbarainn.com" },
+  // Charleston, SC
+  { name: "Belmond Charleston Place", city: "Charleston", region: "South Carolina, US", stars: 5, baseRate: 499, url: "https://www.belmond.com/hotels/north-america/usa/charleston/belmond-charleston-place" },
+  { name: "The Spectator Hotel", city: "Charleston", region: "South Carolina, US", stars: 5, baseRate: 429, url: "https://www.thespectatorhotel.com" },
+  { name: "Hotel Bennett", city: "Charleston", region: "South Carolina, US", stars: 5, baseRate: 459, url: "https://www.hotelbennett.com" },
+  { name: "The Vendue", city: "Charleston", region: "South Carolina, US", stars: 4, baseRate: 299, url: "https://www.thevendue.com" },
+  { name: "Harbourview Inn", city: "Charleston", region: "South Carolina, US", stars: 4, baseRate: 269, url: "https://www.harbourviewinn.com" },
+  // Austin, TX
+  { name: "Four Seasons Austin", city: "Austin", region: "Texas, US", stars: 5, baseRate: 499, url: "https://www.fourseasons.com/austin" },
+  { name: "Hotel Saint Cecilia", city: "Austin", region: "Texas, US", stars: 5, baseRate: 549, url: "https://www.hotelsaintcecilia.com" },
+  { name: "The Driskill", city: "Austin", region: "Texas, US", stars: 4, baseRate: 299, url: "https://www.hyatt.com/en-US/hotel/texas/the-driskill/ausal", chain: "hyatt", chainPropertyCode: "ausal" },
+  { name: "South Congress Hotel", city: "Austin", region: "Texas, US", stars: 4, baseRate: 279, url: "https://www.southcongresshotel.com" },
+  { name: "Kimpton Hotel Van Zandt", city: "Austin", region: "Texas, US", stars: 4, baseRate: 249, url: "https://www.ihg.com/kimpton/hotels/us/en/austin/ausvz/hoteldetail", chain: "ihg", chainPropertyCode: "AUSVZ", chainBrandCode: "KI" },
+  // Seattle, WA
+  { name: "Four Seasons Seattle", city: "Seattle", region: "Washington, US", stars: 5, baseRate: 549, url: "https://www.fourseasons.com/seattle" },
+  { name: "The Edgewater Hotel", city: "Seattle", region: "Washington, US", stars: 4, baseRate: 299, url: "https://www.edgewaterhotel.com" },
+  { name: "Hotel 1000", city: "Seattle", region: "Washington, US", stars: 4, baseRate: 279, url: "https://www.hotel1000seattle.com" },
+  { name: "Lotte Hotel Seattle", city: "Seattle", region: "Washington, US", stars: 5, baseRate: 349, url: "https://www.lottehotel.com/seattle-hotel" },
+  { name: "Ace Hotel Seattle", city: "Seattle", region: "Washington, US", stars: 3, baseRate: 179, url: "https://acehotel.com/seattle" },
+  // New York City
+  { name: "The Plaza", city: "New York", region: "New York, US", stars: 5, baseRate: 899, url: "https://www.theplazany.com" },
+  { name: "The Standard High Line", city: "New York", region: "New York, US", stars: 4, baseRate: 399, url: "https://www.standardhotels.com/new-york/properties/high-line" },
+  { name: "1 Hotel Brooklyn Bridge", city: "New York", region: "New York, US", stars: 4, baseRate: 379, url: "https://www.1hotels.com/brooklyn-bridge" },
+  { name: "The Bowery Hotel", city: "New York", region: "New York, US", stars: 4, baseRate: 449, url: "https://www.theboweryhotel.com" },
+  { name: "Pod 51", city: "New York", region: "New York, US", stars: 3, baseRate: 149, url: "https://www.thepodhotel.com/pod-51" },
+  // Paris, France
+  { name: "Le Meurice", city: "Paris", region: "France", stars: 5, baseRate: 999, url: "https://www.dorchestercollection.com/paris/le-meurice" },
+  { name: "Hotel Plaza Athenee", city: "Paris", region: "France", stars: 5, baseRate: 899, url: "https://www.dorchestercollection.com/paris/hotel-plaza-athenee" },
+  { name: "Le Marais Boutique", city: "Paris", region: "France", stars: 4, baseRate: 299, url: "https://www.paris-marais.com" },
+  { name: "Hotel Fabric", city: "Paris", region: "France", stars: 3, baseRate: 179, url: "https://www.hotelfabric.com" },
+  { name: "Generator Paris", city: "Paris", region: "France", stars: 2, baseRate: 69, url: "https://staygenerator.com/hostels/paris" },
+  // Tokyo, Japan
+  { name: "Park Hyatt Tokyo", city: "Tokyo", region: "Japan", stars: 5, baseRate: 699, url: "https://www.hyatt.com/park-hyatt/en-US/tyoph-park-hyatt-tokyo", chain: "hyatt", chainPropertyCode: "tyoph" },
+  { name: "Aman Tokyo", city: "Tokyo", region: "Japan", stars: 5, baseRate: 999, url: "https://www.aman.com/hotels/aman-tokyo" },
+  { name: "The Prince Gallery Tokyo", city: "Tokyo", region: "Japan", stars: 5, baseRate: 449, url: "https://www.marriott.com/hotels/travel/tyolc-the-prince-gallery-tokyo-kioicho", chain: "marriott", chainPropertyCode: "TYOLC" },
+  { name: "Shinjuku Granbell Hotel", city: "Tokyo", region: "Japan", stars: 3, baseRate: 129, url: "https://www.granbellhotel.jp/en/shinjuku" },
+  { name: "UNPLAN Shinjuku", city: "Tokyo", region: "Japan", stars: 2, baseRate: 49, url: "https://unplan.jp" },
+  { name: "Westin Tokyo", city: "Tokyo", region: "Japan", stars: 5, baseRate: 449, url: "https://www.marriott.com/hotels/travel/tyowi-the-westin-tokyo", chain: "marriott", chainPropertyCode: "TYOWI" },
+  { name: "Sheraton Miyako Hotel Tokyo", city: "Tokyo", region: "Japan", stars: 4, baseRate: 299, url: "https://www.marriott.com/hotels/travel/tyomy-sheraton-miyako-hotel-tokyo", chain: "marriott", chainPropertyCode: "TYOMY" },
+  { name: "Hyatt Regency Tokyo", city: "Tokyo", region: "Japan", stars: 4, baseRate: 379, url: "https://www.hyatt.com/hyatt-regency/en-US/tyoty-hyatt-regency-tokyo", chain: "hyatt", chainPropertyCode: "tyoty" },
+  { name: "Andaz Tokyo Toranomon Hills", city: "Tokyo", region: "Japan", stars: 5, baseRate: 499, url: "https://www.hyatt.com/andaz/en-US/tyoaz-andaz-tokyo-toranomon-hills", chain: "hyatt", chainPropertyCode: "tyoaz" },
+  { name: "InterContinental Tokyo Bay", city: "Tokyo", region: "Japan", stars: 4, baseRate: 399, url: "https://www.ihg.com/intercontinental/hotels/jp/en/tokyo/tyohb/hoteldetail", chain: "ihg", chainPropertyCode: "TYOHB", chainBrandCode: "IC" },
+  // London, UK
+  { name: "The Savoy", city: "London", region: "United Kingdom", stars: 5, baseRate: 799, url: "https://www.thesavoylondon.com" },
+  { name: "Claridge's", city: "London", region: "United Kingdom", stars: 5, baseRate: 899, url: "https://www.claridges.co.uk" },
+  { name: "The Hoxton Shoreditch", city: "London", region: "United Kingdom", stars: 4, baseRate: 199, url: "https://thehoxton.com/london/shoreditch" },
+  { name: "citizenM Tower of London", city: "London", region: "United Kingdom", stars: 3, baseRate: 149, url: "https://www.citizenm.com/hotels/europe/london/london-tower-of-london-hotel" },
+  { name: "Generator London", city: "London", region: "United Kingdom", stars: 2, baseRate: 59, url: "https://staygenerator.com/hostels/london" },
+  { name: "London Marriott Hotel County Hall", city: "London", region: "United Kingdom", stars: 4, baseRate: 449, url: "https://www.marriott.com/hotels/travel/lonch-london-marriott-hotel-county-hall", chain: "marriott", chainPropertyCode: "LONCH" },
+  { name: "JW Marriott Grosvenor House London", city: "London", region: "United Kingdom", stars: 5, baseRate: 699, url: "https://www.marriott.com/hotels/travel/longh-jw-marriott-grosvenor-house-london", chain: "marriott", chainPropertyCode: "LONGH" },
+  { name: "Hyatt Regency London - The Churchill", city: "London", region: "United Kingdom", stars: 5, baseRate: 479, url: "https://www.hyatt.com/hyatt-regency/en-US/lonch-hyatt-regency-london-the-churchill", chain: "hyatt", chainPropertyCode: "lonch" },
+  { name: "Andaz London Liverpool Street", city: "London", region: "United Kingdom", stars: 4, baseRate: 389, url: "https://www.hyatt.com/andaz/en-US/longe-andaz-london-liverpool-street", chain: "hyatt", chainPropertyCode: "longe" },
+  { name: "InterContinental London Park Lane", city: "London", region: "United Kingdom", stars: 5, baseRate: 549, url: "https://www.ihg.com/intercontinental/hotels/gb/en/london/lonhb/hoteldetail", chain: "ihg", chainPropertyCode: "LONHB", chainBrandCode: "IC" },
+  // Limerick, Ireland
+  { name: "The Savoy Limerick", city: "Limerick", region: "Ireland", stars: 5, baseRate: 249, url: "https://www.savoylimerick.com" },
+  { name: "No. 1 Pery Square", city: "Limerick", region: "Ireland", stars: 4, baseRate: 199, url: "https://www.oneperysquare.com" },
+  { name: "The George Limerick", city: "Limerick", region: "Ireland", stars: 4, baseRate: 169, url: "https://www.thegeorgelimerick.com" },
+  { name: "Limerick Strand Hotel", city: "Limerick", region: "Ireland", stars: 4, baseRate: 149, url: "https://www.strandlimerick.ie" },
+  { name: "Absolute Hotel", city: "Limerick", region: "Ireland", stars: 4, baseRate: 129, url: "https://www.absolutehotel.com" },
+  // Rome, Italy
+  { name: "Hotel de Russie", city: "Rome", region: "Italy", stars: 5, baseRate: 699, url: "https://www.roccofortehotels.com/hotels-and-resorts/hotel-de-russie/reservations/" },
+  { name: "Hotel Eden", city: "Rome", region: "Italy", stars: 5, baseRate: 799, url: "https://www.dorchestercollection.com/rome/hotel-eden" },
+  { name: "Hotel Raphael", city: "Rome", region: "Italy", stars: 4, baseRate: 299, url: "https://www.raphaelhotel.com", chain: "synxis", chainPropertyCode: "26074", synxisChainCode: "8565" },
+  { name: "Hotel Artemide", city: "Rome", region: "Italy", stars: 4, baseRate: 199, url: "https://www.hotelartemide.it" },
+  { name: "The Yellow", city: "Rome", region: "Italy", stars: 2, baseRate: 59, url: "https://www.the-yellow.com" },
+  // Barcelona, Spain
+  { name: "Hotel Arts Barcelona", city: "Barcelona", region: "Spain", stars: 5, baseRate: 499, url: "https://www.marriott.com/hotels/travel/bcnrz-hotel-arts-barcelona", chain: "marriott", chainPropertyCode: "BCNRZ" },
+  { name: "W Barcelona", city: "Barcelona", region: "Spain", stars: 5, baseRate: 449, url: "https://www.marriott.com/hotels/travel/bcnwh-w-barcelona", chain: "marriott", chainPropertyCode: "BCNWH" },
+  { name: "Hotel Casa Fuster", city: "Barcelona", region: "Spain", stars: 5, baseRate: 349, url: "https://www.hotelcasafuster.com" },
+  { name: "Yurbban Trafalgar Hotel", city: "Barcelona", region: "Spain", stars: 3, baseRate: 149, url: "https://www.yurbban.com" },
+  { name: "Generator Barcelona", city: "Barcelona", region: "Spain", stars: 2, baseRate: 49, url: "https://staygenerator.com/hostels/barcelona" },
+  // Sydney, Australia
+  { name: "Park Hyatt Sydney", city: "Sydney", region: "Australia", stars: 5, baseRate: 799, url: "https://www.hyatt.com/park-hyatt/en-US/sydph-park-hyatt-sydney", chain: "hyatt", chainPropertyCode: "sydph" },
+  { name: "Shangri-La Sydney", city: "Sydney", region: "Australia", stars: 5, baseRate: 399, url: "https://www.shangri-la.com/sydney/shangrila" },
+  { name: "QT Sydney", city: "Sydney", region: "Australia", stars: 4, baseRate: 249, url: "https://www.qthotels.com/sydney" },
+  { name: "Ovolo Woolloomooloo", city: "Sydney", region: "Australia", stars: 4, baseRate: 229, url: "https://ovolohotels.com/ovolo/woolloomooloo" },
+  { name: "Wake Up! Sydney", city: "Sydney", region: "Australia", stars: 2, baseRate: 39, url: "https://www.wakeup.com.au" },
+  { name: "Sheraton Grand Sydney Hyde Park", city: "Sydney", region: "Australia", stars: 5, baseRate: 349, url: "https://www.marriott.com/hotels/travel/sydsi-sheraton-grand-sydney-hyde-park", chain: "marriott", chainPropertyCode: "SYDSI" },
+  { name: "W Sydney", city: "Sydney", region: "Australia", stars: 5, baseRate: 449, url: "https://www.marriott.com/hotels/travel/sydwh-w-sydney", chain: "marriott", chainPropertyCode: "SYDWH" },
+  { name: "Hyatt Regency Sydney", city: "Sydney", region: "Australia", stars: 4, baseRate: 329, url: "https://www.hyatt.com/hyatt-regency/en-US/sydrs-hyatt-regency-sydney", chain: "hyatt", chainPropertyCode: "sydrs" },
+  { name: "InterContinental Sydney", city: "Sydney", region: "Australia", stars: 5, baseRate: 429, url: "https://www.ihg.com/intercontinental/hotels/au/en/sydney/sydha/hoteldetail", chain: "ihg", chainPropertyCode: "SYDHA", chainBrandCode: "IC" },
+  // Cancun, Mexico
+  { name: "Nizuc Resort & Spa", city: "Cancun", region: "Mexico", stars: 5, baseRate: 599, url: "https://www.nizuc.com" },
+  { name: "Hyatt Zilara Cancun", city: "Cancun", region: "Mexico", stars: 5, baseRate: 499, url: "https://www.hyatt.com/hyatt-ziva/en-US/cunai-hyatt-zilara-cancun", chain: "hyatt", chainPropertyCode: "cunai" },
+  { name: "Secrets The Vine Cancun", city: "Cancun", region: "Mexico", stars: 5, baseRate: 399, url: "https://www.amrcollection.com/en/resorts-hotels/secrets/mexico/secrets-the-vine-cancun" },
+  { name: "Fiesta Americana Condesa", city: "Cancun", region: "Mexico", stars: 4, baseRate: 199, url: "https://www.fiestamericana.com/en/hotels-resorts/fiesta-americana-condesa-cancun" },
+  { name: "Hostel Mundo Joven Cancun", city: "Cancun", region: "Mexico", stars: 2, baseRate: 29, url: "https://www.mundojovenhostels.com" },
+  // Dubai, UAE
+  { name: "Burj Al Arab", city: "Dubai", region: "UAE", stars: 5, baseRate: 1999, url: "https://www.jumeirah.com/en/stay/dubai/burj-al-arab-jumeirah" },
+  { name: "Atlantis The Palm", city: "Dubai", region: "UAE", stars: 5, baseRate: 499, url: "https://www.atlantis.com/dubai" },
+  { name: "One&Only The Palm", city: "Dubai", region: "UAE", stars: 5, baseRate: 799, url: "https://www.oneandonlyresorts.com/the-palm" },
+  { name: "Rove Downtown", city: "Dubai", region: "UAE", stars: 3, baseRate: 99, url: "https://www.rovehotels.com/hotel/rove-downtown" },
+  { name: "Rove La Mer Beach", city: "Dubai", region: "UAE", stars: 3, baseRate: 89, url: "https://www.rovehotels.com/hotel/rove-la-mer-beach" },
+  // Bali, Indonesia
+  { name: "Four Seasons Bali at Sayan", city: "Bali", region: "Indonesia", stars: 5, baseRate: 699, url: "https://www.fourseasons.com/sayan" },
+  { name: "COMO Uma Ubud", city: "Bali", region: "Indonesia", stars: 5, baseRate: 399, url: "https://www.comohotels.com/uma-ubud" },
+  { name: "Alila Seminyak", city: "Bali", region: "Indonesia", stars: 5, baseRate: 299, url: "https://www.alilahotels.com/seminyak" },
+  { name: "The Oberoi Bali", city: "Bali", region: "Indonesia", stars: 5, baseRate: 349, url: "https://www.oberoihotels.com/hotels-in-bali" },
+  { name: "Kuta Beach Hostel", city: "Bali", region: "Indonesia", stars: 2, baseRate: 19, url: "https://www.hostelworld.com/st/hostels/bali" },
+  // San Francisco, CA
+  { name: "The St. Regis San Francisco", city: "San Francisco", region: "California, US", stars: 5, baseRate: 599, url: "https://www.marriott.com/hotels/travel/sfoxr-the-st-regis-san-francisco", chain: "marriott", chainPropertyCode: "SFOXR" },
+  { name: "Hotel Vitale", city: "San Francisco", region: "California, US", stars: 4, baseRate: 329, url: "https://www.1hotels.com/san-francisco" },
+  { name: "The Marker San Francisco", city: "San Francisco", region: "California, US", stars: 4, baseRate: 249, url: "https://www.themarkersanfrancisco.com" },
+  { name: "Hotel Zetta", city: "San Francisco", region: "California, US", stars: 4, baseRate: 219, url: "https://www.hotelzetta.com" },
+  { name: "HI San Francisco Downtown", city: "San Francisco", region: "California, US", stars: 2, baseRate: 49, url: "https://www.hiusa.org/hostels/california/san-francisco/downtown" },
+  { name: "San Francisco Marriott Marquis", city: "San Francisco", region: "California, US", stars: 4, baseRate: 329, url: "https://www.marriott.com/hotels/travel/sfodt-san-francisco-marriott-marquis", chain: "marriott", chainPropertyCode: "SFODT" },
+  { name: "W San Francisco", city: "San Francisco", region: "California, US", stars: 4, baseRate: 389, url: "https://www.marriott.com/hotels/travel/sfowh-w-san-francisco", chain: "marriott", chainPropertyCode: "SFOWH" },
+  { name: "Hyatt Regency San Francisco", city: "San Francisco", region: "California, US", stars: 4, baseRate: 289, url: "https://www.hyatt.com/hyatt-regency/en-US/sfors-hyatt-regency-san-francisco", chain: "hyatt", chainPropertyCode: "sfors" },
+  { name: "Grand Hyatt San Francisco", city: "San Francisco", region: "California, US", stars: 4, baseRate: 309, url: "https://www.hyatt.com/grand-hyatt/en-US/sfous-grand-hyatt-san-francisco", chain: "hyatt", chainPropertyCode: "sfous" },
+  { name: "Kimpton Alton Hotel Fisherman's Wharf", city: "San Francisco", region: "California, US", stars: 4, baseRate: 279, url: "https://www.ihg.com/kimpton/hotels/us/en/san-francisco/sfofw/hoteldetail", chain: "ihg", chainPropertyCode: "SFOFW", chainBrandCode: "KI" },
+  // Los Angeles, CA
+  { name: "Hotel Bel-Air", city: "Los Angeles", region: "California, US", stars: 5, baseRate: 899, url: "https://www.dorchestercollection.com/los-angeles/hotel-bel-air" },
+  { name: "The Hollywood Roosevelt", city: "Los Angeles", region: "California, US", stars: 4, baseRate: 349, url: "https://www.thehollywoodroosevelt.com" },
+  { name: "Shutters on the Beach", city: "Los Angeles", region: "California, US", stars: 5, baseRate: 699, url: "https://www.shuttersonthebeach.com" },
+  { name: "Mama Shelter Los Angeles", city: "Los Angeles", region: "California, US", stars: 3, baseRate: 179, url: "https://www.mamashelter.com/los-angeles" },
+  { name: "Freehand Los Angeles", city: "Los Angeles", region: "California, US", stars: 3, baseRate: 129, url: "https://freehandhotels.com/los-angeles" },
+  // Miami, FL
+  { name: "Faena Miami Beach", city: "Miami", region: "Florida, US", stars: 5, baseRate: 799, url: "https://www.faena.com/miami-beach" },
+  { name: "The Setai Miami Beach", city: "Miami", region: "Florida, US", stars: 5, baseRate: 699, url: "https://www.thesetaihotel.com" },
+  { name: "The Standard Spa Miami Beach", city: "Miami", region: "Florida, US", stars: 4, baseRate: 299, url: "https://www.standardhotels.com/miami/properties/miami-beach" },
+  { name: "The Confidante", city: "Miami", region: "Florida, US", stars: 4, baseRate: 279, url: "https://www.theconfidantehotel.com" },
+  { name: "Generator Miami", city: "Miami", region: "Florida, US", stars: 2, baseRate: 49, url: "https://staygenerator.com/hostels/miami" },
+  // Nashville, TN
+  { name: "The Hermitage Hotel", city: "Nashville", region: "Tennessee, US", stars: 5, baseRate: 449, url: "https://www.thehermitagehotel.com" },
+  { name: "Noelle Nashville", city: "Nashville", region: "Tennessee, US", stars: 4, baseRate: 299, url: "https://www.noelle-nashville.com" },
+  { name: "Graduate Nashville", city: "Nashville", region: "Tennessee, US", stars: 3, baseRate: 199, url: "https://www.graduatehotels.com/nashville" },
+  { name: "Bobby Hotel", city: "Nashville", region: "Tennessee, US", stars: 4, baseRate: 279, url: "https://www.bobbyhotel.com" },
+  { name: "Dream Nashville", city: "Nashville", region: "Tennessee, US", stars: 4, baseRate: 249, url: "https://www.dreamhotels.com/nashville" },
+  // Maui, HI
+  { name: "Four Seasons Maui", city: "Maui", region: "Hawaii, US", stars: 5, baseRate: 999, url: "https://www.fourseasons.com/maui" },
+  { name: "Andaz Maui at Wailea", city: "Maui", region: "Hawaii, US", stars: 5, baseRate: 699, url: "https://www.hyatt.com/andaz/en-US/oggaw-andaz-maui-at-wailea-resort", chain: "hyatt", chainPropertyCode: "oggaw" },
+  { name: "Hotel Wailea", city: "Maui", region: "Hawaii, US", stars: 5, baseRate: 599, url: "https://www.hotelwailea.com" },
+  { name: "Hyatt Regency Maui", city: "Maui", region: "Hawaii, US", stars: 4, baseRate: 449, url: "https://www.hyatt.com/hyatt-regency/en-US/oggrm-hyatt-regency-maui-resort-and-spa", chain: "hyatt", chainPropertyCode: "oggrm" },
+  { name: "Maui Seaside Hotel", city: "Maui", region: "Hawaii, US", stars: 3, baseRate: 179, url: "https://www.mauiseaside.com" },
+  // Amsterdam, Netherlands
+  { name: "Waldorf Astoria Amsterdam", city: "Amsterdam", region: "Netherlands", stars: 5, baseRate: 599, url: "https://www.hilton.com/en/hotels/amswawa-waldorf-astoria-amsterdam", chain: "hilton", chainPropertyCode: "AMSWAWA" },
+  { name: "Pulitzer Amsterdam", city: "Amsterdam", region: "Netherlands", stars: 5, baseRate: 449, url: "https://www.pulitzeramsterdam.com" },
+  { name: "Sir Adam Hotel", city: "Amsterdam", region: "Netherlands", stars: 4, baseRate: 229, url: "https://www.sirhotels.com/adam" },
+  { name: "Hotel V Nesplein", city: "Amsterdam", region: "Netherlands", stars: 4, baseRate: 199, url: "https://www.hotelv.nl/nesplein" },
+  { name: "ClinkNOORD", city: "Amsterdam", region: "Netherlands", stars: 2, baseRate: 49, url: "https://www.clinkhostels.com/amsterdam/clinknoord" },
+  // Chicago, IL
+  { name: "JW Marriott Chicago", city: "Chicago", region: "Illinois, US", stars: 5, baseRate: 399, url: "https://www.marriott.com/hotels/travel/chijw-jw-marriott-chicago", chain: "marriott", chainPropertyCode: "CHIJW" },
+  { name: "Marriott Marquis Chicago", city: "Chicago", region: "Illinois, US", stars: 4, baseRate: 319, url: "https://www.marriott.com/hotels/travel/chimq-marriott-marquis-chicago", chain: "marriott", chainPropertyCode: "CHIMQ" },
+  { name: "Hyatt Regency Chicago", city: "Chicago", region: "Illinois, US", stars: 4, baseRate: 279, url: "https://www.hyatt.com/hyatt-regency/en-US/chirc-hyatt-regency-chicago", chain: "hyatt", chainPropertyCode: "chirc" },
+  { name: "Park Hyatt Chicago", city: "Chicago", region: "Illinois, US", stars: 5, baseRate: 449, url: "https://www.hyatt.com/park-hyatt/en-US/chiph-park-hyatt-chicago", chain: "hyatt", chainPropertyCode: "chiph" },
+  { name: "InterContinental Chicago Magnificent Mile", city: "Chicago", region: "Illinois, US", stars: 4, baseRate: 359, url: "https://www.ihg.com/intercontinental/hotels/us/en/chicago/ordha/hoteldetail", chain: "ihg", chainPropertyCode: "ORDHA", chainBrandCode: "IC" },
+  // Honolulu, HI
+  { name: "Waikiki Beach Marriott Resort & Spa", city: "Honolulu", region: "Hawaii, US", stars: 4, baseRate: 399, url: "https://www.marriott.com/hotels/travel/hnlmc-waikiki-beach-marriott-resort-and-spa", chain: "marriott", chainPropertyCode: "HNLMC" },
+  { name: "Sheraton Waikiki Beach Resort", city: "Honolulu", region: "Hawaii, US", stars: 4, baseRate: 349, url: "https://www.marriott.com/hotels/travel/hnlws-sheraton-waikiki-beach-resort", chain: "marriott", chainPropertyCode: "HNLWS" },
+  { name: "The Royal Hawaiian, a Luxury Collection Resort", city: "Honolulu", region: "Hawaii, US", stars: 5, baseRate: 549, url: "https://www.marriott.com/hotels/travel/hnllc-the-royal-hawaiian-a-luxury-collection-resort-waikiki", chain: "marriott", chainPropertyCode: "HNLLC" },
+  { name: "Hyatt Regency Waikiki Beach Resort & Spa", city: "Honolulu", region: "Hawaii, US", stars: 4, baseRate: 379, url: "https://www.hyatt.com/hyatt-regency/en-US/hnlrw-hyatt-regency-waikiki-beach-resort-and-spa", chain: "hyatt", chainPropertyCode: "hnlrw" },
+  { name: "Moana Surfrider, A Westin Resort & Spa", city: "Honolulu", region: "Hawaii, US", stars: 4, baseRate: 429, url: "https://www.marriott.com/hotels/travel/hnlwi-moana-surfrider-a-westin-resort-and-spa-waikiki-beach", chain: "marriott", chainPropertyCode: "HNLWI" },
+].map((h, i) => ({ ...h, id: `h-${i}`, variance: 0.25 + (i % 7) * 0.03 }));
 
-    // =====================================================================
-    //  HOTEL DATABASE — 110+ real hotels across 20+ destinations
-    // =====================================================================
-    const HOTELS = [
-      // Santa Barbara, CA
-      { name: "Ritz-Carlton Bacara", city: "Santa Barbara", region: "California, US", stars: 5, baseRate: 689, url: "https://www.ritzcarlton.com/en/hotels/sbarz-the-ritz-carlton-bacara-santa-barbara/overview/", chain: "marriott", chainPropertyCode: "SBARZ" },
-      { name: "Belmond El Encanto", city: "Santa Barbara", region: "California, US", stars: 5, baseRate: 599, url: "https://www.belmond.com/hotels/north-america/usa/santa-barbara/belmond-el-encanto" },
-      { name: "Mar Monte Hotel", city: "Santa Barbara", region: "California, US", stars: 4, baseRate: 412, url: "https://www.hyatt.com/unbound-collection/en-US/sbars-mar-monte-hotel", chain: "hyatt", chainPropertyCode: "sbars" },
-      { name: "Hotel Californian", city: "Santa Barbara", region: "California, US", stars: 4, baseRate: 349, url: "https://www.hotelcalifornian.com" },
-      { name: "Kimpton Canary Hotel", city: "Santa Barbara", region: "California, US", stars: 4, baseRate: 329, url: "https://www.ihg.com/kimpton/hotels/us/en/santa-barbara/sabcn/hoteldetail", chain: "ihg", chainPropertyCode: "SABCN", chainBrandCode: "KI" },
-      { name: "Santa Barbara Inn", city: "Santa Barbara", region: "California, US", stars: 3, baseRate: 249, url: "https://www.santabarbarainn.com" },
-      // Charleston, SC
-      { name: "Belmond Charleston Place", city: "Charleston", region: "South Carolina, US", stars: 5, baseRate: 499, url: "https://www.belmond.com/hotels/north-america/usa/charleston/belmond-charleston-place" },
-      { name: "The Spectator Hotel", city: "Charleston", region: "South Carolina, US", stars: 5, baseRate: 429, url: "https://www.thespectatorhotel.com" },
-      { name: "Hotel Bennett", city: "Charleston", region: "South Carolina, US", stars: 5, baseRate: 459, url: "https://www.hotelbennett.com" },
-      { name: "The Vendue", city: "Charleston", region: "South Carolina, US", stars: 4, baseRate: 299, url: "https://www.thevendue.com" },
-      { name: "Harbourview Inn", city: "Charleston", region: "South Carolina, US", stars: 4, baseRate: 269, url: "https://www.harbourviewinn.com" },
-      // Austin, TX
-      { name: "Four Seasons Austin", city: "Austin", region: "Texas, US", stars: 5, baseRate: 499, url: "https://www.fourseasons.com/austin" },
-      { name: "Hotel Saint Cecilia", city: "Austin", region: "Texas, US", stars: 5, baseRate: 549, url: "https://www.hotelsaintcecilia.com" },
-      { name: "The Driskill", city: "Austin", region: "Texas, US", stars: 4, baseRate: 299, url: "https://www.hyatt.com/en-US/hotel/texas/the-driskill/ausal", chain: "hyatt", chainPropertyCode: "ausal" },
-      { name: "South Congress Hotel", city: "Austin", region: "Texas, US", stars: 4, baseRate: 279, url: "https://www.southcongresshotel.com" },
-      { name: "Kimpton Hotel Van Zandt", city: "Austin", region: "Texas, US", stars: 4, baseRate: 249, url: "https://www.ihg.com/kimpton/hotels/us/en/austin/ausvz/hoteldetail", chain: "ihg", chainPropertyCode: "AUSVZ", chainBrandCode: "KI" },
-      // Seattle, WA
-      { name: "Four Seasons Seattle", city: "Seattle", region: "Washington, US", stars: 5, baseRate: 549, url: "https://www.fourseasons.com/seattle" },
-      { name: "The Edgewater Hotel", city: "Seattle", region: "Washington, US", stars: 4, baseRate: 299, url: "https://www.edgewaterhotel.com" },
-      { name: "Hotel 1000", city: "Seattle", region: "Washington, US", stars: 4, baseRate: 279, url: "https://www.hotel1000seattle.com" },
-      { name: "Lotte Hotel Seattle", city: "Seattle", region: "Washington, US", stars: 5, baseRate: 349, url: "https://www.lottehotel.com/seattle-hotel" },
-      { name: "Ace Hotel Seattle", city: "Seattle", region: "Washington, US", stars: 3, baseRate: 179, url: "https://acehotel.com/seattle" },
-      // New York City
-      { name: "The Plaza", city: "New York", region: "New York, US", stars: 5, baseRate: 899, url: "https://www.theplazany.com" },
-      { name: "The Standard High Line", city: "New York", region: "New York, US", stars: 4, baseRate: 399, url: "https://www.standardhotels.com/new-york/properties/high-line" },
-      { name: "1 Hotel Brooklyn Bridge", city: "New York", region: "New York, US", stars: 4, baseRate: 379, url: "https://www.1hotels.com/brooklyn-bridge" },
-      { name: "The Bowery Hotel", city: "New York", region: "New York, US", stars: 4, baseRate: 449, url: "https://www.theboweryhotel.com" },
-      { name: "Pod 51", city: "New York", region: "New York, US", stars: 3, baseRate: 149, url: "https://www.thepodhotel.com/pod-51" },
-      // Paris, France
-      { name: "Le Meurice", city: "Paris", region: "France", stars: 5, baseRate: 999, url: "https://www.dorchestercollection.com/paris/le-meurice" },
-      { name: "Hotel Plaza Athenee", city: "Paris", region: "France", stars: 5, baseRate: 899, url: "https://www.dorchestercollection.com/paris/hotel-plaza-athenee" },
-      { name: "Le Marais Boutique", city: "Paris", region: "France", stars: 4, baseRate: 299, url: "https://www.paris-marais.com" },
-      { name: "Hotel Fabric", city: "Paris", region: "France", stars: 3, baseRate: 179, url: "https://www.hotelfabric.com" },
-      { name: "Generator Paris", city: "Paris", region: "France", stars: 2, baseRate: 69, url: "https://staygenerator.com/hostels/paris" },
-      // Tokyo, Japan
-      { name: "Park Hyatt Tokyo", city: "Tokyo", region: "Japan", stars: 5, baseRate: 699, url: "https://www.hyatt.com/en-US/hotel/japan/park-hyatt-tokyo/tyoph", chain: "hyatt", chainPropertyCode: "tyoph" },
-      { name: "Aman Tokyo", city: "Tokyo", region: "Japan", stars: 5, baseRate: 999, url: "https://www.aman.com/hotels/aman-tokyo" },
-      { name: "The Prince Gallery Tokyo", city: "Tokyo", region: "Japan", stars: 5, baseRate: 449, url: "https://www.marriott.com/hotels/travel/tyolc-the-prince-gallery-tokyo-kioicho", chain: "marriott", chainPropertyCode: "TYOLC" },
-      { name: "Shinjuku Granbell Hotel", city: "Tokyo", region: "Japan", stars: 3, baseRate: 129, url: "https://www.granbellhotel.jp/en/shinjuku" },
-      { name: "UNPLAN Shinjuku", city: "Tokyo", region: "Japan", stars: 2, baseRate: 49, url: "https://unplan.jp" },
-      // London, UK
-      { name: "The Savoy", city: "London", region: "United Kingdom", stars: 5, baseRate: 799, url: "https://www.thesavoylondon.com" },
-      { name: "Claridge's", city: "London", region: "United Kingdom", stars: 5, baseRate: 899, url: "https://www.claridges.co.uk" },
-      { name: "The Hoxton Shoreditch", city: "London", region: "United Kingdom", stars: 4, baseRate: 199, url: "https://thehoxton.com/london/shoreditch" },
-      { name: "citizenM Tower of London", city: "London", region: "United Kingdom", stars: 3, baseRate: 149, url: "https://www.citizenm.com/hotels/europe/london/london-tower-of-london-hotel" },
-      { name: "Generator London", city: "London", region: "United Kingdom", stars: 2, baseRate: 59, url: "https://staygenerator.com/hostels/london" },
-      // Limerick, Ireland
-      { name: "The Savoy Limerick", city: "Limerick", region: "Ireland", stars: 5, baseRate: 249, url: "https://www.savoylimerick.com" },
-      { name: "No. 1 Pery Square", city: "Limerick", region: "Ireland", stars: 4, baseRate: 199, url: "https://www.oneperysquare.com" },
-      { name: "The George Limerick", city: "Limerick", region: "Ireland", stars: 4, baseRate: 169, url: "https://www.thegeorgelimerick.com" },
-      { name: "Limerick Strand Hotel", city: "Limerick", region: "Ireland", stars: 4, baseRate: 149, url: "https://www.strandlimerick.ie" },
-      { name: "Absolute Hotel", city: "Limerick", region: "Ireland", stars: 4, baseRate: 129, url: "https://www.absolutehotel.com" },
-      // Rome, Italy
-      { name: "Hotel de Russie", city: "Rome", region: "Italy", stars: 5, baseRate: 699, url: "https://www.roccofortehotels.com/hotels-and-resorts/hotel-de-russie" },
-      { name: "Hotel Eden", city: "Rome", region: "Italy", stars: 5, baseRate: 799, url: "https://www.dorchestercollection.com/rome/hotel-eden" },
-      { name: "Hotel Raphael", city: "Rome", region: "Italy", stars: 4, baseRate: 299, url: "https://www.raphaelhotel.com" },
-      { name: "Hotel Artemide", city: "Rome", region: "Italy", stars: 4, baseRate: 199, url: "https://www.hotelartemide.it" },
-      { name: "The Yellow", city: "Rome", region: "Italy", stars: 2, baseRate: 59, url: "https://www.the-yellow.com" },
-      // Barcelona, Spain
-      { name: "Hotel Arts Barcelona", city: "Barcelona", region: "Spain", stars: 5, baseRate: 499, url: "https://www.marriott.com/hotels/travel/bcnrz-hotel-arts-barcelona", chain: "marriott", chainPropertyCode: "BCNRZ" },
-      { name: "W Barcelona", city: "Barcelona", region: "Spain", stars: 5, baseRate: 449, url: "https://www.marriott.com/hotels/travel/bcnwh-w-barcelona", chain: "marriott", chainPropertyCode: "BCNWH" },
-      { name: "Hotel Casa Fuster", city: "Barcelona", region: "Spain", stars: 5, baseRate: 349, url: "https://www.hotelcasafuster.com" },
-      { name: "Yurbban Trafalgar Hotel", city: "Barcelona", region: "Spain", stars: 3, baseRate: 149, url: "https://www.yurbban.com" },
-      { name: "Generator Barcelona", city: "Barcelona", region: "Spain", stars: 2, baseRate: 49, url: "https://staygenerator.com/hostels/barcelona" },
-      // Sydney, Australia
-      { name: "Park Hyatt Sydney", city: "Sydney", region: "Australia", stars: 5, baseRate: 799, url: "https://www.hyatt.com/en-US/hotel/australia/park-hyatt-sydney/sydph" },
-      { name: "Shangri-La Sydney", city: "Sydney", region: "Australia", stars: 5, baseRate: 399, url: "https://www.shangri-la.com/sydney/shangrila" },
-      { name: "QT Sydney", city: "Sydney", region: "Australia", stars: 4, baseRate: 249, url: "https://www.qthotels.com/sydney" },
-      { name: "Ovolo Woolloomooloo", city: "Sydney", region: "Australia", stars: 4, baseRate: 229, url: "https://ovolohotels.com/ovolo/woolloomooloo" },
-      { name: "Wake Up! Sydney", city: "Sydney", region: "Australia", stars: 2, baseRate: 39, url: "https://www.wakeup.com.au" },
-      // Cancun, Mexico
-      { name: "Nizuc Resort & Spa", city: "Cancun", region: "Mexico", stars: 5, baseRate: 599, url: "https://www.nizuc.com" },
-      { name: "Hyatt Zilara Cancun", city: "Cancun", region: "Mexico", stars: 5, baseRate: 499, url: "https://www.hyatt.com/en-US/hotel/mexico/hyatt-zilara-cancun/cunai", chain: "hyatt", chainPropertyCode: "cunai" },
-      { name: "Secrets The Vine Cancun", city: "Cancun", region: "Mexico", stars: 5, baseRate: 399, url: "https://www.amrcollection.com/en/resorts-hotels/secrets/mexico/secrets-the-vine-cancun" },
-      { name: "Fiesta Americana Condesa", city: "Cancun", region: "Mexico", stars: 4, baseRate: 199, url: "https://www.fiestamericana.com/en/hotels-resorts/fiesta-americana-condesa-cancun" },
-      { name: "Hostel Mundo Joven Cancun", city: "Cancun", region: "Mexico", stars: 2, baseRate: 29, url: "https://www.mundojovenhostels.com" },
-      // Dubai, UAE
-      { name: "Burj Al Arab", city: "Dubai", region: "UAE", stars: 5, baseRate: 1999, url: "https://www.jumeirah.com/en/stay/dubai/burj-al-arab-jumeirah" },
-      { name: "Atlantis The Palm", city: "Dubai", region: "UAE", stars: 5, baseRate: 499, url: "https://www.atlantis.com/dubai" },
-      { name: "One&Only The Palm", city: "Dubai", region: "UAE", stars: 5, baseRate: 799, url: "https://www.oneandonlyresorts.com/the-palm" },
-      { name: "Rove Downtown", city: "Dubai", region: "UAE", stars: 3, baseRate: 99, url: "https://www.rovehotels.com/hotel/rove-downtown" },
-      { name: "Rove La Mer Beach", city: "Dubai", region: "UAE", stars: 3, baseRate: 89, url: "https://www.rovehotels.com/hotel/rove-la-mer-beach" },
-      // Bali, Indonesia
-      { name: "Four Seasons Bali at Sayan", city: "Bali", region: "Indonesia", stars: 5, baseRate: 699, url: "https://www.fourseasons.com/sayan" },
-      { name: "COMO Uma Ubud", city: "Bali", region: "Indonesia", stars: 5, baseRate: 399, url: "https://www.comohotels.com/uma-ubud" },
-      { name: "Alila Seminyak", city: "Bali", region: "Indonesia", stars: 5, baseRate: 299, url: "https://www.alilahotels.com/seminyak" },
-      { name: "The Oberoi Bali", city: "Bali", region: "Indonesia", stars: 5, baseRate: 349, url: "https://www.oberoihotels.com/hotels-in-bali" },
-      { name: "Kuta Beach Hostel", city: "Bali", region: "Indonesia", stars: 2, baseRate: 19, url: "https://www.hostelworld.com/st/hostels/bali" },
-      // San Francisco, CA
-      { name: "The St. Regis San Francisco", city: "San Francisco", region: "California, US", stars: 5, baseRate: 599, url: "https://www.marriott.com/hotels/travel/sfoxr-the-st-regis-san-francisco", chain: "marriott", chainPropertyCode: "SFOXR" },
-      { name: "Hotel Vitale", city: "San Francisco", region: "California, US", stars: 4, baseRate: 329, url: "https://www.1hotels.com/san-francisco" },
-      { name: "The Marker San Francisco", city: "San Francisco", region: "California, US", stars: 4, baseRate: 249, url: "https://www.themarkersanfrancisco.com" },
-      { name: "Hotel Zetta", city: "San Francisco", region: "California, US", stars: 4, baseRate: 219, url: "https://www.hotelzetta.com" },
-      { name: "HI San Francisco Downtown", city: "San Francisco", region: "California, US", stars: 2, baseRate: 49, url: "https://www.hiusa.org/hostels/california/san-francisco/downtown" },
-      // Los Angeles, CA
-      { name: "Hotel Bel-Air", city: "Los Angeles", region: "California, US", stars: 5, baseRate: 899, url: "https://www.dorchestercollection.com/los-angeles/hotel-bel-air" },
-      { name: "The Hollywood Roosevelt", city: "Los Angeles", region: "California, US", stars: 4, baseRate: 349, url: "https://www.thehollywoodroosevelt.com" },
-      { name: "Shutters on the Beach", city: "Los Angeles", region: "California, US", stars: 5, baseRate: 699, url: "https://www.shuttersonthebeach.com" },
-      { name: "Mama Shelter Los Angeles", city: "Los Angeles", region: "California, US", stars: 3, baseRate: 179, url: "https://www.mamashelter.com/los-angeles" },
-      { name: "Freehand Los Angeles", city: "Los Angeles", region: "California, US", stars: 3, baseRate: 129, url: "https://freehandhotels.com/los-angeles" },
-      // Miami, FL
-      { name: "Faena Miami Beach", city: "Miami", region: "Florida, US", stars: 5, baseRate: 799, url: "https://www.faena.com/miami-beach" },
-      { name: "The Setai Miami Beach", city: "Miami", region: "Florida, US", stars: 5, baseRate: 699, url: "https://www.thesetaihotel.com" },
-      { name: "The Standard Spa Miami Beach", city: "Miami", region: "Florida, US", stars: 4, baseRate: 299, url: "https://www.standardhotels.com/miami/properties/miami-beach" },
-      { name: "The Confidante", city: "Miami", region: "Florida, US", stars: 4, baseRate: 279, url: "https://www.theconfidantehotel.com" },
-      { name: "Generator Miami", city: "Miami", region: "Florida, US", stars: 2, baseRate: 49, url: "https://staygenerator.com/hostels/miami" },
-      // Nashville, TN
-      { name: "The Hermitage Hotel", city: "Nashville", region: "Tennessee, US", stars: 5, baseRate: 449, url: "https://www.thehermitagehotel.com" },
-      { name: "Noelle Nashville", city: "Nashville", region: "Tennessee, US", stars: 4, baseRate: 299, url: "https://www.noelle-nashville.com" },
-      { name: "Graduate Nashville", city: "Nashville", region: "Tennessee, US", stars: 3, baseRate: 199, url: "https://www.graduatehotels.com/nashville" },
-      { name: "Bobby Hotel", city: "Nashville", region: "Tennessee, US", stars: 4, baseRate: 279, url: "https://www.bobbyhotel.com" },
-      { name: "Dream Nashville", city: "Nashville", region: "Tennessee, US", stars: 4, baseRate: 249, url: "https://www.dreamhotels.com/nashville" },
-      // Maui, HI
-      { name: "Four Seasons Maui", city: "Maui", region: "Hawaii, US", stars: 5, baseRate: 999, url: "https://www.fourseasons.com/maui" },
-      { name: "Andaz Maui at Wailea", city: "Maui", region: "Hawaii, US", stars: 5, baseRate: 699, url: "https://www.hyatt.com/en-US/hotel/hawaii/andaz-maui-at-wailea-resort/oggaw", chain: "hyatt", chainPropertyCode: "oggaw" },
-      { name: "Hotel Wailea", city: "Maui", region: "Hawaii, US", stars: 5, baseRate: 599, url: "https://www.hotelwailea.com" },
-      { name: "Hyatt Regency Maui", city: "Maui", region: "Hawaii, US", stars: 4, baseRate: 449, url: "https://www.hyatt.com/en-US/hotel/hawaii/hyatt-regency-maui-resort-and-spa/oggrm", chain: "hyatt", chainPropertyCode: "oggrm" },
-      { name: "Maui Seaside Hotel", city: "Maui", region: "Hawaii, US", stars: 3, baseRate: 179, url: "https://www.mauiseaside.com" },
-      // Amsterdam, Netherlands
-      { name: "Waldorf Astoria Amsterdam", city: "Amsterdam", region: "Netherlands", stars: 5, baseRate: 599, url: "https://www.hilton.com/en/hotels/amswawa-waldorf-astoria-amsterdam", chain: "hilton", chainPropertyCode: "AMSWAWA" },
-      { name: "Pulitzer Amsterdam", city: "Amsterdam", region: "Netherlands", stars: 5, baseRate: 449, url: "https://www.pulitzeramsterdam.com" },
-      { name: "Sir Adam Hotel", city: "Amsterdam", region: "Netherlands", stars: 4, baseRate: 229, url: "https://www.sirhotels.com/adam" },
-      { name: "Hotel V Nesplein", city: "Amsterdam", region: "Netherlands", stars: 4, baseRate: 199, url: "https://www.hotelv.nl/nesplein" },
-      { name: "ClinkNOORD", city: "Amsterdam", region: "Netherlands", stars: 2, baseRate: 49, url: "https://www.clinkhostels.com/amsterdam/clinknoord" },
-      // Chicago, IL
-      { name: "JW Marriott Chicago", city: "Chicago", region: "Illinois, US", stars: 5, baseRate: 399, url: "https://www.marriott.com/hotels/travel/chijw-jw-marriott-chicago", chain: "marriott", chainPropertyCode: "CHIJW" },
-      { name: "Marriott Marquis Chicago", city: "Chicago", region: "Illinois, US", stars: 4, baseRate: 319, url: "https://www.marriott.com/hotels/travel/chimq-marriott-marquis-chicago", chain: "marriott", chainPropertyCode: "CHIMQ" },
-      { name: "Hyatt Regency Chicago", city: "Chicago", region: "Illinois, US", stars: 4, baseRate: 279, url: "https://www.hyatt.com/hyatt-regency/en-US/chirc-hyatt-regency-chicago", chain: "hyatt", chainPropertyCode: "chirc" },
-      { name: "Park Hyatt Chicago", city: "Chicago", region: "Illinois, US", stars: 5, baseRate: 449, url: "https://www.hyatt.com/en-US/hotel/illinois/park-hyatt-chicago/chiph", chain: "hyatt", chainPropertyCode: "chiph" },
-      { name: "InterContinental Chicago Magnificent Mile", city: "Chicago", region: "Illinois, US", stars: 4, baseRate: 359, url: "https://www.ihg.com/intercontinental/hotels/us/en/chicago/ordha/hoteldetail", chain: "ihg", chainPropertyCode: "ORDHA", chainBrandCode: "IC" },
-      // Honolulu, HI
-      { name: "Waikiki Beach Marriott Resort & Spa", city: "Honolulu", region: "Hawaii, US", stars: 4, baseRate: 399, url: "https://www.marriott.com/hotels/travel/hnlmc-waikiki-beach-marriott-resort-and-spa", chain: "marriott", chainPropertyCode: "HNLMC" },
-      { name: "Sheraton Waikiki Beach Resort", city: "Honolulu", region: "Hawaii, US", stars: 4, baseRate: 349, url: "https://www.marriott.com/hotels/travel/hnlws-sheraton-waikiki-beach-resort", chain: "marriott", chainPropertyCode: "HNLWS" },
-      { name: "The Royal Hawaiian, a Luxury Collection Resort", city: "Honolulu", region: "Hawaii, US", stars: 5, baseRate: 549, url: "https://www.marriott.com/hotels/travel/hnllc-the-royal-hawaiian-a-luxury-collection-resort-waikiki", chain: "marriott", chainPropertyCode: "HNLLC" },
-      { name: "Hyatt Regency Waikiki Beach Resort & Spa", city: "Honolulu", region: "Hawaii, US", stars: 4, baseRate: 379, url: "https://www.hyatt.com/en-US/hotel/hawaii/hyatt-regency-waikiki-beach-resort-and-spa/hnlrw", chain: "hyatt", chainPropertyCode: "hnlrw" },
-      { name: "Moana Surfrider, A Westin Resort & Spa, Waikiki Beach", city: "Honolulu", region: "Hawaii, US", stars: 4, baseRate: 429, url: "https://www.marriott.com/hotels/travel/hnlwi-moana-surfrider-a-westin-resort-and-spa-waikiki-beach", chain: "marriott", chainPropertyCode: "HNLWI" },
-      // San Francisco additions — Marriott / Hyatt / IHG
-      { name: "San Francisco Marriott Marquis", city: "San Francisco", region: "California, US", stars: 4, baseRate: 329, url: "https://www.marriott.com/hotels/travel/sfodt-san-francisco-marriott-marquis", chain: "marriott", chainPropertyCode: "SFODT" },
-      { name: "W San Francisco", city: "San Francisco", region: "California, US", stars: 4, baseRate: 389, url: "https://www.marriott.com/hotels/travel/sfowh-w-san-francisco", chain: "marriott", chainPropertyCode: "SFOWH" },
-      { name: "Hyatt Regency San Francisco", city: "San Francisco", region: "California, US", stars: 4, baseRate: 289, url: "https://www.hyatt.com/en-US/hotel/california/hyatt-regency-san-francisco/sfors", chain: "hyatt", chainPropertyCode: "sfors" },
-      { name: "Grand Hyatt San Francisco", city: "San Francisco", region: "California, US", stars: 4, baseRate: 309, url: "https://www.hyatt.com/grand-hyatt/en-US/sfous-grand-hyatt-san-francisco", chain: "hyatt", chainPropertyCode: "sfous" },
-      { name: "Kimpton Alton Hotel Fisherman's Wharf", city: "San Francisco", region: "California, US", stars: 4, baseRate: 279, url: "https://www.ihg.com/kimpton/hotels/us/en/san-francisco/sfofw/hoteldetail", chain: "ihg", chainPropertyCode: "SFOFW", chainBrandCode: "KI" },
-      // London additions — Marriott / Hyatt / IHG
-      { name: "London Marriott Hotel County Hall", city: "London", region: "United Kingdom", stars: 4, baseRate: 449, url: "https://www.marriott.com/hotels/travel/lonch-london-marriott-hotel-county-hall", chain: "marriott", chainPropertyCode: "LONCH" },
-      { name: "JW Marriott Grosvenor House London", city: "London", region: "United Kingdom", stars: 5, baseRate: 699, url: "https://www.marriott.com/hotels/travel/longh-jw-marriott-grosvenor-house-london", chain: "marriott", chainPropertyCode: "LONGH" },
-      { name: "Hyatt Regency London - The Churchill", city: "London", region: "United Kingdom", stars: 5, baseRate: 479, url: "https://www.hyatt.com/en-US/hotel/england/hyatt-regency-london-the-churchill/lonch", chain: "hyatt", chainPropertyCode: "lonch" },
-      { name: "Andaz London Liverpool Street", city: "London", region: "United Kingdom", stars: 4, baseRate: 389, url: "https://www.hyatt.com/andaz/en-US/longe-andaz-london-liverpool-street", chain: "hyatt", chainPropertyCode: "longe" },
-      { name: "InterContinental London Park Lane", city: "London", region: "United Kingdom", stars: 5, baseRate: 549, url: "https://www.ihg.com/intercontinental/hotels/gb/en/london/lonhb/hoteldetail", chain: "ihg", chainPropertyCode: "LONHB", chainBrandCode: "IC" },
-      // Sydney additions — Marriott / Hyatt / IHG
-      { name: "Sheraton Grand Sydney Hyde Park", city: "Sydney", region: "Australia", stars: 5, baseRate: 349, url: "https://www.marriott.com/hotels/travel/sydsi-sheraton-grand-sydney-hyde-park", chain: "marriott", chainPropertyCode: "SYDSI" },
-      { name: "W Sydney", city: "Sydney", region: "Australia", stars: 5, baseRate: 449, url: "https://www.marriott.com/hotels/travel/sydwh-w-sydney", chain: "marriott", chainPropertyCode: "SYDWH" },
-      { name: "Hyatt Regency Sydney", city: "Sydney", region: "Australia", stars: 4, baseRate: 329, url: "https://www.hyatt.com/en-US/hotel/australia/hyatt-regency-sydney/sydrs", chain: "hyatt", chainPropertyCode: "sydrs" },
-      { name: "InterContinental Sydney", city: "Sydney", region: "Australia", stars: 5, baseRate: 429, url: "https://www.ihg.com/intercontinental/hotels/au/en/sydney/sydha/hoteldetail", chain: "ihg", chainPropertyCode: "SYDHA", chainBrandCode: "IC" },
-      // Tokyo additions — Marriott / Hyatt / IHG
-      { name: "Westin Tokyo", city: "Tokyo", region: "Japan", stars: 5, baseRate: 449, url: "https://www.marriott.com/hotels/travel/tyowi-the-westin-tokyo", chain: "marriott", chainPropertyCode: "TYOWI" },
-      { name: "Sheraton Miyako Hotel Tokyo", city: "Tokyo", region: "Japan", stars: 4, baseRate: 299, url: "https://www.marriott.com/hotels/travel/tyomy-sheraton-miyako-hotel-tokyo", chain: "marriott", chainPropertyCode: "TYOMY" },
-      { name: "Hyatt Regency Tokyo", city: "Tokyo", region: "Japan", stars: 4, baseRate: 379, url: "https://www.hyatt.com/hyatt-regency/en-US/tyoty-hyatt-regency-tokyo", chain: "hyatt", chainPropertyCode: "tyoty" },
-      { name: "Andaz Tokyo Toranomon Hills", city: "Tokyo", region: "Japan", stars: 5, baseRate: 499, url: "https://www.hyatt.com/en-US/hotel/japan/andaz-tokyo-toranomon-hills/tyoaz", chain: "hyatt", chainPropertyCode: "tyoaz" },
-      { name: "InterContinental Tokyo Bay", city: "Tokyo", region: "Japan", stars: 4, baseRate: 399, url: "https://www.ihg.com/intercontinental/hotels/jp/en/tokyo/tyohb/hoteldetail", chain: "ihg", chainPropertyCode: "TYOHB", chainBrandCode: "IC" },
-    ].map((h, i) => ({ ...h, id: `h-${i}`, variance: 0.25 + (i % 7) * 0.03 }));
+// ─── CONSTANTS ────────────────────────────────────────────────────────────────
+const OPTION_LABELS = ['A','B','C','D','E','F','G','H','I','J'];
+const STAR_CHAR = '★';
 
-    // =====================================================================
-    //  RATE SIMULATION
-    // =====================================================================
-    function generateRate(hotel, checkIn) {
-      const d = new Date(checkIn);
-      const dow = d.getDay();
-      const month = d.getMonth();
-      const charSum = hotel.id.split("").reduce((a, c) => a + c.charCodeAt(0), 0);
-      const seed = (charSum * 31 + d.getDate() * 17 + month * 53 + dow * 7) % 100;
-      let multiplier = 1;
-      if (dow === 5 || dow === 6) multiplier += 0.15;
-      if (dow === 0) multiplier += 0.08;
-      if (month >= 5 && month <= 8) multiplier += 0.20;
-      if (month === 11) multiplier += 0.18;
-      const noise = (seed / 100 - 0.5) * (hotel.variance || 0.3);
-      const rate = Math.round(hotel.baseRate * (multiplier + noise));
-      const available = seed > 6;
-      return { rate: Math.max(Math.round(hotel.baseRate * 0.6), rate), available };
+// ─── UTILITIES ────────────────────────────────────────────────────────────────
+function nightsBetween(d1, d2) {
+  return Math.max(1, Math.round((new Date(d2) - new Date(d1)) / 86400000));
+}
+function formatCurrency(n) {
+  return '$' + Math.round(n).toLocaleString();
+}
+function formatDate(ds) {
+  if (!ds) return '';
+  const [y, m, d] = ds.split('-');
+  const dt = new Date(+y, +m - 1, +d);
+  return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+function formatDateFull(ds) {
+  if (!ds) return '';
+  const [y, m, d] = ds.split('-');
+  const dt = new Date(+y, +m - 1, +d);
+  return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+function todayStr() {
+  return new Date().toISOString().split('T')[0];
+}
+
+// ─── HOTEL SEARCH (fuzzy, local) ──────────────────────────────────────────────
+// SerpAPI integration: swap this function body with a fetch to GET /api/hotels/search?q=query
+function scoreHotel(hotel, q) {
+  const n = hotel.name.toLowerCase();
+  const c = hotel.city.toLowerCase();
+  const r = hotel.region.toLowerCase();
+  if (n === q) return 100;
+  if (n.startsWith(q)) return 85;
+  if (n.includes(q)) return 65;
+  if (c === q) return 50;
+  if (c.startsWith(q)) return 40;
+  if (c.includes(q)) return 30;
+  if (r.includes(q)) return 15;
+  return 0;
+}
+function searchHotels(query, excluded) {
+  const excludedIds = new Set((excluded || []).map(h => h.id));
+  const available = HOTELS.filter(h => !excludedIds.has(h.id));
+  if (!query || query.trim().length < 1) {
+    return available.sort((a, b) => a.name.localeCompare(b.name)).slice(0, 8);
+  }
+  const q = query.trim().toLowerCase();
+  return available
+    .map(h => ({ hotel: h, score: scoreHotel(h, q) }))
+    .filter(({ score }) => score > 0)
+    .sort((a, b) => b.score - a.score || a.hotel.name.localeCompare(b.hotel.name))
+    .slice(0, 8)
+    .map(({ hotel }) => hotel);
+}
+
+// ─── RATE SIMULATION ──────────────────────────────────────────────────────────
+// SerpAPI integration: replace this with a call to GET /api/rates?hotel_key=...
+function generateRate(hotel, checkIn) {
+  const d = new Date(checkIn);
+  const dow = d.getDay();
+  const month = d.getMonth();
+  const charSum = hotel.id.split('').reduce((a, c) => a + c.charCodeAt(0), 0);
+  const seed = (charSum * 31 + d.getDate() * 17 + month * 53 + dow * 7) % 100;
+  let multiplier = 1;
+  if (dow === 5 || dow === 6) multiplier += 0.15;
+  if (dow === 0) multiplier += 0.08;
+  if (month >= 5 && month <= 8) multiplier += 0.20;
+  if (month === 11) multiplier += 0.18;
+  const noise = (seed / 100 - 0.5) * (hotel.variance || 0.3);
+  const rate = Math.round(hotel.baseRate * (multiplier + noise));
+  return {
+    rate: Math.max(Math.round(hotel.baseRate * 0.6), rate),
+    available: seed > 6,
+  };
+}
+
+// ─── BOOKING URL BUILDER ──────────────────────────────────────────────────────
+function fmtMMDDYYYY(ds) { const [y,m,d] = ds.split('-'); return `${m}/${d}/${y}`; }
+function parseIHGDate(ds) {
+  const [y,m,d] = ds.split('-');
+  return { day: d, monthYear: `${String(parseInt(m)-1).padStart(2,'0')}${y}` };
+}
+function buildBookingUrl(hotel, checkIn, checkOut) {
+  if (!hotel || !checkIn || !checkOut) return '#';
+  switch (hotel.chain) {
+    case 'marriott':
+      return `https://www.marriott.com/reservation/availabilitySearch.mi?propertyCode=${hotel.chainPropertyCode}&fromDate=${fmtMMDDYYYY(checkIn)}&toDate=${fmtMMDDYYYY(checkOut)}`;
+    case 'hilton':
+      return `https://www.hilton.com/en/book/reservation/rooms/?ctyhocn=${hotel.chainPropertyCode}&arrivalDate=${checkIn}&departureDate=${checkOut}&room1NumAdults=2`;
+    case 'hyatt': {
+      const sc = hotel.chainPropertyCode.toLowerCase();
+      return `https://www.hyatt.com/shop/rooms/${sc}?checkinDate=${checkIn}&checkoutDate=${checkOut}&rooms=1&adults=2&kids=0&rate=Standard&accessibilityCheck=false`;
     }
-
-    function nightsBetween(d1, d2) {
-      return Math.max(1, Math.round((new Date(d2) - new Date(d1)) / 86400000));
+    case 'ihg': {
+      const ci = parseIHGDate(checkIn), co = parseIHGDate(checkOut);
+      return `https://www.ihg.com/redirect?path=rates&brandCode=${hotel.chainBrandCode}&hotelCode=${hotel.chainPropertyCode}&checkInDate=${ci.day}&checkInMonthYear=${ci.monthYear}&checkOutDate=${co.day}&checkOutMonthYear=${co.monthYear}&numberOfAdults=2`;
     }
+    case 'synxis':
+      return `https://be.synxis.com/?adult=2&arrive=${checkIn}&chain=${hotel.synxisChainCode}&child=0&currency=EUR&depart=${checkOut}&hotel=${hotel.chainPropertyCode}&level=hotel&locale=it-IT&productcurrency=EUR&rooms=1`;
+    default:
+      return hotel.url || '#';
+  }
+}
 
-    function formatDate(dateStr) {
-      if (!dateStr) return "";
-      const d = new Date(dateStr + "T12:00:00");
-      return d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+// ─── DATE RANGE PICKER ────────────────────────────────────────────────────────
+function DateRangePicker({ value, onChange, minDate }) {
+  const today = minDate || todayStr();
+  const [open, setOpen] = useState(false);
+  const [step, setStep] = useState('in');
+  const [tempIn, setTempIn] = useState(null);
+  const [hover, setHover] = useState(null);
+  const ref = useRef(null);
+
+  const initY = parseInt((value.checkIn || today).split('-')[0]);
+  const initM = parseInt((value.checkIn || today).split('-')[1]) - 1;
+  const [viewY, setViewY] = useState(initY);
+  const [viewM, setViewM] = useState(initM);
+
+  useEffect(() => {
+    const fn = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', fn);
+    return () => document.removeEventListener('mousedown', fn);
+  }, []);
+
+  const getDays = (y, m) => {
+    const first = new Date(y, m, 1).getDay();
+    const total = new Date(y, m + 1, 0).getDate();
+    const days = Array(first).fill(null);
+    for (let d = 1; d <= total; d++)
+      days.push(`${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`);
+    return days;
+  };
+
+  const prevMonth = () => { if (viewM === 0) { setViewM(11); setViewY(y => y-1); } else setViewM(m => m-1); };
+  const nextMonth = () => { if (viewM === 11) { setViewM(0); setViewY(y => y+1); } else setViewM(m => m+1); };
+
+  const monthLabel = new Date(viewY, viewM, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  const days = getDays(viewY, viewM);
+
+  const s = value.checkIn, e = value.checkOut;
+  const activeSel = step === 'out' ? tempIn : s;
+  const activeEnd = step === 'out' ? (hover && hover > tempIn ? hover : null) : e;
+
+  const handleDay = ds => {
+    if (ds < today) return;
+    if (step === 'in') {
+      setTempIn(ds); setStep('out'); setHover(null);
+    } else {
+      if (ds <= tempIn) { setTempIn(ds); setHover(null); return; }
+      onChange({ checkIn: tempIn, checkOut: ds });
+      setOpen(false); setStep('in'); setTempIn(null);
     }
+  };
 
-    function formatDateShort(dateStr) {
-      if (!dateStr) return "";
-      const d = new Date(dateStr + "T12:00:00");
-      return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-    }
+  const open_ = () => {
+    setStep('in'); setTempIn(null); setHover(null);
+    const base = value.checkIn || today;
+    setViewY(parseInt(base.split('-')[0]));
+    setViewM(parseInt(base.split('-')[1]) - 1);
+    setOpen(true);
+  };
 
-    function formatCurrency(n) {
-      return "$" + n.toLocaleString();
-    }
+  const label = value.checkIn && value.checkOut
+    ? `${formatDate(value.checkIn)} – ${formatDate(value.checkOut)}`
+    : null;
 
-    // =====================================================================
-    //  BOOKING URL BUILDER — chain deep links + Booking.com fallback
-    // =====================================================================
-    function formatMMDDYYYY(ds) { const [y,m,d] = ds.split("-"); return `${m}/${d}/${y}`; }
-    function parseIHGDate(ds) { const [y,m,d] = ds.split("-"); return { day: d, monthYear: `${String(parseInt(m)-1).padStart(2,'0')}${y}` }; }
-
-    function buildBookingUrl(hotel, checkIn, checkOut) {
-      switch (hotel.chain) {
-        case "marriott":
-          return `https://www.marriott.com/reservation/availabilitySearch.mi?propertyCode=${hotel.chainPropertyCode}&fromDate=${formatMMDDYYYY(checkIn)}&toDate=${formatMMDDYYYY(checkOut)}`;
-
-        case "hilton":
-          return `https://www.hilton.com/en/book/reservation/rooms/?ctyhocn=${hotel.chainPropertyCode}&arrivalDate=${checkIn}&departureDate=${checkOut}&room1NumAdults=2`;
-        case "hyatt": {
-          const sc = hotel.chainPropertyCode.toLowerCase();
-          return `https://www.hyatt.com/shop/rooms/${sc}?checkinDate=${checkIn}&checkoutDate=${checkOut}&rooms=1&adults=2&kids=0&rate=Standard&accessibilityCheck=false`;
-        }
-        case "ihg": {
-          const ci = parseIHGDate(checkIn), co = parseIHGDate(checkOut);
-          return `https://www.ihg.com/redirect?path=rates&brandCode=${hotel.chainBrandCode}&hotelCode=${hotel.chainPropertyCode}&checkInDate=${ci.day}&checkInMonthYear=${ci.monthYear}&checkOutDate=${co.day}&checkOutMonthYear=${co.monthYear}&numberOfAdults=2`;
-        }
-        case "wyndham":
-          return `https://www.wyndhamhotels.com/hotels/${hotel.chainPropertyCode}/rooms-rates?checkin_date=${formatMMDDYYYY(checkIn)}&checkout_date=${formatMMDDYYYY(checkOut)}&adults=2&rooms=1`;
-        case "bestwestern":
-          return `https://www.bestwestern.com/en_US/book/hotel-rooms/${hotel.chainSlug}/propertyCode.${hotel.chainPropertyCode}.html?checkIn=${checkIn}&checkOut=${checkOut}`;
-        case "choice":
-          return `https://www.choicehotels.com/reservations/hotels/${hotel.chainPropertyCode}?checkInDate=${checkIn}&checkOutDate=${checkOut}&adults=2`;
-        default: {
-          const q = encodeURIComponent(`${hotel.name} ${hotel.city}`);
-          return `https://www.booking.com/searchresults.html?ss=${q}&checkin=${checkIn}&checkout=${checkOut}&group_adults=2&no_rooms=1&selected_currency=USD`;
-        }
-      }
-    }
-
-    // =====================================================================
-    //  OPTION DOT COLORS
-    // =====================================================================
-    const OPTION_COLORS = [
-      { dot: "#85B7EB", bg: "#E6F1FB", text: "#0C447C", dark: "#042C53" },
-      { dot: "#5DCAA5", bg: "#E1F5EE", text: "#085041", dark: "#04342C" },
-      { dot: "#ED93B1", bg: "#FBEAF0", text: "#72243E", dark: "#4B1528" },
-      { dot: "#AFA9EC", bg: "#EEEDFE", text: "#3C3489", dark: "#26215C" },
-      { dot: "#F0997B", bg: "#FAECE7", text: "#712B13", dark: "#4A1B0C" },
-      { dot: "#FAC775", bg: "#FAEEDA", text: "#633806", dark: "#412402" },
-      { dot: "#97C459", bg: "#EAF3DE", text: "#27500A", dark: "#173404" },
-      { dot: "#F7C1C1", bg: "#FCEBEB", text: "#791F1F", dark: "#501313" },
-      { dot: "#B4B2A9", bg: "#F1EFE8", text: "#444441", dark: "#2C2C2A" },
-      { dot: "#85B7EB", bg: "#E6F1FB", text: "#0C447C", dark: "#042C53" },
-    ];
-
-    // =====================================================================
-    //  DATE RANGE PICKER COMPONENT
-    // =====================================================================
-    function DateRangePicker({ value, onChange, minDate, colorDot }) {
-      const today = minDate || new Date().toISOString().split("T")[0];
-      const [open, setOpen] = useState(false);
-      const [step, setStep] = useState("checkIn");
-      const [tempCheckIn, setTempCheckIn] = useState(null);
-      const [hoverDate, setHoverDate] = useState(null);
-      const initMonth = () => {
-        const src = value.checkIn || today;
-        const d = new Date(src + "T12:00:00");
-        return { y: d.getFullYear(), m: d.getMonth() };
-      };
-      const [view, setView] = useState(initMonth);
-      const wrapRef = useRef(null);
-
-      useEffect(() => {
-        const handler = (e) => {
-          if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false);
-        };
-        document.addEventListener("mousedown", handler);
-        return () => document.removeEventListener("mousedown", handler);
-      }, []);
-
-      const handleOpen = () => {
-        setOpen(o => !o);
-        setStep("checkIn");
-        setTempCheckIn(null);
-        setHoverDate(null);
-        setView(initMonth());
-      };
-
-      const handleDayClick = (dateStr) => {
-        if (step === "checkIn") {
-          setTempCheckIn(dateStr);
-          setStep("checkOut");
-          setHoverDate(null);
-        } else {
-          if (dateStr <= tempCheckIn) {
-            // clicked same or earlier — restart
-            setTempCheckIn(dateStr);
-            setHoverDate(null);
-            return;
-          }
-          onChange({ checkIn: tempCheckIn, checkOut: dateStr });
-          setOpen(false);
-          setStep("checkIn");
-          setTempCheckIn(null);
-        }
-      };
-
-      const getDays = (y, m) => {
-        const firstDay = new Date(y, m, 1).getDay();
-        const total = new Date(y, m + 1, 0).getDate();
-        const days = Array(firstDay).fill(null);
-        for (let d = 1; d <= total; d++) {
-          days.push(`${y}-${String(m+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`);
-        }
-        return days;
-      };
-
-      const prevMonth = () => setView(v => {
-        if (v.m === 0) return { y: v.y - 1, m: 11 };
-        return { y: v.y, m: v.m - 1 };
-      });
-      const nextMonth = () => setView(v => {
-        if (v.m === 11) return { y: v.y + 1, m: 0 };
-        return { y: v.y, m: v.m + 1 };
-      });
-
-      const monthLabel = new Date(view.y, view.m).toLocaleDateString("en-US", { month: "long", year: "numeric" });
-      const days = getDays(view.y, view.m);
-
-      const startDate = step === "checkOut" ? tempCheckIn : value.checkIn;
-      const endDate = step === "checkOut" ? hoverDate : value.checkOut;
-
-      const fmtShort = (ds) => {
-        if (!ds) return null;
-        const d = new Date(ds + "T12:00:00");
-        return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-      };
-      const nights = value.checkIn && value.checkOut
-        ? Math.round((new Date(value.checkOut) - new Date(value.checkIn)) / 86400000) : 0;
-
-      return (
-        <div ref={wrapRef} style={{ position: "relative", flex: 1 }}>
-          {/* Trigger */}
-          <div
-            onClick={handleOpen}
-            style={{
-              display: "flex", alignItems: "center", gap: 8,
-              background: "#fff", border: open ? "1px solid #2C1810" : "1px solid #ddd",
-              borderRadius: 8, padding: "8px 12px", cursor: "pointer", userSelect: "none",
-              transition: "border-color 0.2s",
-            }}
-          >
-            <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
-              <rect x="1" y="2" width="12" height="11" rx="1.5" stroke="#aaa" strokeWidth="1.1"/>
-              <path d="M1 6h12" stroke="#aaa" strokeWidth="1.1"/>
-              <rect x="3" y="1" width="1.5" height="2.5" rx="0.5" fill="#aaa"/>
-              <rect x="9.5" y="1" width="1.5" height="2.5" rx="0.5" fill="#aaa"/>
-            </svg>
-            {value.checkIn && value.checkOut ? (
-              <span style={{ fontSize: 13, color: "#1a1a1a", fontWeight: 500 }}>
-                {fmtShort(value.checkIn)} → {fmtShort(value.checkOut)}
-                <span style={{ color: "#aaa", fontWeight: 400, marginLeft: 6, fontSize: 12 }}>
-                  {nights} night{nights !== 1 ? "s" : ""}
-                </span>
-              </span>
-            ) : step === "checkOut" && tempCheckIn ? (
-              <span style={{ fontSize: 13, color: "#1a1a1a" }}>
-                {fmtShort(tempCheckIn)} → <span style={{ color: "#C4A882" }}>pick check-out</span>
-              </span>
-            ) : (
-              <span style={{ fontSize: 13, color: "#aaa" }}>Select dates</span>
-            )}
+  return (
+    <div className="drp-wrap" ref={ref}>
+      <div className={`drp-trigger ${label ? '' : 'empty'}`} onClick={open_}>
+        <span className="drp-trigger-icon">◈</span>
+        <span className="drp-trigger-text">{label || 'Select dates'}</span>
+      </div>
+      {open && (
+        <div className="drp-cal">
+          <div className="drp-cal-header">
+            <div className="drp-cal-nav" onClick={prevMonth}>‹</div>
+            <div className="drp-cal-month">{monthLabel}</div>
+            <div className="drp-cal-nav" onClick={nextMonth}>›</div>
           </div>
-
-          {/* Calendar */}
-          {open && (
-            <div style={{
-              position: "absolute", top: "calc(100% + 6px)", left: 0, zIndex: 200,
-              background: "#fff", borderRadius: 12, border: "1px solid #eee",
-              boxShadow: "0 8px 32px rgba(0,0,0,0.12)", padding: "16px 14px",
-              minWidth: 260,
-            }}>
-              <p style={{
-                fontSize: 11, fontWeight: 600, textAlign: "center", margin: "0 0 12px",
-                color: step === "checkIn" ? "#854F0B" : "#085041",
-              }}>
-                {step === "checkIn" ? "Select check-in" : `Check-in ${fmtShort(tempCheckIn)} — select check-out`}
-              </p>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-                <button onClick={prevMonth} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 18, color: "#666", padding: "0 6px", lineHeight: 1 }}>‹</button>
-                <span style={{ fontSize: 13, fontWeight: 600 }}>{monthLabel}</span>
-                <button onClick={nextMonth} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 18, color: "#666", padding: "0 6px", lineHeight: 1 }}>›</button>
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 1, marginBottom: 4 }}>
-                {["Su","Mo","Tu","We","Th","Fr","Sa"].map(d => (
-                  <div key={d} style={{ textAlign: "center", fontSize: 10, color: "#bbb", fontWeight: 600, padding: "2px 0" }}>{d}</div>
-                ))}
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 1 }}>
-                {days.map((ds, i) => {
-                  if (!ds) return <div key={`e${i}`} />;
-                  const disabled = ds < today;
-                  const isStart = ds === startDate;
-                  const isEnd = endDate && ds === endDate && endDate > startDate;
-                  const inRange = startDate && endDate && ds > startDate && ds < endDate && endDate > startDate;
-                  const isToday = ds === today;
-                  let cls = "drp-day";
-                  if (disabled) cls += " drp-disabled";
-                  else if (isStart || isEnd) cls += " drp-start";
-                  else if (inRange) cls += " drp-in-range";
-                  else if (isToday) cls += " drp-today";
-                  return (
-                    <div
-                      key={ds}
-                      className={cls}
-                      onMouseEnter={() => step === "checkOut" && !disabled && setHoverDate(ds)}
-                      onMouseLeave={() => step === "checkOut" && setHoverDate(null)}
-                      onClick={() => !disabled && handleDayClick(ds)}
-                    >
-                      {parseInt(ds.split("-")[2])}
-                    </div>
-                  );
-                })}
-              </div>
-              {(value.checkIn || value.checkOut) && (
-                <button
-                  onClick={() => { onChange({ checkIn: "", checkOut: "" }); setStep("checkIn"); setTempCheckIn(null); }}
-                  style={{ background: "none", border: "none", cursor: "pointer", fontSize: 11, color: "#bbb", padding: "10px 0 0", display: "block", width: "100%", textAlign: "center", fontFamily: "'DM Sans', sans-serif" }}
-                >Clear</button>
-              )}
+          <div className="drp-wdays">
+            {['Su','Mo','Tu','We','Th','Fr','Sa'].map(w => <div key={w} className="drp-wday">{w}</div>)}
+          </div>
+          <div className="drp-days">
+            {days.map((ds, i) => {
+              if (!ds) return <div key={i} />;
+              const disabled = ds < today;
+              const isStart = ds === activeSel;
+              const isEnd = activeEnd && ds === activeEnd && activeEnd > activeSel;
+              const inRange = activeSel && activeEnd && ds > activeSel && ds < activeEnd && activeEnd > activeSel;
+              const isToday = ds === todayStr();
+              let cls = 'drp-day';
+              if (disabled) cls += ' drp-disabled';
+              else if (isStart || isEnd) cls += ' drp-start';
+              else if (inRange) cls += ' drp-in-range';
+              if (isToday) cls += ' drp-today';
+              return (
+                <div key={ds} className={cls}
+                  onClick={() => !disabled && handleDay(ds)}
+                  onMouseEnter={() => step === 'out' && !disabled && setHover(ds)}
+                >
+                  {parseInt(ds.split('-')[2])}
+                </div>
+              );
+            })}
+          </div>
+          <div className="drp-hint">
+            {step === 'in' ? 'Select check-in date' : 'Now select check-out'}
+          </div>
+          {(value.checkIn || value.checkOut) && (
+            <div className="drp-clear" onClick={() => { onChange({ checkIn:'', checkOut:'' }); setOpen(false); setStep('in'); setTempIn(null); }}>
+              Clear dates
             </div>
           )}
         </div>
-      );
+      )}
+    </div>
+  );
+}
+
+// ─── HOTEL SEARCH COMPONENT ───────────────────────────────────────────────────
+function HotelSearch({ selectedHotels, onAdd, onRemove }) {
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState([]);
+  const [activeIdx, setActiveIdx] = useState(-1);
+  const [isFocused, setIsFocused] = useState(false);
+  const [selectedCity, setSelectedCity] = useState(null);
+  const ref = useRef(null);
+  const inputRef = useRef(null);
+
+  const excludedIds = new Set(selectedHotels.map(h => h.id));
+  const availableHotels = HOTELS.filter(h => !excludedIds.has(h.id));
+  const cities = [...new Set(availableHotels.map(h => h.city))].sort();
+
+  useEffect(() => {
+    if (query) {
+      setResults(searchHotels(query, selectedHotels));
     }
+    setActiveIdx(-1);
+  }, [query, selectedHotels]);
 
-    // =====================================================================
-    //  APP COMPONENT
-    // =====================================================================
-    function App() {
-      const [searchQuery, setSearchQuery] = useState("");
-      const [selectedHotels, setSelectedHotels] = useState([]);
-      const [selectedCities, setSelectedCities] = useState([]);
-      const [hotelsByCityMap, setHotelsByCityMap] = useState({});
-      const [dateRanges, setDateRanges] = useState([
-        { checkIn: "", checkOut: "" },
-        { checkIn: "", checkOut: "" },
-      ]);
-      const [results, setResults] = useState(null);
-      const [bestOverall, setBestOverall] = useState(null);
-      const [showResults, setShowResults] = useState(false);
-      const [loading, setLoading] = useState(false);
-      const [showDropdown, setShowDropdown] = useState(false);
-      const [dropdownCities, setDropdownCities] = useState([]);
-      const searchRef = useRef(null);
-      const searchWrapRef = useRef(null);
+  useEffect(() => {
+    const fn = e => {
+      if (ref.current && !ref.current.contains(e.target)) {
+        setQuery(''); setIsFocused(false); setSelectedCity(null);
+      }
+    };
+    document.addEventListener('mousedown', fn);
+    return () => document.removeEventListener('mousedown', fn);
+  }, []);
 
-      // Close dropdown on outside click
-      useEffect(() => {
-        const handler = (e) => {
-          if (searchWrapRef.current && !searchWrapRef.current.contains(e.target)) {
-            setShowDropdown(false);
+  const handleKey = e => {
+    if (e.key === 'ArrowDown') { e.preventDefault(); setActiveIdx(i => Math.min(i+1, results.length-1)); }
+    if (e.key === 'ArrowUp')   { e.preventDefault(); setActiveIdx(i => Math.max(i-1, 0)); }
+    if (e.key === 'Enter' && activeIdx >= 0) { add(results[activeIdx]); }
+    if (e.key === 'Escape') { setQuery(''); setIsFocused(false); setSelectedCity(null); inputRef.current?.blur(); }
+  };
+
+  const add = hotel => {
+    if (selectedHotels.length >= 5) return;
+    onAdd(hotel);
+    setQuery('');
+    inputRef.current?.focus();
+  };
+
+  const maxed = selectedHotels.length >= 5;
+  const showDrop = isFocused && !maxed;
+  const stars = n => STAR_CHAR.repeat(n);
+  const icon = h => h.stars >= 5 ? '🏰' : h.stars >= 4 ? '🏨' : '🏩';
+
+  const HotelItem = ({ h, i }) => (
+    <div className={`search-item ${i === activeIdx ? 'active' : ''}`} onClick={() => add(h)}>
+      <div className="search-item-icon">{icon(h)}</div>
+      <div className="search-item-body">
+        <div className="search-item-name">{h.name}</div>
+        <div className="search-item-meta">{h.city} · {h.region}</div>
+      </div>
+      <div className="search-item-stars" style={{ color: '#C9963A' }}>{stars(h.stars)}</div>
+    </div>
+  );
+
+  return (
+    <div ref={ref}>
+      <div className="search-box">
+        <span className="search-box-icon">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <circle cx="6.5" cy="6.5" r="5" stroke="#9C9C9C" strokeWidth="1.5"/>
+            <path d="M10.5 10.5L14 14" stroke="#9C9C9C" strokeWidth="1.5" strokeLinecap="round"/>
+          </svg>
+        </span>
+        <input
+          ref={inputRef}
+          value={query}
+          onChange={e => { setQuery(e.target.value); setSelectedCity(null); }}
+          onKeyDown={handleKey}
+          onFocus={() => setIsFocused(true)}
+          placeholder={maxed ? 'Maximum 5 hotels selected' : 'Search by hotel name or browse by city…'}
+          disabled={maxed}
+        />
+        {selectedHotels.length > 0 && (
+          <span className="search-box-hint">{selectedHotels.length}/5 selected</span>
+        )}
+      </div>
+
+      {!maxed && (
+        <div className="search-helper">Search by hotel name or browse by city</div>
+      )}
+
+      {/* Typed search — absolute dropdown overlay (standard autocomplete) */}
+      {query && showDrop && (
+        <div className="search-dropdown">
+          {results.length === 0
+            ? <div className="search-no-results">No hotels found for "{query}"</div>
+            : results.map((h, i) => <HotelItem key={h.id} h={h} i={i} />)
           }
-        };
-        document.addEventListener("mousedown", handler);
-        return () => document.removeEventListener("mousedown", handler);
-      }, []);
+        </div>
+      )}
 
-      // Live city search — show dropdown as user types
-      useEffect(() => {
-        const q = searchQuery.trim().toLowerCase();
-        if (!q) { setDropdownCities([]); setShowDropdown(false); return; }
-        const matches = HOTELS.filter(
-          (h) =>
-            h.name.toLowerCase().includes(q) ||
-            h.city.toLowerCase().includes(q) ||
-            h.region.toLowerCase().includes(q)
-        );
-        const cities = [...new Set(matches.map(h => h.city))].sort();
-        setDropdownCities(cities);
-        setShowDropdown(cities.length > 0);
-      }, [searchQuery]);
+      {/* Browse mode — inline panel, expands inside card section */}
+      {!query && isFocused && !maxed && (
+        <div className="search-browse-panel">
 
-      const selectCity = (city) => {
-        if (selectedCities.includes(city)) { setShowDropdown(false); setSearchQuery(""); return; }
-        if (selectedCities.length >= 3) { setShowDropdown(false); setSearchQuery(""); return; }
-        const matches = HOTELS.filter(h => h.city === city);
-        setSelectedCities(prev => [...prev, city]);
-        setHotelsByCityMap(prev => ({ ...prev, [city]: matches }));
-        setShowDropdown(false);
-        setSearchQuery("");
-      };
-
-      const removeCity = (city) => {
-        setSelectedCities(prev => prev.filter(c => c !== city));
-        setHotelsByCityMap(prev => { const n = {...prev}; delete n[city]; return n; });
-        setSelectedHotels(prev => prev.filter(h => h.city !== city));
-        setShowResults(false);
-      };
-
-      const handleSearch = () => {
-        if (dropdownCities.length === 1) selectCity(dropdownCities[0]);
-        else if (dropdownCities.length > 1) setShowDropdown(true);
-      };
-
-      // Toggle hotel selection
-      const toggleHotel = (hotel) => {
-        setSelectedHotels((prev) =>
-          prev.find((h) => h.id === hotel.id)
-            ? prev.filter((h) => h.id !== hotel.id)
-            : prev.length < 5
-            ? [...prev, hotel]
-            : prev
-        );
-        setShowResults(false);
-      };
-
-      // Date range management
-      const updateDateRange = (idx, val) => {
-        setDateRanges((prev) => {
-          const next = [...prev];
-          next[idx] = val;
-          return next;
-        });
-        setShowResults(false);
-      };
-
-      const addDateRange = () => {
-        if (dateRanges.length < 10) {
-          setDateRanges((prev) => [...prev, { checkIn: "", checkOut: "" }]);
-        }
-      };
-
-      const removeDateRange = (idx) => {
-        if (dateRanges.length > 2) {
-          setDateRanges((prev) => prev.filter((_, i) => i !== idx));
-          setShowResults(false);
-        }
-      };
-
-      const validDates = dateRanges.filter(
-        (d) => d.checkIn && d.checkOut && d.checkOut > d.checkIn
-      );
-      const canCompare = selectedHotels.length >= 1 && validDates.length >= 2;
-
-      // Compare rates
-      const compareRates = () => {
-        setLoading(true);
-        setShowResults(false);
-        setBestOverall(null);
-
-        setTimeout(() => {
-          const res = {};
-          let best = null;
-          selectedHotels.forEach((hotel) => {
-            res[hotel.id] = {};
-            validDates.forEach((dr, di) => {
-              const rateData = generateRate(hotel, dr.checkIn);
-              res[hotel.id][di] = rateData;
-              if (rateData.available) {
-                const nights = nightsBetween(dr.checkIn, dr.checkOut);
-                const total = rateData.rate * nights;
-                if (!best || total < best.total) {
-                  best = { hotelId: hotel.id, dateIdx: di, rate: rateData.rate, total, nights };
-                }
-              }
-            });
-          });
-          setResults({ ...res });
-          setBestOverall(best);
-          setLoading(false);
-          setShowResults(true);
-        }, 500);
-      };
-
-      // Calculate savings for the banner
-      const calcSavings = () => {
-        if (!bestOverall || !results) return 0;
-        let secondBest = Infinity;
-        selectedHotels.forEach((hotel) => {
-          validDates.forEach((dr, di) => {
-            const r = results[hotel.id]?.[di];
-            if (r && r.available) {
-              const nights = nightsBetween(dr.checkIn, dr.checkOut);
-              const total = r.rate * nights;
-              if (total > bestOverall.total && total < secondBest) {
-                secondBest = total;
-              }
-            }
-          });
-        });
-        return secondBest === Infinity ? 0 : secondBest - bestOverall.total;
-      };
-
-      const bestHotel = bestOverall ? selectedHotels.find((h) => h.id === bestOverall.hotelId) : null;
-
-      // Current step
-      const currentStep = showResults ? 3 : validDates.length >= 2 ? 2 : selectedCities.length > 0 ? 1 : 0;
-
-      return (
-        <div style={{ minHeight: "100vh" }}>
-
-          {/* ============ NAV BAR ============ */}
-          <nav style={{
-            maxWidth: 760, margin: "0 auto", padding: "12px 20px",
-            display: "flex", alignItems: "center", justifyContent: "space-between",
-          }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <div style={{
-                width: 28, height: 28, borderRadius: 6, background: "#2C1810",
-                display: "flex", alignItems: "center", justifyContent: "center",
-              }}>
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                  <rect x="1" y="3" width="12" height="9" rx="1.5" stroke="#C4A882" strokeWidth="1.2"/>
-                  <path d="M1 6h12" stroke="#C4A882" strokeWidth="1.2"/>
-                  <rect x="3" y="8" width="2" height="2" rx="0.5" fill="#C4A882"/>
-                </svg>
-              </div>
-              <span style={{ fontSize: 15, fontWeight: 600, color: "#1a1a1a" }}>Rate Scanner</span>
-            </div>
-            <div style={{ display: "flex", gap: 20, fontSize: 13 }}>
-              <a href="#" style={{ fontWeight: 500, color: "#1a1a1a" }}>Scanner</a>
-              <a href="#how" style={{ color: "#888" }}>How it works</a>
-              <a href="#about" style={{ color: "#888" }}>About</a>
-            </div>
-          </nav>
-
-          {/* ============ HERO ============ */}
-          <div style={{
-            maxWidth: 760, margin: "0 auto 20px", padding: "0 16px",
-          }}>
-            <div style={{
-              background: "linear-gradient(135deg, #2C1810 0%, #1A0F0A 100%)",
-              borderRadius: 14, padding: "48px 32px 40px", textAlign: "center",
-            }} className="fade-up">
-              <p style={{
-                fontSize: 11, letterSpacing: 3, color: "#C4A882",
-                textTransform: "uppercase", margin: "0 0 12px", fontWeight: 500,
-              }}>For flexible travelers</p>
-              <h1 style={{
-                fontFamily: "'DM Serif Display', Georgia, serif",
-                fontSize: 28, fontWeight: 400, color: "#F5E6D8",
-                margin: "0 0 10px", lineHeight: 1.25,
-              }}>
-                You know where you're staying.<br/>Find the cheapest time to go.
-              </h1>
-              <p style={{
-                fontSize: 14, color: "#A89280", margin: "0 0 28px",
-                maxWidth: 420, marginLeft: "auto", marginRight: "auto", lineHeight: 1.6,
-              }}>
-                Pick your hotel, add the dates you're considering, and see which one saves you the most. Then book direct.
-              </p>
-
-              {/* Search bar */}
-              <div ref={searchWrapRef} style={{
-                display: "flex", gap: 8, maxWidth: 460, margin: "0 auto",
-                position: "relative",
-              }}>
-                <div style={{
-                  flex: 1, background: "rgba(255,255,255,0.08)",
-                  borderRadius: 8, padding: "12px 16px", textAlign: "left",
-                  border: "1px solid rgba(255,255,255,0.12)",
-                }}>
-                  <label style={{
-                    fontSize: 10, color: "#C4A882", letterSpacing: 1,
-                    textTransform: "uppercase", display: "block", marginBottom: 2,
-                  }}>Search hotels by city</label>
-                  <input
-                    type="text"
-                    placeholder="Santa Barbara, Tokyo, Limerick..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-                    onFocus={() => dropdownCities.length > 0 && setShowDropdown(true)}
-                    ref={searchRef}
-                    style={{ fontSize: 14, fontWeight: 500 }}
-                  />
-                </div>
-                <button
-                  onClick={handleSearch}
-                  className="btn-primary"
-                  style={{
-                    background: "#C4A882", color: "#1A0F0A", border: "none",
-                    padding: "12px 28px", borderRadius: 8, fontSize: 14,
-                    fontWeight: 600, fontFamily: "'DM Sans', sans-serif",
-                  }}
-                >Search</button>
-                {showDropdown && (
-                  <div className="search-dropdown">
-                    {selectedCities.length >= 3 && (
-                      <div style={{ padding: "8px 16px", fontSize: 11, color: "#aaa", borderBottom: "1px solid #f0f0f0" }}>
-                        3-city max reached
-                      </div>
-                    )}
-                    {dropdownCities.map(city => {
-                      const count = HOTELS.filter(h => h.city === city).length;
-                      const alreadyAdded = selectedCities.includes(city);
-                      const atMax = selectedCities.length >= 3 && !alreadyAdded;
-                      return (
-                        <div
-                          key={city}
-                          className="search-dropdown-item"
-                          onMouseDown={() => !atMax && selectCity(city)}
-                          style={{ opacity: atMax ? 0.4 : 1, cursor: atMax ? "not-allowed" : "pointer" }}
-                        >
-                          <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                            {alreadyAdded && (
-                              <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                                <circle cx="6" cy="6" r="5" fill="#BA7517"/>
-                                <path d="M3.5 6L5 7.5L8.5 4" stroke="white" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
-                              </svg>
-                            )}
-                            {city}
-                          </span>
-                          <span style={{ fontSize: 11, color: "#aaa" }}>{count} hotel{count !== 1 ? "s" : ""}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* ============ MAIN CONTENT ============ */}
-          <div style={{ maxWidth: 760, margin: "0 auto", padding: "0 16px 48px" }}>
-
-            {/* Step indicators */}
-            <div style={{
-              display: "flex", alignItems: "center", margin: "0 0 20px",
-              padding: "0 4px",
-            }}>
-              {[
-                { label: "Pick hotels", step: 1 },
-                { label: "Add your dates", step: 2 },
-                { label: "See your savings", step: 3 },
-              ].map((s, i) => (
-                <React.Fragment key={i}>
-                  {i > 0 && (
-                    <div style={{
-                      flex: 1, height: 1,
-                      background: currentStep >= s.step ? "#2C1810" : "#ddd",
-                      margin: "0 12px",
-                      transition: "background 0.3s",
-                    }} />
-                  )}
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <div style={{
-                      width: 24, height: 24, borderRadius: "50%",
-                      background: currentStep >= s.step ? "#2C1810" : "#ddd",
-                      color: currentStep >= s.step ? "#F5E6D8" : "#888",
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                      fontSize: 11, fontWeight: 600,
-                      transition: "all 0.3s",
-                    }}>{s.step}</div>
-                    <span style={{
-                      fontSize: 12, fontWeight: 500,
-                      color: currentStep >= s.step ? "#1a1a1a" : "#999",
-                      transition: "color 0.3s",
-                    }}>{s.label}</span>
-                  </div>
-                </React.Fragment>
-              ))}
-            </div>
-
-            {/* ============ HOTEL SHORTLIST — unified city-grouped panel ============ */}
-            {selectedCities.length > 0 && (
-              <div className="fade-up" style={{
-                background: "#fff", border: "1px solid #eee",
-                borderRadius: 12, padding: 20, marginBottom: 16,
-              }}>
-                <div style={{
-                  display: "flex", alignItems: "center",
-                  justifyContent: "space-between", marginBottom: 16,
-                }}>
-                  <label style={{
-                    fontSize: 11, fontWeight: 600, color: "#888",
-                    letterSpacing: 1.5, textTransform: "uppercase",
-                  }}>
-                    {selectedCities.length > 1 ? "Multi-city shortlist" : "Hotels"}
-                  </label>
-                  <span style={{ fontSize: 11, color: "#aaa" }}>
-                    {selectedHotels.length} of 5 selected
-                  </span>
-                </div>
-
-                {selectedCities.map((city, cityIdx) => {
-                  const cityHotels = hotelsByCityMap[city] || [];
-                  const isLast = cityIdx === selectedCities.length - 1;
+          {/* City grid */}
+          {!selectedCity && (
+            <>
+              <div className="city-browse-header">Browse by city</div>
+              <div className="city-grid">
+                {cities.map(city => {
+                  const count = availableHotels.filter(h => h.city === city).length;
                   return (
-                    <div key={city} style={{ marginBottom: isLast ? 0 : 20 }}>
-                      {/* City header row */}
-                      <div style={{
-                        display: "flex", alignItems: "center", gap: 8,
-                        marginBottom: 10,
-                      }}>
-                        <span style={{
-                          fontSize: 13, fontWeight: 600, color: "#1a1a1a",
-                        }}>{city}</span>
-                        <button
-                          onClick={() => removeCity(city)}
-                          style={{
-                            display: "flex", alignItems: "center", justifyContent: "center",
-                            width: 18, height: 18, borderRadius: "50%",
-                            background: "#f0ede8", border: "none",
-                            cursor: "pointer", color: "#888", fontSize: 12, lineHeight: 1,
-                            fontFamily: "'DM Sans', sans-serif",
-                          }}
-                          title={`Remove ${city}`}
-                        >×</button>
-                        <span style={{ fontSize: 11, color: "#bbb" }}>
-                          {cityHotels.length} hotel{cityHotels.length !== 1 ? "s" : ""}
-                        </span>
-                      </div>
-
-                      {/* Hotel pills */}
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                        {cityHotels.map((hotel) => {
-                          const isSelected = selectedHotels.find((h) => h.id === hotel.id);
-                          const atMax = selectedHotels.length >= 5 && !isSelected;
-                          return (
-                            <div
-                              key={hotel.id}
-                              className="hotel-pill"
-                              onClick={() => !atMax && toggleHotel(hotel)}
-                              style={{
-                                display: "flex", alignItems: "center", gap: 6,
-                                background: isSelected ? "#FAEEDA" : atMax ? "#f9f9f7" : "#f5f5f3",
-                                borderRadius: 100, padding: "7px 14px 7px 10px",
-                                fontSize: 13, fontWeight: isSelected ? 600 : 400,
-                                color: isSelected ? "#412402" : atMax ? "#ccc" : "#666",
-                                cursor: atMax ? "not-allowed" : "pointer",
-                                border: isSelected ? "1px solid #EF9F27" : "1px solid transparent",
-                              }}
-                            >
-                              {isSelected ? (
-                                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                                  <circle cx="7" cy="7" r="6" fill="#BA7517"/>
-                                  <path d="M4.5 7L6 8.5L9.5 5" stroke="white" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
-                                </svg>
-                              ) : (
-                                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                                  <circle cx="7" cy="7" r="6" stroke="#ccc" strokeWidth="1"/>
-                                </svg>
-                              )}
-                              {hotel.name}
-                              <span style={{
-                                fontSize: 11,
-                                color: isSelected ? "#854F0B" : "#aaa",
-                                fontWeight: 400,
-                              }}>{"★".repeat(hotel.stars)}</span>
-                            </div>
-                          );
-                        })}
-                      </div>
-
-                      {/* City divider */}
-                      {!isLast && (
-                        <div style={{ borderTop: "1px solid #f0f0f0", margin: "16px 0 0" }} />
-                      )}
-                    </div>
+                    <button key={city} className="city-btn" onClick={() => setSelectedCity(city)}>
+                      <span className="city-btn-name">{city}</span>
+                      <span className="city-count">{count} {count === 1 ? 'hotel' : 'hotels'}</span>
+                    </button>
                   );
                 })}
-
-                {selectedCities.length < 3 && (
-                  <p style={{
-                    fontSize: 12, color: "#bbb", marginTop: 16,
-                    display: "flex", alignItems: "center", gap: 4,
-                  }}>
-                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                      <circle cx="6" cy="6" r="5" stroke="#ccc" strokeWidth="1"/>
-                      <path d="M6 4v4M4 6h4" stroke="#ccc" strokeWidth="1.2" strokeLinecap="round"/>
-                    </svg>
-                    Search another city to compare across destinations
-                  </p>
-                )}
               </div>
-            )}
+            </>
+          )}
 
-            {/* ============ DATE RANGES ============ */}
-            {selectedHotels.length > 0 && (
-              <div className="fade-up" style={{
-                background: "#fff", border: "1px solid #eee",
-                borderRadius: 12, padding: 20, marginBottom: 16,
-              }}>
-                <label style={{
-                  fontSize: 11, fontWeight: 600, color: "#888",
-                  letterSpacing: 1.5, textTransform: "uppercase",
-                  display: "block", marginBottom: 12,
-                }}>Which dates could work for you?</label>
-
-                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  {dateRanges.map((dr, idx) => {
-                    const c = OPTION_COLORS[idx];
-                    return (
-                      <div key={idx} style={{
-                        display: "flex", alignItems: "center", gap: 10,
-                        background: "#f9f9f7", borderRadius: 8, padding: "10px 14px",
-                      }}>
-                        <div style={{
-                          width: 10, height: 10, borderRadius: "50%",
-                          background: c.dot, flexShrink: 0,
-                        }} />
-                        <span style={{
-                          fontSize: 11, fontWeight: 600, color: "#aaa",
-                          textTransform: "uppercase", letterSpacing: 1,
-                          minWidth: 68, flexShrink: 0,
-                        }}>Option {String.fromCharCode(65 + idx)}</span>
-                        <DateRangePicker
-                          value={dr}
-                          onChange={(val) => updateDateRange(idx, val)}
-                          minDate={new Date().toISOString().split("T")[0]}
-                        />
-                        {dateRanges.length > 2 && (
-                          <svg
-                            width="14" height="14" viewBox="0 0 14 14" fill="none"
-                            style={{ cursor: "pointer", flexShrink: 0 }}
-                            onClick={() => removeDateRange(idx)}
-                          >
-                            <path d="M3.5 3.5L10.5 10.5M10.5 3.5L3.5 10.5" stroke="#bbb" strokeWidth="1.2" strokeLinecap="round"/>
-                          </svg>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {dateRanges.length < 10 && (
-                  <button
-                    onClick={addDateRange}
-                    style={{
-                      fontSize: 12, color: "#854F0B", cursor: "pointer",
-                      background: "none", border: "none", padding: "8px 0 0",
-                      fontWeight: 600, fontFamily: "'DM Sans', sans-serif",
-                    }}
-                  >+ Add another date range</button>
-                )}
+          {/* Hotels in selected city */}
+          {selectedCity && (
+            <>
+              <div className="city-back-btn" onClick={() => setSelectedCity(null)}>
+                ← All cities
+                <span style={{ fontWeight: 400, color: 'var(--text-3)' }}>· {selectedCity}</span>
               </div>
-            )}
-
-            {/* ============ COMPARE CTA ============ */}
-            {selectedHotels.length > 0 && (
-              <div style={{ textAlign: "center", margin: "24px 0" }}>
-                <button
-                  onClick={compareRates}
-                  disabled={!canCompare || loading}
-                  className="btn-primary"
-                  style={{
-                    background: canCompare ? "#2C1810" : "#ccc",
-                    color: canCompare ? "#F5E6D8" : "#888",
-                    border: "none", padding: "14px 52px",
-                    borderRadius: 10, fontSize: 15, fontWeight: 600,
-                    fontFamily: "'DM Sans', sans-serif",
-                    cursor: canCompare ? "pointer" : "not-allowed",
-                    opacity: loading ? 0.7 : 1,
-                  }}
-                >
-                  {loading ? "Scanning rates..." : "Show me the rates"}
-                </button>
-                {canCompare && (
-                  <p style={{ fontSize: 12, color: "#aaa", marginTop: 8 }}>
-                    {selectedHotels.length} hotel{selectedHotels.length > 1 ? "s" : ""} × {validDates.length} date range{validDates.length > 1 ? "s" : ""} = {selectedHotels.length * validDates.length} rate lookups
-                  </p>
-                )}
-                {!canCompare && selectedHotels.length > 0 && (
-                  <p style={{ fontSize: 12, color: "#aaa", marginTop: 8 }}>
-                    {validDates.length < 2 ? "Add at least 2 date ranges to compare" : "Select at least 1 hotel"}
-                  </p>
-                )}
+              <div className="city-hotel-list">
+                {availableHotels
+                  .filter(h => h.city === selectedCity)
+                  .sort((a, b) => b.stars - a.stars)
+                  .map((h, i) => <HotelItem key={h.id} h={h} i={i} />)
+                }
               </div>
-            )}
+            </>
+          )}
 
-            {/* ============ RESULTS ============ */}
-            {showResults && results && (
-              <div className="fade-up" style={{
-                background: "#fff", border: "1px solid #eee",
-                borderRadius: 12, overflow: "hidden", marginBottom: 16,
-              }}>
-                {/* Best deal banner */}
-                {bestOverall && bestHotel && (
-                  <div style={{
-                    background: "#FAEEDA", padding: "16px 20px",
-                    display: "flex", alignItems: "center", justifyContent: "space-between",
-                    flexWrap: "wrap", gap: 12,
-                  }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                        <circle cx="10" cy="10" r="9" fill="#BA7517"/>
-                        <path d="M6 10L9 13L14 7" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                      </svg>
-                      <div>
-                        <p style={{ fontSize: 14, fontWeight: 600, color: "#412402", margin: 0 }}>
-                          Option {String.fromCharCode(65 + bestOverall.dateIdx)} saves you {formatCurrency(calcSavings())} at {bestHotel.name}
-                        </p>
-                        <p style={{ fontSize: 12, color: "#854F0B", margin: "2px 0 0" }}>
-                          {formatCurrency(bestOverall.rate)}/night · {formatCurrency(bestOverall.total)} for {bestOverall.nights} night{bestOverall.nights > 1 ? "s" : ""}
-                        </p>
-                      </div>
-                    </div>
-                    <a
-                      href={buildBookingUrl(bestHotel, validDates[bestOverall.dateIdx].checkIn, validDates[bestOverall.dateIdx].checkOut)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="btn-primary"
-                      style={{
-                        background: "#2C1810", color: "#F5E6D8",
-                        padding: "8px 20px", borderRadius: 8,
-                        fontSize: 13, fontWeight: 600, whiteSpace: "nowrap",
-                        textDecoration: "none", display: "inline-block",
-                      }}
-                    >Book direct</a>
-                  </div>
-                )}
+        </div>
+      )}
 
-                {/* Rate table */}
-                <div style={{ overflowX: "auto" }}>
-                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-                    <thead>
-                      <tr>
-                        <th style={{
-                          textAlign: "left", padding: "12px 16px",
-                          fontWeight: 500, fontSize: 12, color: "#999",
-                          borderBottom: "1px solid #eee",
-                        }}>Hotel</th>
-                        {validDates.map((dr, di) => {
-                          const c = OPTION_COLORS[di];
-                          return (
-                            <th key={di} style={{
-                              textAlign: "center", padding: "12px 16px",
-                              fontWeight: 500, fontSize: 11,
-                              borderBottom: "1px solid #eee",
-                            }}>
-                              <span style={{
-                                display: "inline-flex", alignItems: "center", gap: 4,
-                                background: c.bg, color: c.text,
-                                padding: "3px 10px", borderRadius: 100,
-                              }}>
-                                <span style={{
-                                  width: 6, height: 6, borderRadius: "50%",
-                                  background: c.dot, display: "inline-block",
-                                }} />
-                                Option {String.fromCharCode(65 + di)} · {formatDateShort(dr.checkIn)}–{formatDateShort(dr.checkOut)}
-                              </span>
-                            </th>
-                          );
-                        })}
-
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {selectedHotels.map((hotel) => {
-                        const isBestHotel = bestOverall && hotel.id === bestOverall.hotelId;
-                        return (
-                          <tr key={hotel.id} className="result-row" style={{
-                            borderBottom: "1px solid #f5f5f3",
-                            background: isBestHotel ? "rgba(186, 117, 23, 0.03)" : "transparent",
-                          }}>
-                            <td style={{ padding: "14px 16px" }}>
-                              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                                <span style={{ fontWeight: 500, color: "#1a1a1a" }}>{hotel.name}</span>
-                                {isBestHotel && (
-                                  <span style={{
-                                    fontSize: 9, fontWeight: 700, color: "#854F0B",
-                                    background: "#FAEEDA", padding: "2px 6px",
-                                    borderRadius: 100, letterSpacing: 0.5,
-                                  }}>BEST VALUE</span>
-                                )}
-                              </div>
-                              <p style={{ fontSize: 11, color: "#aaa", margin: "2px 0 0" }}>
-                                {hotel.stars}-star · {hotel.region}
-                              </p>
-                            </td>
-                            {validDates.map((dr, di) => {
-                              const r = results[hotel.id]?.[di];
-                              const isBest = bestOverall && hotel.id === bestOverall.hotelId && di === bestOverall.dateIdx;
-                              const nights = nightsBetween(dr.checkIn, dr.checkOut);
-                              if (!r) return <td key={di} />;
-                              return (
-                                <td key={di} style={{ textAlign: "center", padding: "12px 16px" }}>
-                                  {r.available ? (
-                                    <>
-                                      <p style={{
-                                        fontWeight: isBest ? 600 : 500, margin: 0,
-                                        fontSize: 15,
-                                        fontFamily: isBest ? "'DM Serif Display', Georgia, serif" : "inherit",
-                                        color: isBest ? "#412402" : "#1a1a1a",
-                                      }}>{formatCurrency(r.rate)}</p>
-                                      <p style={{
-                                        fontSize: 11, margin: "2px 0 6px",
-                                        color: isBest ? "#854F0B" : "#aaa",
-                                      }}>{formatCurrency(r.rate * nights)} total</p>
-                                      <a
-                                        href={buildBookingUrl(hotel, dr.checkIn, dr.checkOut)}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="btn-primary"
-                                        style={{
-                                          fontSize: 11, fontWeight: 600,
-                                          padding: "4px 12px", borderRadius: 6,
-                                          textDecoration: "none", display: "inline-block",
-                                          background: isBest ? "#2C1810" : "#f0ede8",
-                                          color: isBest ? "#F5E6D8" : "#666",
-                                        }}
-                                      >Book</a>
-                                    </>
-                                  ) : (
-                                    <span style={{ fontSize: 12, color: "#ccc" }}>Sold out</span>
-                                  )}
-                                </td>
-                              );
-                            })}
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-
-            {/* ============ HOW IT WORKS (optional section) ============ */}
-            {selectedCities.length === 0 && (
-              <div id="how" className="fade-up" style={{
-                maxWidth: 560, margin: "40px auto 0", textAlign: "center",
-              }}>
-                <p style={{
-                  fontSize: 11, letterSpacing: 2, color: "#aaa",
-                  textTransform: "uppercase", fontWeight: 600, marginBottom: 20,
-                }}>How it works</p>
-                <div style={{
-                  display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 16,
-                }}>
-                  {[
-                    { num: "1", title: "Pick your hotels", desc: "Search any destination and select up to 5 hotels you're considering." },
-                    { num: "2", title: "Add your dates", desc: "Enter 2 or more date ranges you'd be flexible with." },
-                    { num: "3", title: "Book the best rate", desc: "See which combination is cheapest, then book direct with the hotel." },
-                  ].map((step) => (
-                    <div key={step.num} style={{ padding: "0 4px" }}>
-                      <div style={{
-                        width: 32, height: 32, borderRadius: "50%",
-                        background: "#FAEEDA", color: "#854F0B",
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                        fontSize: 13, fontWeight: 700, margin: "0 auto 10px",
-                      }}>{step.num}</div>
-                      <p style={{ fontSize: 13, fontWeight: 600, margin: "0 0 4px", color: "#1a1a1a" }}>{step.title}</p>
-                      <p style={{ fontSize: 12, color: "#888", lineHeight: 1.5, margin: 0 }}>{step.desc}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* ============ FOOTER ============ */}
-            <div style={{ textAlign: "center", padding: "32px 0 0" }}>
-              <p style={{ fontSize: 11, color: "#aaa", margin: 0 }}>
-                Rates are estimated for demo purposes. "Book direct" links to the hotel's official website.
-              </p>
-              <p style={{ fontSize: 11, color: "#aaa", margin: "4px 0 0" }}>
-                Built by Paul Totah · <a href="https://www.linkedin.com/in/paultotah/" target="_blank" rel="noopener noreferrer" style={{ textDecoration: "underline", color: "#888" }}>LinkedIn</a>
-              </p>
+      {selectedHotels.length > 0 && (
+        <div className="hotel-tray">
+          {selectedHotels.map(h => (
+            <div key={h.id} className="hotel-chip">
+              <span>{h.name}</span>
+              <span className="hotel-chip-city">{h.city}</span>
+              <button className="hotel-chip-rm" onClick={() => onRemove(h.id)} title="Remove">×</button>
             </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
+// ─── DATE RANGES COMPONENT ────────────────────────────────────────────────────
+function DateRanges({ ranges, onChange }) {
+  const canAdd = ranges.length < 10;
+  const canRemove = ranges.length > 2;
+
+  const update = (i, val) => {
+    const next = ranges.map((r, ri) => ri === i ? val : r);
+    onChange(next);
+  };
+  const addRow = () => {
+    if (!canAdd) return;
+    onChange([...ranges, { checkIn: '', checkOut: '' }]);
+  };
+  const removeRow = i => {
+    if (!canRemove) return;
+    onChange(ranges.filter((_, ri) => ri !== i));
+  };
+
+  return (
+    <div>
+      <div className="date-rows">
+        {ranges.map((r, i) => {
+          const nights = r.checkIn && r.checkOut ? nightsBetween(r.checkIn, r.checkOut) : null;
+          return (
+            <div key={i} className="date-row">
+              <span className="date-row-letter">{OPTION_LABELS[i]}</span>
+              <DateRangePicker value={r} onChange={val => update(i, val)} minDate={todayStr()} />
+              <span className="date-row-arrow">→</span>
+              <span className={`date-row-nights ${nights === null ? 'empty' : ''}`}>
+                {nights !== null ? `${nights}n` : '—'}
+              </span>
+              <button className={`date-row-rm ${canRemove ? '' : 'hidden'}`} onClick={() => removeRow(i)} title="Remove">×</button>
+            </div>
+          );
+        })}
+      </div>
+      <button className="add-date-btn" onClick={addRow} disabled={!canAdd} style={{ marginTop: 10 }}>
+        + Add date option {ranges.length < 10 ? `(${10 - ranges.length} remaining)` : ''}
+      </button>
+    </div>
+  );
+}
+
+// ─── SUMMARY CARDS ────────────────────────────────────────────────────────────
+function SummaryCards({ flatResults, hotels, validDates, onCardClick }) {
+  if (!flatResults || flatResults.length === 0) return null;
+
+  const available = flatResults.filter(r => r.available);
+  if (available.length === 0) return null;
+
+  const byTotal = [...available].sort((a, b) => a.total - b.total);
+  const byAdr   = [...available].sort((a, b) => a.rate - b.rate);
+
+  const best = byTotal[0];
+  const bestHotel = hotels.find(h => h.id === best.hotelId);
+  const bestDate = validDates[best.dateIdx];
+  const bestCellKey = `${best.hotelId}|${best.dateIdx}`;
+  const lowestCellKey = `${byAdr[0].hotelId}|${byAdr[0].dateIdx}`;
+
+  return (
+    <div className="summary-cards">
+      <div className="scard best scard-clickable" onClick={() => onCardClick(bestCellKey)} title="Jump to this cell in the table">
+        <div className="scard-label">⭐ Best Total Price</div>
+        <div className="scard-value">{formatCurrency(best.total)}</div>
+        <div className="scard-meta">
+          {best.nights} night{best.nights !== 1 ? 's' : ''} · {formatCurrency(best.rate)}/night<br />
+          Option {OPTION_LABELS[best.dateIdx]} · {formatDate(bestDate.checkIn)}–{formatDate(bestDate.checkOut)}
+        </div>
+        <div className="scard-meta" style={{ fontWeight: 600, color: '#1A1A1A', marginTop: 4 }}>
+          {bestHotel?.name}
+        </div>
+        <div className="scard-action">View in table ↓</div>
+      </div>
+      <div className="scard scard-clickable" onClick={() => onCardClick(lowestCellKey)} title="Jump to this cell in the table">
+        <div className="scard-label">Lowest Nightly Rate</div>
+        <div className="scard-value">{formatCurrency(byAdr[0].rate)}<span style={{ fontSize: 13, fontWeight: 400, color: '#5C5C5C' }}>/night</span></div>
+        <div className="scard-meta">
+          {hotels.find(h => h.id === byAdr[0].hotelId)?.name}<br />
+          Option {OPTION_LABELS[byAdr[0].dateIdx]}
+        </div>
+        <div className="scard-action">View in table ↓</div>
+      </div>
+      <div className="scard">
+        <div className="scard-label">Availability</div>
+        <div className="scard-value">{available.length}<span style={{ fontSize: 13, fontWeight: 400, color: '#5C5C5C' }}> / {flatResults.length}</span></div>
+        <div className="scard-meta">
+          options available<br />
+          across {hotels.length} hotel{hotels.length !== 1 ? 's' : ''} × {validDates.length} date range{validDates.length !== 1 ? 's' : ''}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── RESULTS TABLE ────────────────────────────────────────────────────────────
+function ResultsTable({ results, loadingCells, hotels, validDates, sortBy, onSort, bestKey, highlightKey }) {
+  const stars = n => STAR_CHAR.repeat(n);
+
+  const sortedHotels = [...hotels].sort((a, b) => {
+    if (sortBy === 'name') return a.name.localeCompare(b.name);
+    const getMin = (hotel, field) => {
+      const vals = validDates.map((_, di) => results[hotel.id]?.[di])
+        .filter(r => r && r.available).map(r => field === 'adr' ? r.rate : r.rate * nightsBetween(validDates[validDates.indexOf(validDates.find((d, di) => results[hotel.id]?.[di] === r))].checkIn || '', validDates[validDates.indexOf(validDates.find((d, di) => results[hotel.id]?.[di] === r))].checkOut || ''));
+      return vals.length ? Math.min(...vals) : Infinity;
+    };
+    // Simpler sort: by minimum rate per night
+    const minA = validDates.map((_, di) => results[a.id]?.[di]).filter(r => r?.available).map(r => r.rate);
+    const minB = validDates.map((_, di) => results[b.id]?.[di]).filter(r => r?.available).map(r => r.rate);
+    const mA = minA.length ? Math.min(...minA) : Infinity;
+    const mB = minB.length ? Math.min(...minB) : Infinity;
+    if (sortBy === 'adr') return mA - mB;
+    // Sort by total: min rate × respective nights
+    const totA = validDates.map((d, di) => {
+      const r = results[a.id]?.[di]; if (!r?.available) return Infinity;
+      return r.rate * nightsBetween(d.checkIn, d.checkOut);
+    });
+    const totB = validDates.map((d, di) => {
+      const r = results[b.id]?.[di]; if (!r?.available) return Infinity;
+      return r.rate * nightsBetween(d.checkIn, d.checkOut);
+    });
+    return Math.min(...totA) - Math.min(...totB);
+  });
+
+  return (
+    <div className="results-table-card">
+      <div className="rtc-toolbar">
+        <span className="rtc-toolbar-label">{hotels.length} hotel{hotels.length !== 1 ? 's' : ''} · {validDates.length} date option{validDates.length !== 1 ? 's' : ''}</span>
+        <span className="sort-label">Sort by</span>
+        <div className="sort-btns">
+          {[['price','Total price'],['adr','Nightly rate'],['name','Name']].map(([k,l]) => (
+            <button key={k} className={`sort-btn ${sortBy === k ? 'on' : ''}`} onClick={() => onSort(k)}>{l}</button>
+          ))}
+        </div>
+      </div>
+      <div style={{ overflowX: 'auto' }}>
+        <table className="rt">
+          <thead>
+            <tr>
+              <th>Hotel</th>
+              {validDates.map((d, i) => (
+                <th key={i} className="date-th">
+                  Option {OPTION_LABELS[i]}<br />
+                  <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0, fontSize: 11 }}>
+                    {formatDate(d.checkIn)} – {formatDate(d.checkOut)} · {nightsBetween(d.checkIn, d.checkOut)}n
+                  </span>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {sortedHotels.map(hotel => (
+              <tr key={hotel.id}>
+                <td>
+                  <div className="hotel-td">
+                    <div className="hotel-td-name">{hotel.name}</div>
+                    <div className="hotel-td-city">{hotel.city} · {hotel.region}</div>
+                    <div className="hotel-td-stars" style={{ color: '#C9963A' }}>{stars(hotel.stars)}</div>
+                  </div>
+                </td>
+                {validDates.map((d, di) => {
+                  const cellKey = `${hotel.id}|${di}`;
+                  const loading = loadingCells.has(cellKey);
+                  const r = results[hotel.id]?.[di];
+                  const isBest = cellKey === bestKey;
+                  const isHighlighted = cellKey === highlightKey;
+                  const nights = nightsBetween(d.checkIn, d.checkOut);
+                  const bookUrl = r?.available ? buildBookingUrl(hotel, d.checkIn, d.checkOut) : '#';
+
+                  if (loading) return (
+                    <td key={di}>
+                      <div className="rate-td" style={{ paddingTop: 18 }}>
+                        <div className="skel skel-r" />
+                        <div className="skel skel-t" />
+                        <div className="skel skel-b" />
+                      </div>
+                    </td>
+                  );
+
+                  if (!r) return <td key={di}><div className="rate-td"><span className="rate-unavail">—</span></div></td>;
+
+                  if (!r.available) return (
+                    <td key={di}>
+                      <div className="rate-td">
+                        <div className="rate-unavail">Unavailable</div>
+                      </div>
+                    </td>
+                  );
+
+                  const total = r.rate * nights;
+                  return (
+                    <td key={di}>
+                      <div className={`rate-td ${isBest ? 'best' : ''} ${isHighlighted ? 'highlighted' : ''}`}>
+                        {isBest && <div className="best-badge">★ Best deal</div>}
+                        <div className="rate-adr">{formatCurrency(r.rate)}<span style={{ fontSize: 11, fontWeight: 400, color: '#9C9C9C' }}>/nt</span></div>
+                        <div className="rate-total">{formatCurrency(total)} total</div>
+                        <div className="rate-nights">{nights} night{nights !== 1 ? 's' : ''}</div>
+                        <a href={bookUrl} target="_blank" rel="noopener noreferrer"
+                          className={`rate-book ${isBest ? 'gold' : ''}`}>
+                          Book →
+                        </a>
+                      </div>
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ─── MODAL ────────────────────────────────────────────────────────────────────
+function Modal({ title, onClose, children }) {
+  useEffect(() => {
+    const fn = e => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', fn);
+    return () => document.removeEventListener('keydown', fn);
+  }, [onClose]);
+  return (
+    <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="modal-panel">
+        <div className="modal-header">
+          <div className="modal-title">{title}</div>
+          <button className="modal-close" onClick={onClose}>×</button>
+        </div>
+        <div className="modal-body">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+// ─── APP ──────────────────────────────────────────────────────────────────────
+function App() {
+  const [selectedHotels, setSelectedHotels] = useState([]);
+  const [dateRanges, setDateRanges] = useState([
+    { checkIn: '', checkOut: '' },
+    { checkIn: '', checkOut: '' },
+  ]);
+  const [results, setResults] = useState({});
+  const [loadingCells, setLoadingCells] = useState(new Set());
+  const [isComparing, setIsComparing] = useState(false);
+  const [showResults, setShowResults] = useState(false);
+  const [sortBy, setSortBy] = useState('price');
+  const [modal, setModal] = useState(null); // null | 'about' | 'casestudy'
+  const [highlightKey, setHighlightKey] = useState(null);
+  const resultsRef = useRef(null);
+  const tableRef = useRef(null);
+
+  const handleCardClick = (key) => {
+    setHighlightKey(key);
+    tableRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    setTimeout(() => setHighlightKey(null), 2200);
+  };
+
+  const validDates = dateRanges.filter(d => d.checkIn && d.checkOut && d.checkOut > d.checkIn);
+  const canCompare = selectedHotels.length >= 1 && validDates.length >= 2 && !isComparing;
+
+  const hotelsMet = selectedHotels.length >= 1;
+  const datesMet  = validDates.length >= 2;
+
+  // Flatten results for summary
+  const flatResults = selectedHotels.flatMap(hotel =>
+    validDates.map((d, di) => {
+      const r = results[hotel.id]?.[di];
+      if (!r?.available) return null;
+      return { ...r, hotelId: hotel.id, dateIdx: di, nights: nightsBetween(d.checkIn, d.checkOut), total: r.rate * nightsBetween(d.checkIn, d.checkOut) };
+    }).filter(Boolean)
+  );
+
+  // Best cell key
+  const bestKey = (() => {
+    if (!flatResults.length) return null;
+    const best = flatResults.reduce((a, b) => b.total < a.total ? b : a);
+    return `${best.hotelId}|${best.dateIdx}`;
+  })();
+
+  const compareRates = () => {
+    if (!canCompare) return;
+    setIsComparing(true);
+    setShowResults(false);
+    setResults({});
+
+    // Build loading set
+    const cells = new Set();
+    selectedHotels.forEach(h => validDates.forEach((_, di) => cells.add(`${h.id}|${di}`)));
+    setLoadingCells(cells);
+
+    // Progressive staggered load
+    selectedHotels.forEach((hotel, hi) => {
+      validDates.forEach((dr, di) => {
+        const delay = hi * 280 + di * 90 + 100;
+        setTimeout(() => {
+          const rateData = generateRate(hotel, dr.checkIn);
+          setResults(prev => ({
+            ...prev,
+            [hotel.id]: { ...(prev[hotel.id] || {}), [di]: rateData }
+          }));
+          setLoadingCells(prev => {
+            const next = new Set(prev);
+            next.delete(`${hotel.id}|${di}`);
+            return next;
+          });
+        }, delay);
+      });
+    });
+
+    const totalDelay = (selectedHotels.length - 1) * 280 + (validDates.length - 1) * 90 + 400;
+    setTimeout(() => {
+      setIsComparing(false);
+      setShowResults(true);
+      setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
+    }, totalDelay);
+  };
+
+  const addHotel = hotel => {
+    if (selectedHotels.length >= 5) return;
+    if (selectedHotels.find(h => h.id === hotel.id)) return;
+    setSelectedHotels(prev => [...prev, hotel]);
+    setShowResults(false);
+  };
+  const removeHotel = id => {
+    setSelectedHotels(prev => prev.filter(h => h.id !== id));
+    setShowResults(false);
+  };
+
+  return (
+    <div className="page">
+      {/* NAV */}
+      <div className="hero-section-wrap">
+      <nav className="nav">
+        <div className="nav-inner">
+          <div className="nav-logo">Hotel Rate Matrix</div>
+          <div className="nav-right">
+            <button className="nav-link" onClick={() => setModal('casestudy')}>About</button>
+            <div className="nav-badge">Portfolio Prototype</div>
           </div>
         </div>
-      );
-    }
+      </nav>
 
-    ReactDOM.render(<App />, document.getElementById("root"));
-  </script>
+      {/* HERO */}
+      <div className="hero">
+        <div className="hero-eyebrow">Hotel Rate Comparison Tool</div>
+        <h1 className="hero-headline">
+          Compare rates across dates,<br />
+          <em>not across tabs.</em>
+        </h1>
+        <p className="hero-value">Add the hotels you want. Pick the dates that could work. See every combination at once.</p>
+        <p className="hero-note">Up to 5 hotels × 10 date ranges in a single view.</p>
+      </div>
+      </div>
+
+      {/* MAIN CARD */}
+      <div className="container">
+        <div className="main-card">
+
+          {/* STEP 1 — Hotels */}
+          <div className="main-card-section">
+            <div className="section-label">
+              <span className="section-num">1</span>
+              <span className="section-title">Search and add hotels</span>
+              <span className="section-subtitle">Up to 5</span>
+            </div>
+            <HotelSearch
+              selectedHotels={selectedHotels}
+              onAdd={addHotel}
+              onRemove={removeHotel}
+            />
+          </div>
+
+          {/* STEP 2 — Dates */}
+          <div className="main-card-section">
+            <div className="section-label">
+              <span className="section-num">2</span>
+              <span className="section-title">Add date options</span>
+              <span className="section-subtitle">2 – 10 ranges</span>
+            </div>
+            <DateRanges ranges={dateRanges} onChange={setDateRanges} />
+          </div>
+
+          {/* STEP 3 — CTA */}
+          <div className="cta-wrap">
+            <div className="cta-inner">
+              <button className="compare-btn" onClick={compareRates} disabled={!canCompare}>
+                {isComparing ? (
+                  <><div className="spinner" /> Scanning rates…</>
+                ) : (
+                  <>Compare Rates</>
+                )}
+              </button>
+              <div className="cta-checklist">
+                <div className="cta-req">
+                  <span className={`cta-dot ${hotelsMet ? 'met' : ''}`} />
+                  {hotelsMet ? `${selectedHotels.length} hotel${selectedHotels.length !== 1 ? 's' : ''} selected` : 'Select at least 1 hotel'}
+                </div>
+                <div className="cta-req">
+                  <span className={`cta-dot ${datesMet ? 'met' : ''}`} />
+                  {datesMet ? `${validDates.length} date range${validDates.length !== 1 ? 's' : ''} ready` : 'Add at least 2 complete date ranges'}
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        {/* RESULTS */}
+        {(showResults || loadingCells.size > 0) && (
+          <div className="results-section" ref={resultsRef}>
+            <SummaryCards
+              flatResults={flatResults}
+              hotels={selectedHotels}
+              validDates={validDates}
+              onCardClick={handleCardClick}
+            />
+            <div ref={tableRef}>
+              <ResultsTable
+                results={results}
+                loadingCells={loadingCells}
+                hotels={selectedHotels}
+                validDates={validDates}
+                sortBy={sortBy}
+                onSort={setSortBy}
+                bestKey={bestKey}
+                highlightKey={highlightKey}
+              />
+            </div>
+          </div>
+        )}
+
+      </div>
+
+      {/* FOOTER */}
+      <footer className="footer">
+        <div className="footer-author">
+          Built by <a className="footer-a" href="https://linkedin.com/in/paultotah" target="_blank" rel="noopener noreferrer">Paul Totah</a>
+        </div>
+      </footer>
+
+      {/* MODAL — About */}
+      {modal === 'casestudy' && (
+        <Modal title="About" onClose={() => setModal(null)}>
+
+          <div className="modal-section-label">What to know</div>
+          <div className="modal-grid">
+            <div className="modal-card">
+              <div className="modal-card-tag">Booking links</div>
+              <div className="modal-card-text">"Book →" connects to the hotel's official site (Marriott, Hyatt, IHG, Hilton, or the property directly). If redirected to an OTA, that's intentional — not a fallback.</div>
+            </div>
+            <div className="modal-card">
+              <div className="modal-card-tag">This is a prototype</div>
+              <div className="modal-card-text">The comparison grid is the core experience. Booking is a handoff to real hotel systems.</div>
+            </div>
+          </div>
+
+          <div className="modal-section-label" style={{ marginTop: '28px' }}>Why I built this</div>
+          <div className="modal-grid">
+            <div className="modal-card">
+              <div className="modal-card-tag">The Problem</div>
+              <div className="modal-card-text">When you already know which hotel you want, comparing rates across multiple possible travel dates is painful. You open tabs, write down prices, and repeat. The data exists — it's just never in one place.</div>
+            </div>
+            <div className="modal-card">
+              <div className="modal-card-tag">The Approach</div>
+              <div className="modal-card-text">A multi-axis rate matrix: pin the hotels you're considering, add the date ranges that could work, and see the complete grid at once. One view replaces a dozen searches.</div>
+            </div>
+            <div className="modal-card">
+              <div className="modal-card-tag">What This Demonstrates</div>
+              <div className="modal-card-text">This demonstrates product thinking: a clearly defined problem, deliberate MVP scoping, and progressive disclosure of complexity. It also reflects technical execution: React architecture, progressive async state, and deep-link booking integration across Marriott, Hyatt, IHG, and Hilton — with a clear path to a live rates API.</div>
+            </div>
+          </div>
+
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
 </body>
 </html>
