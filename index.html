@@ -777,9 +777,9 @@
 const { useState, useEffect, useRef, useCallback } = React;
 
 // ─── HOTELS DATA ──────────────────────────────────────────────────────────────
-// SerpAPI integration point: replace searchHotels() with a live API call to
-// GET /api/hotels/search?q=query for production. This array is the demo data source.
-const HOTELS = [
+// Loaded from server at runtime via /api/hotels. The array below is an empty
+// placeholder — all hotel data lives in server/hotels.json.
+const HOTELS_STATIC = [
   // Santa Barbara, CA
   { name: "Ritz-Carlton Bacara", city: "Santa Barbara", region: "California, US", stars: 5, baseRate: 689, url: "https://www.ritzcarlton.com/en/hotels/sbarz-the-ritz-carlton-bacara-santa-barbara/overview/", chain: "marriott", chainPropertyCode: "SBARZ" },
   { name: "Belmond El Encanto", city: "Santa Barbara", region: "California, US", stars: 5, baseRate: 599, url: "https://www.belmond.com/hotels/north-america/usa/santa-barbara/belmond-el-encanto" },
@@ -939,6 +939,7 @@ const HOTELS = [
   { name: "Hyatt Regency Waikiki Beach Resort & Spa", city: "Honolulu", region: "Hawaii, US", stars: 4, baseRate: 379, url: "https://www.hyatt.com/hyatt-regency/en-US/hnlrw-hyatt-regency-waikiki-beach-resort-and-spa", chain: "hyatt", chainPropertyCode: "hnlrw" },
   { name: "Moana Surfrider, A Westin Resort & Spa", city: "Honolulu", region: "Hawaii, US", stars: 4, baseRate: 429, url: "https://www.marriott.com/hotels/travel/hnlwi-moana-surfrider-a-westin-resort-and-spa-waikiki-beach", chain: "marriott", chainPropertyCode: "HNLWI" },
 ].map((h, i) => ({ ...h, id: `h-${i}`, variance: 0.25 + (i % 7) * 0.03 }));
+// HOTELS_STATIC is only used as a last-resort offline fallback.
 
 // ─── CONSTANTS ────────────────────────────────────────────────────────────────
 const OPTION_LABELS = ['A','B','C','D','E','F','G','H','I','J'];
@@ -967,34 +968,30 @@ function todayStr() {
   return new Date().toISOString().split('T')[0];
 }
 
-// ─── HOTEL SEARCH (fuzzy, local) ──────────────────────────────────────────────
-// SerpAPI integration: swap this function body with a fetch to GET /api/hotels/search?q=query
-function scoreHotel(hotel, q) {
-  const n = hotel.name.toLowerCase();
-  const c = hotel.city.toLowerCase();
-  const r = hotel.region.toLowerCase();
-  if (n === q) return 100;
-  if (n.startsWith(q)) return 85;
-  if (n.includes(q)) return 65;
-  if (c === q) return 50;
-  if (c.startsWith(q)) return 40;
-  if (c.includes(q)) return 30;
-  if (r.includes(q)) return 15;
-  return 0;
+// ─── HOTEL SEARCH (server-side) ───────────────────────────────────────────────
+async function searchHotelsRemote(query, excluded, city) {
+  const excludeParam = (excluded || []).map(h => h.id).join(',');
+  const params = new URLSearchParams({ exclude: excludeParam });
+  if (query) params.set('q', query);
+  if (city) params.set('city', city);
+  const res = await fetch(`/api/hotels/search?${params}`);
+  if (!res.ok) throw new Error('Search failed');
+  return res.json();
 }
-function searchHotels(query, excluded) {
-  const excludedIds = new Set((excluded || []).map(h => h.id));
-  const available = HOTELS.filter(h => !excludedIds.has(h.id));
-  if (!query || query.trim().length < 1) {
-    return available.sort((a, b) => a.name.localeCompare(b.name)).slice(0, 8);
+
+// ─── RATE FETCHER ─────────────────────────────────────────────────────────────
+// Uses Xotelo live rates when hotel has a hotel_key; falls back to simulation.
+async function fetchRate(hotel, checkIn, checkOut) {
+  if (hotel.hotel_key) {
+    try {
+      const res = await fetch(
+        `/api/rates?hotel_key=${encodeURIComponent(hotel.hotel_key)}&chk_in=${checkIn}&chk_out=${checkOut}`
+      );
+      const data = await res.json();
+      if (!data.error && data.available !== undefined) return data;
+    } catch (e) { /* fall through to simulation */ }
   }
-  const q = query.trim().toLowerCase();
-  return available
-    .map(h => ({ hotel: h, score: scoreHotel(h, q) }))
-    .filter(({ score }) => score > 0)
-    .sort((a, b) => b.score - a.score || a.hotel.name.localeCompare(b.hotel.name))
-    .slice(0, 8)
-    .map(({ hotel }) => hotel);
+  return generateRate(hotel, checkIn);
 }
 
 // ─── RATE SIMULATION ──────────────────────────────────────────────────────────
@@ -1164,9 +1161,10 @@ function DateRangePicker({ value, onChange, minDate }) {
 }
 
 // ─── HOTEL SEARCH COMPONENT ───────────────────────────────────────────────────
-function HotelSearch({ selectedHotels, onAdd, onRemove }) {
+function HotelSearch({ selectedHotels, onAdd, onRemove, allHotels }) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
+  const [cityHotels, setCityHotels] = useState([]);
   const [activeIdx, setActiveIdx] = useState(-1);
   const [isFocused, setIsFocused] = useState(false);
   const [selectedCity, setSelectedCity] = useState(null);
@@ -1174,15 +1172,25 @@ function HotelSearch({ selectedHotels, onAdd, onRemove }) {
   const inputRef = useRef(null);
 
   const excludedIds = new Set(selectedHotels.map(h => h.id));
-  const availableHotels = HOTELS.filter(h => !excludedIds.has(h.id));
+  const availableHotels = allHotels.filter(h => !excludedIds.has(h.id));
   const cities = [...new Set(availableHotels.map(h => h.city))].sort();
 
+  // Typed search → server
   useEffect(() => {
-    if (query) {
-      setResults(searchHotels(query, selectedHotels));
-    }
+    if (!query) { setResults([]); setActiveIdx(-1); return; }
     setActiveIdx(-1);
+    searchHotelsRemote(query, selectedHotels)
+      .then(setResults)
+      .catch(() => setResults([]));
   }, [query, selectedHotels]);
+
+  // City drill-down → server
+  useEffect(() => {
+    if (!selectedCity) { setCityHotels([]); return; }
+    searchHotelsRemote('', selectedHotels, selectedCity)
+      .then(setCityHotels)
+      .catch(() => setCityHotels([]));
+  }, [selectedCity, selectedHotels]);
 
   useEffect(() => {
     const fn = e => {
@@ -1291,11 +1299,7 @@ function HotelSearch({ selectedHotels, onAdd, onRemove }) {
                 <span style={{ fontWeight: 400, color: 'var(--text-3)' }}>· {selectedCity}</span>
               </div>
               <div className="city-hotel-list">
-                {availableHotels
-                  .filter(h => h.city === selectedCity)
-                  .sort((a, b) => b.stars - a.stars)
-                  .map((h, i) => <HotelItem key={h.id} h={h} i={i} />)
-                }
+                {cityHotels.map((h, i) => <HotelItem key={h.id} h={h} i={i} />)}
               </div>
             </>
           )}
@@ -1554,6 +1558,7 @@ function Modal({ title, onClose, children }) {
 // ─── APP ──────────────────────────────────────────────────────────────────────
 function App() {
   const [selectedHotels, setSelectedHotels] = useState([]);
+  const [allHotels, setAllHotels] = useState([]);
   const [dateRanges, setDateRanges] = useState([
     { checkIn: '', checkOut: '' },
     { checkIn: '', checkOut: '' },
@@ -1567,6 +1572,14 @@ function App() {
   const [highlightKey, setHighlightKey] = useState(null);
   const resultsRef = useRef(null);
   const tableRef = useRef(null);
+
+  // Load full hotel list from server on mount
+  useEffect(() => {
+    fetch('/api/hotels')
+      .then(r => r.json())
+      .then(setAllHotels)
+      .catch(() => setAllHotels(HOTELS_STATIC));
+  }, []);
 
   const handleCardClick = (key) => {
     setHighlightKey(key);
@@ -1607,31 +1620,33 @@ function App() {
     selectedHotels.forEach(h => validDates.forEach((_, di) => cells.add(`${h.id}|${di}`)));
     setLoadingCells(cells);
 
-    // Progressive staggered load
+    // Staggered async fetch — live rates via server, simulation fallback
+    const promises = [];
     selectedHotels.forEach((hotel, hi) => {
       validDates.forEach((dr, di) => {
         const delay = hi * 280 + di * 90 + 100;
-        setTimeout(() => {
-          const rateData = generateRate(hotel, dr.checkIn);
-          setResults(prev => ({
-            ...prev,
-            [hotel.id]: { ...(prev[hotel.id] || {}), [di]: rateData }
-          }));
-          setLoadingCells(prev => {
-            const next = new Set(prev);
-            next.delete(`${hotel.id}|${di}`);
-            return next;
+        const p = new Promise(resolve => setTimeout(resolve, delay))
+          .then(() => fetchRate(hotel, dr.checkIn, dr.checkOut))
+          .then(rateData => {
+            setResults(prev => ({
+              ...prev,
+              [hotel.id]: { ...(prev[hotel.id] || {}), [di]: rateData }
+            }));
+            setLoadingCells(prev => {
+              const next = new Set(prev);
+              next.delete(`${hotel.id}|${di}`);
+              return next;
+            });
           });
-        }, delay);
+        promises.push(p);
       });
     });
 
-    const totalDelay = (selectedHotels.length - 1) * 280 + (validDates.length - 1) * 90 + 400;
-    setTimeout(() => {
+    Promise.all(promises).then(() => {
       setIsComparing(false);
       setShowResults(true);
       setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
-    }, totalDelay);
+    });
   };
 
   const addHotel = hotel => {
@@ -1686,6 +1701,7 @@ function App() {
               selectedHotels={selectedHotels}
               onAdd={addHotel}
               onRemove={removeHotel}
+              allHotels={allHotels}
             />
           </div>
 
