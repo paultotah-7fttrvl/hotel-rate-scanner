@@ -1040,8 +1040,11 @@ function buildBookingUrl(hotel, checkIn, checkOut) {
       return `https://be.synxis.com/?adult=2&arrive=${checkIn}&chain=${hotel.synxisChainCode}&child=0&currency=EUR&depart=${checkOut}&hotel=${hotel.chainPropertyCode}&level=hotel&locale=it-IT&productcurrency=EUR&rooms=1`;
     case 'sirhotels':
       return `https://book.sirhotels.com/?adult=2&arrive=${checkIn}&chain=${hotel.sirChainCode}&child=0&config=${hotel.sirConfig}&currency=EUR&depart=${checkOut}&hotel=${hotel.chainPropertyCode}&level=hotel&locale=en-US&productcurrency=EUR&rooms=1&theme=${hotel.sirConfig}`;
-    default:
-      return hotel.url || '#';
+    default: {
+      // Use Booking.com search with hotel name + city + dates as universal fallback
+      const q = encodeURIComponent(`${hotel.name} ${hotel.city}`);
+      return `https://www.booking.com/search.html?ss=${q}&checkin=${checkIn}&checkout=${checkOut}&no_rooms=1&group_adults=2&lang=en-us`;
+    }
   }
 }
 
