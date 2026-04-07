@@ -1025,7 +1025,7 @@ function buildBookingUrl(hotel, checkIn, checkOut) {
   if (!hotel || !checkIn || !checkOut) return '#';
   switch (hotel.chain) {
     case 'marriott':
-      return `https://www.marriott.com/reservation/availabilitySearch.mi?propertyCode=${hotel.chainPropertyCode}&fromDate=${fmtMMDDYYYY(checkIn)}&toDate=${fmtMMDDYYYY(checkOut)}`;
+      return `https://www.marriott.com/reservation/availabilitySearch.mi?propertyCode=${hotel.chainPropertyCode}&fromDate=${encodeURIComponent(fmtMMDDYYYY(checkIn))}&toDate=${encodeURIComponent(fmtMMDDYYYY(checkOut))}`;
     case 'hilton':
       return `https://www.hilton.com/en/book/reservation/rooms/?ctyhocn=${hotel.chainPropertyCode}&arrivalDate=${checkIn}&departureDate=${checkOut}&room1NumAdults=2`;
     case 'hyatt': {
@@ -1040,6 +1040,8 @@ function buildBookingUrl(hotel, checkIn, checkOut) {
       return `https://be.synxis.com/?adult=2&arrive=${checkIn}&chain=${hotel.synxisChainCode}&child=0&currency=EUR&depart=${checkOut}&hotel=${hotel.chainPropertyCode}&level=hotel&locale=it-IT&productcurrency=EUR&rooms=1`;
     case 'sirhotels':
       return `https://book.sirhotels.com/?adult=2&arrive=${checkIn}&chain=${hotel.sirChainCode}&child=0&config=${hotel.sirConfig}&currency=EUR&depart=${checkOut}&hotel=${hotel.chainPropertyCode}&level=hotel&locale=en-US&productcurrency=EUR&rooms=1&theme=${hotel.sirConfig}`;
+    case 'kempinski':
+      return `https://www.kempinski.com/en/booking/select_room?hotelId=${hotel.chainPropertyCode}&clearBookingParams=1&room1Adults=2&startDate=${checkIn}&endDate=${checkOut}`;
     default: {
       // Use Booking.com search with hotel name + city + dates as universal fallback
       const q = encodeURIComponent(`${hotel.name} ${hotel.city}`);
