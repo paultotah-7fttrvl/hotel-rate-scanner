@@ -203,7 +203,7 @@
 
   { "name": "Four Seasons Hotel One Dalton Street Boston", "city": "Boston", "region": "Massachusetts, US", "stars": 5, "baseRate": 699, "url": "https://www.fourseasons.com/boston", "hotel_key": null },
   { "name": "Liberty Hotel Boston", "city": "Boston", "region": "Massachusetts, US", "stars": 4, "baseRate": 349, "url": "https://www.libertyhotel.com", "hotel_key": null },
-  { "name": "Kimpton Nine Zero Hotel", "city": "Boston", "region": "Massachusetts, US", "stars": 4, "baseRate": 299, "url": "https://www.ihg.com/kimpton/hotels/us/en/boston/boszr/hoteldetail", "hotel_key": null, "chain": "ihg", "chainPropertyCode": "BOSZR", "chainBrandCode": "KI" },
+  { "name": "Hotel AKA Boston Common", "city": "Boston", "region": "Massachusetts, US", "stars": 4, "baseRate": 299, "url": "https://www.stayaka.com/hotel-aka-boston-common", "hotel_key": null, "chain": "aka", "chainPropertyCode": "40754", "akaChainCode": "27508", "akaPropertyTitle": "Hotel+AKA+Boston+Common" },
   { "name": "The Boxer Boston", "city": "Boston", "region": "Massachusetts, US", "stars": 4, "baseRate": 249, "url": "https://www.theboxerboston.com", "hotel_key": null },
   { "name": "HI Boston Hostel", "city": "Boston", "region": "Massachusetts, US", "stars": 2, "baseRate": 49, "url": "https://www.hiusa.org/hostels/massachusetts/boston/boston", "hotel_key": null }
 ]
