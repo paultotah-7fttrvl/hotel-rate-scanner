@@ -148,8 +148,8 @@
   { "name": "The Mira Hong Kong", "city": "Hong Kong", "region": "Hong Kong", "stars": 4, "baseRate": 199, "url": "https://www.themirahotel.com", "hotel_key": null },
 
   { "name": "Hotel Sacher Wien", "city": "Vienna", "region": "Austria", "stars": 5, "baseRate": 499, "url": "https://www.sacher.com/en/hotels/hotel-sacher-wien", "hotel_key": null },
-  { "name": "The Ritz-Carlton Vienna", "city": "Vienna", "region": "Austria", "stars": 5, "baseRate": 599, "url": "https://www.ritzcarlton.com/en/hotels/viear-the-ritz-carlton-vienna/overview", "hotel_key": null, "chain": "marriott", "chainPropertyCode": "VIEAR" },
-  { "name": "Palais Hansen Kempinski Vienna", "city": "Vienna", "region": "Austria", "stars": 5, "baseRate": 449, "url": "https://www.kempinski.com/en/vienna/palais-hansen-kempinski", "hotel_key": null, "chain": "kempinski", "chainPropertyCode": "80044" },
+  { "name": "The Ritz-Carlton Vienna", "city": "Vienna", "region": "Austria", "stars": 5, "baseRate": 599, "url": "https://www.ritzcarlton.com/en/hotels/vierz-the-ritz-carlton-vienna/overview/", "hotel_key": null, "chain": "marriott", "chainPropertyCode": "VIERZ" },
+  { "name": "Palais Hansen Kempinski Vienna", "city": "Vienna", "region": "Austria", "stars": 5, "baseRate": 449, "url": "https://www.kempinski.com/en/palais-hansen", "hotel_key": null, "chain": "kempinski", "chainPropertyCode": "80044" },
   { "name": "Das Triest", "city": "Vienna", "region": "Austria", "stars": 4, "baseRate": 229, "url": "https://www.dastriest.at", "hotel_key": null },
   { "name": "Motel One Wien-Staatsoper", "city": "Vienna", "region": "Austria", "stars": 3, "baseRate": 119, "url": "https://www.motel-one.com/en/hotels/vienna/hotel-vienna-staatsoper", "hotel_key": null },
 
