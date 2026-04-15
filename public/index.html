@@ -1023,38 +1023,24 @@ function generateRate(hotel, checkIn) {
 
 // ─── BOOKING URL BUILDER ──────────────────────────────────────────────────────
 function fmtMMDDYYYY(ds) { const [y,m,d] = ds.split('-'); return `${m}/${d}/${y}`; }
+function parseIHGDate(ds) {
+  const [y,m,d] = ds.split('-');
+  return { day: d, monthYear: `${String(parseInt(m)-1).padStart(2,'0')}${y}` };
+}
 function buildBookingUrl(hotel, checkIn, checkOut) {
   if (!hotel || !checkIn || !checkOut) return hotel?.url || '#';
   switch (hotel.chain) {
     case 'marriott':
-      // Marriott availability search — raw slashes in date work; encoded %2F causes rejections
-      return `https://www.marriott.com/reservation/availabilitySearch.mi?propertyCode=${hotel.chainPropertyCode}&fromDate=${fmtMMDDYYYY(checkIn)}&toDate=${fmtMMDDYYYY(checkOut)}&numberOfRooms=1&numAdultsPerGuestRoom=2`;
+      return `https://www.marriott.com/reservation/availabilitySearch.mi?propertyCode=${hotel.chainPropertyCode}&fromDate=${encodeURIComponent(fmtMMDDYYYY(checkIn))}&toDate=${encodeURIComponent(fmtMMDDYYYY(checkOut))}&numberOfRooms=1&numAdultsPerGuestRoom=2`;
     case 'hilton':
       return `https://www.hilton.com/en/book/reservation/rooms/?ctyhocn=${hotel.chainPropertyCode}&arrivalDate=${checkIn}&departureDate=${checkOut}&room1NumAdults=2`;
     case 'hyatt': {
       const sc = hotel.chainPropertyCode.toLowerCase();
-      return `https://www.hyatt.com/shop/rooms/${sc}?checkinDate=${checkIn}&checkoutDate=${checkOut}&rooms=1&adults=2&kids=0`;
+      return `https://www.hyatt.com/shop/rooms/${sc}?checkinDate=${checkIn}&checkoutDate=${checkOut}&rooms=1&adults=2&kids=0&rate=Standard&accessibilityCheck=false`;
     }
     case 'ihg': {
-      const ihgMatch = hotel.url.match(/ihg\.com\/([^/]+)\/hotels\/([^/]+\/[^/]+)\//);
-      let ihgBrand = ihgMatch ? ihgMatch[1] : 'intercontinental';
-      const ihgLocale = ihgMatch ? ihgMatch[2] : 'us/en';
-      if (ihgBrand === 'kimpton') ihgBrand = 'kimptonhotels';
-      // Country code from locale (us→US, gb→GB, jp→JP, au→AU)
-      const ihgCC = (ihgLocale.split('/')[0] || 'us').toUpperCase();
-      // Brand-specific qBrs filter string
-      const ihgBrsMap = { KI: 'ki.sx.ic.ul.in.vx.cp.vn.re.lx', IC: 'ic.sx.ul.in.vx.cp.vn.re.lx' };
-      const ihgBrs = ihgBrsMap[hotel.chainBrandCode] || 'ic.sx.ul.in.vx.cp.vn.re.lx';
-      // Dates: IHG needs day + MMYYYY separately
-      const ci = new Date(checkIn + 'T00:00:00Z');
-      const co = new Date(checkOut + 'T00:00:00Z');
-      const qCiD = ci.getUTCDate();
-      const qCoD = co.getUTCDate();
-      const qCiMy = String(ci.getUTCMonth() + 1).padStart(2, '0') + ci.getUTCFullYear();
-      const qCoMy = String(co.getUTCMonth() + 1).padStart(2, '0') + co.getUTCFullYear();
-      const sc = hotel.chainPropertyCode;
-      const dest = hotel.address ? encodeURIComponent(hotel.address) : encodeURIComponent(hotel.name + ', ' + hotel.city);
-      return `https://www.ihg.com/${ihgBrand}/hotels/${ihgLocale}/find-hotels/select-roomrate?qDest=${dest}&qPt=CASH&qCiD=${qCiD}&qCoD=${qCoD}&qCiMy=${qCiMy}&qCoMy=${qCoMy}&qAdlt=2&qChld=0&qRms=1&qRtP=6CBARC&qAAR=6CBARC&qSlH=${sc}&qPm=${sc}&qAkamaiCC=${ihgCC}&srb_u=1&qExpndSrch=false&qFS=false&qSrt=sBR&qBrs=${ihgBrs}&qWch=0&qSmP=0&qRad=30&qRdU=mi&setPMCookies=true&qLoSe=false&qRmFltr=`;
+      const ci = parseIHGDate(checkIn), co = parseIHGDate(checkOut);
+      return `https://www.ihg.com/redirect?path=rates&brandCode=${hotel.chainBrandCode}&hotelCode=${hotel.chainPropertyCode}&checkInDate=${ci.day}&checkInMonthYear=${ci.monthYear}&checkOutDate=${co.day}&checkOutMonthYear=${co.monthYear}&numberOfAdults=2`;
     }
     case 'fourseasons': {
       const slug = hotel.chainPropertyCode;
@@ -1073,9 +1059,10 @@ function buildBookingUrl(hotel, checkIn, checkOut) {
       return `https://www.kempinski.com/en/booking/select_room?hotelId=${hotel.chainPropertyCode}&clearBookingParams=1&room1Adults=2&startDate=${checkIn}&endDate=${checkOut}`;
     case 'aka':
       return `https://reservations.stayaka.com/?chain=${hotel.akaChainCode}&hotel=${hotel.chainPropertyCode}&brand=AKA&configCode=AKA&themeCode=AKA&property-title=${encodeURIComponent(hotel.akaPropertyTitle || '')}&arrive=${checkIn}&depart=${checkOut}&locale=en_US`;
-    default:
-      // Independent hotel: go to their own website (user books there directly)
-      return hotel.url || '#';
+    default: {
+      const q = encodeURIComponent(`${hotel.name} ${hotel.city}`);
+      return `https://www.booking.com/search.html?ss=${q}&checkin=${checkIn}&checkout=${checkOut}&no_rooms=1&group_adults=2&lang=en-us`;
+    }
   }
 }
 
