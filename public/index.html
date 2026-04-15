@@ -806,7 +806,7 @@ const HOTELS_STATIC = [
   // Austin, TX
   { name: "Four Seasons Austin", city: "Austin", region: "Texas, US", stars: 5, baseRate: 499, url: "https://www.fourseasons.com/austin" },
   { name: "Hotel Saint Cecilia", city: "Austin", region: "Texas, US", stars: 5, baseRate: 549, url: "https://www.hotelsaintcecilia.com" },
-  { name: "The Driskill", city: "Austin", region: "Texas, US", stars: 4, baseRate: 299, url: "https://www.hyatt.com/en-US/hotel/texas/the-driskill/ausal", chain: "hyatt", chainPropertyCode: "ausal" },
+  { name: "The Driskill", city: "Austin", region: "Texas, US", stars: 4, baseRate: 299, url: "https://www.hyatt.com/en-US/hotel/texas/the-driskill/aushd", chain: "hyatt", chainPropertyCode: "aushd" },
   { name: "South Congress Hotel", city: "Austin", region: "Texas, US", stars: 4, baseRate: 279, url: "https://www.southcongresshotel.com" },
   { name: "Kimpton Hotel Van Zandt", city: "Austin", region: "Texas, US", stars: 4, baseRate: 249, url: "https://www.ihg.com/kimpton/hotels/us/en/austin/ausvz/hoteldetail", chain: "ihg", chainPropertyCode: "AUSVZ", chainBrandCode: "KI" },
   // Seattle, WA
@@ -1036,7 +1036,7 @@ function buildBookingUrl(hotel, checkIn, checkOut) {
       return `https://www.hilton.com/en/book/reservation/rooms/?ctyhocn=${hotel.chainPropertyCode}&arrivalDate=${checkIn}&departureDate=${checkOut}&room1NumAdults=2`;
     case 'hyatt': {
       const sc = hotel.chainPropertyCode.toLowerCase();
-      return `https://www.hyatt.com/shop/rooms/${sc}?checkinDate=${checkIn}&checkoutDate=${checkOut}&rooms=1&adults=2&kids=0&rate=Standard&accessibilityCheck=false`;
+      return `https://www.hyatt.com/shop/rooms/${sc}?location=${encodeURIComponent(hotel.name)}&checkinDate=${checkIn}&checkoutDate=${checkOut}&rooms=1&adults=2&kids=0&rate=Standard&accessibilityCheck=false`;
     }
     case 'ihg': {
       const ci = parseIHGDate(checkIn), co = parseIHGDate(checkOut);
