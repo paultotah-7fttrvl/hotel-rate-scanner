@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: hotel-rate-scanner
+    runtime: node
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: SERPAPI_KEY
+        sync: false
+      - key: RATE_MODE
+        value: live
