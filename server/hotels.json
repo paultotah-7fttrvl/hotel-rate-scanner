@@ -1898,5 +1898,38 @@
     "baseRate": 49,
     "url": "https://www.hiusa.org/hostels/massachusetts/boston/boston",
     "hotel_key": null
+  },
+  {
+    "name": "Hyatt Centric Downtown Portland",
+    "city": "Portland",
+    "region": "Oregon, US",
+    "stars": 4,
+    "baseRate": 239,
+    "url": "https://www.hyatt.com/hyatt-centric/en-US/pdxct-hyatt-centric-downtown-portland",
+    "hotel_key": null,
+    "chain": "hyatt",
+    "chainPropertyCode": "pdxct"
+  },
+  {
+    "name": "Moxy Downtown Portland",
+    "city": "Portland",
+    "region": "Oregon, US",
+    "stars": 3,
+    "baseRate": 179,
+    "url": "https://www.marriott.com/hotels/travel/pdxox-moxy-portland-downtown",
+    "hotel_key": null,
+    "chain": "marriott",
+    "chainPropertyCode": "PDXOX"
+  },
+  {
+    "name": "Seaglass Inn Provincetown",
+    "city": "Provincetown",
+    "region": "Massachusetts, US",
+    "stars": 4,
+    "baseRate": 299,
+    "url": "https://secure.webrez.com/hotel/1230/?nextcommand=roomsearch&hotel_id=1230&reservationcode_id=&language=&date_from_yearmonth=202604&date_from_day=19&num_nights=1&num_adults=1&num_children=0&exchange_rates=USD",
+    "hotel_key": null,
+    "chain": "webrez",
+    "chainPropertyCode": "1230"
   }
 ]

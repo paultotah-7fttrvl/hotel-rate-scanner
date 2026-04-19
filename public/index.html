@@ -1055,6 +1055,14 @@ function buildBookingUrl(hotel, checkIn, checkOut) {
       return `https://be.synxis.com/?adult=2&arrive=${checkIn}&chain=${hotel.synxisChainCode}&child=0&currency=USD&depart=${checkOut}&hotel=${hotel.chainPropertyCode}&level=hotel&locale=en-US&rooms=1`;
     case 'sirhotels':
       return `https://book.sirhotels.com/?adult=2&arrive=${checkIn}&chain=${hotel.sirChainCode}&child=0&config=${hotel.sirConfig}&currency=EUR&depart=${checkOut}&hotel=${hotel.chainPropertyCode}&level=hotel&locale=en-US&rooms=1&theme=${hotel.sirConfig}`;
+    case 'webrez': {
+      const ciD = new Date(checkIn + 'T00:00:00');
+      const coD = new Date(checkOut + 'T00:00:00');
+      const numNights = Math.max(1, Math.round((coD - ciD) / 86400000));
+      const ym = `${ciD.getFullYear()}${String(ciD.getMonth() + 1).padStart(2, '0')}`;
+      const day = String(ciD.getDate()).padStart(2, '0');
+      return `https://secure.webrez.com/hotel/${hotel.chainPropertyCode}/?nextcommand=roomsearch&hotel_id=${hotel.chainPropertyCode}&reservationcode_id=&language=&date_from_yearmonth=${ym}&date_from_day=${day}&num_nights=${numNights}&num_adults=1&num_children=0&exchange_rates=USD`;
+    }
     case 'kempinski':
       return `https://www.kempinski.com/en/booking/select_room?hotelId=${hotel.chainPropertyCode}&clearBookingParams=1&room1Adults=2&startDate=${checkIn}&endDate=${checkOut}`;
     case 'aka':
