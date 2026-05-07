@@ -162,6 +162,8 @@
       margin-bottom: 8px; max-width: 540px; margin-left: auto; margin-right: auto;
       text-shadow: 0 1px 3px rgba(0,0,0,0.4);
     }
+    .hero-nowrap { white-space: nowrap; }
+    .hero-value-line { display: block; }
     .hero-note {
       font-size: 13px; color: rgba(255,255,255,0.75);
       text-shadow: 0 1px 3px rgba(0,0,0,0.4);
@@ -580,7 +582,8 @@
     .footer {
       border-top: 1px solid var(--border);
       padding: 28px 24px;
-      display: flex; align-items: center; justify-content: center;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 10px;
     }
     .footer-author {
       font-family: var(--font-sans); font-size: 14px; color: var(--text-2);
@@ -591,6 +594,18 @@
       transition: color var(--transition);
     }
     .footer-a:hover { color: var(--text-1); }
+    .footer-note-btn {
+      border: none;
+      background: transparent;
+      color: var(--text-2);
+      cursor: pointer;
+      font-family: var(--font-sans);
+      font-size: 13px;
+      text-decoration: underline;
+      text-underline-offset: 4px;
+      transition: color var(--transition);
+    }
+    .footer-note-btn:hover { color: var(--text-1); }
     /* Legacy classes kept for safety */
     .footer-disclaimer { display: none; }
     .footer-divider { display: none; }
@@ -1058,7 +1073,7 @@ function buildIhgSelectRoomrateUrl(brand, region, locale, propCode, address, che
 
 function buildBookingUrl(hotel, checkIn, checkOut) {
   if (!hotel || !checkIn || !checkOut) return '#';
-  if (hotel.bookingUrl) return hotel.bookingUrl;
+  if (hotel.bookingUrl) return withBookingDates(hotel.bookingUrl, checkIn, checkOut);
 
   const siteUrl = hotel.url || '';
 
@@ -1095,6 +1110,46 @@ function buildBookingUrl(hotel, checkIn, checkOut) {
   return `https://www.booking.com/search.html?ss=${q}&checkin=${checkIn}&checkout=${checkOut}&no_rooms=1&group_adults=2&lang=en-us`;
 }
 
+function isBookingComUrl(url) {
+  if (!url) return false;
+  try {
+    return new URL(url).hostname.toLowerCase().includes('booking.com');
+  } catch {
+    return url.toLowerCase().includes('booking.com');
+  }
+}
+
+function withBookingDates(url, checkIn, checkOut) {
+  if (!isBookingComUrl(url)) return url;
+  try {
+    const parsed = new URL(url);
+    const original = parsed.searchParams;
+    const clean = new URLSearchParams();
+    [
+      'dest_id',
+      'highlighted_hotels',
+      'dest_type',
+      'ss',
+      'selected_currency',
+      'lang',
+    ].forEach(key => {
+      const value = original.get(key);
+      if (value) clean.set(key, value);
+    });
+    clean.set('checkin', checkIn);
+    clean.set('checkout', checkOut);
+    clean.set('no_rooms', original.get('no_rooms') || '1');
+    clean.set('group_adults', original.get('group_adults') || original.get('req_adults') || '2');
+    clean.set('group_children', original.get('group_children') || original.get('req_children') || '0');
+    clean.set('req_adults', original.get('req_adults') || original.get('group_adults') || '2');
+    clean.set('req_children', original.get('req_children') || original.get('group_children') || '0');
+    parsed.search = clean.toString();
+    return parsed.toString();
+  } catch {
+    return url;
+  }
+}
+
 function resolveBookingUrl(hotel, rateResult, checkIn, checkOut) {
   if (!rateResult?.available) return '#';
   const serpUrl = rateResult.bookingUrl;
@@ -1126,6 +1181,9 @@ function resolveBookingUrl(hotel, rateResult, checkIn, checkOut) {
 
   // Other supported brand-direct links (Hilton, Hyatt, etc.) from SerpAPI.
   if (serpUrl && isSupportedBrandUrl(serpUrl)) return serpUrl;
+
+  // Booking.com property link from SerpAPI. Keep selected dates attached.
+  if (isBookingComUrl(serpUrl)) return withBookingDates(serpUrl, checkIn, checkOut);
 
   // Construct booking URL from hotel.url property code (Hyatt, Marriott, Hilton).
   if (isSupportedBrandUrl(hotel?.url)) return buildBookingUrl(hotel, checkIn, checkOut);
@@ -1748,7 +1806,7 @@ function App() {
   const [showResults, setShowResults] = useState(false);
   const [sortBy, setSortBy] = useState('price');
   const [usageNotice, setUsageNotice] = useState(null);
-  const [modal, setModal] = useState(null); // null | 'about' | 'casestudy'
+  const [modal, setModal] = useState(null); // null | 'casestudy' | 'important'
   const [highlightKey, setHighlightKey] = useState(null);
   const resultsRef = useRef(null);
   const tableRef = useRef(null);
@@ -1861,10 +1919,13 @@ function App() {
       <div className="hero">
         <div className="hero-eyebrow">Hotel Rate Comparison Tool</div>
         <h1 className="hero-headline">
-          Compare rates across dates,<br />
+          <span className="hero-nowrap">Compare rates across dates,</span><br />
           <em>not across tabs.</em>
         </h1>
-        <p className="hero-value">Add the hotels you want. Pick the dates that could work. See every combination at once.</p>
+        <p className="hero-value">
+          Add the hotels you want. Pick the dates that could work.
+          <span className="hero-value-line">See every combination at once.</span>
+        </p>
         <p className="hero-note">Search any hotel anywhere — powered by live SerpAPI data with demo fallback for usage protection.</p>
       </div>
       </div>
@@ -1950,6 +2011,11 @@ function App() {
                 highlightKey={highlightKey}
               />
             </div>
+            <div style={{ display: "flex", justifyContent: "center", marginTop: 16 }}>
+              <button className="footer-note-btn" type="button" onClick={() => setModal('important')}>
+                Important to understand
+              </button>
+            </div>
           </div>
         )}
 
@@ -1970,7 +2036,7 @@ function App() {
           <div className="modal-grid">
             <div className="modal-card">
               <div className="modal-card-tag">Booking links</div>
-              <div className="modal-card-text">"Book →" links directly to brand.com (Marriott, Hilton, Hyatt, IHG) with your dates pre-filled. Rates match what's shown — the link comes from the same SerpAPI call that fetched the rate. Falls back to Booking.com for independent hotels.</div>
+              <div className="modal-card-text">"Book →" links directly to brand.com (Marriott, Hilton, Hyatt, IHG) with your dates pre-filled when the brand path is available. For independent hotels, the prototype uses a direct Booking.com property link when SerpAPI provides one; otherwise it falls back to a Booking.com search with your hotel and dates filled in. Always confirm the final booking details before reserving.</div>
             </div>
             <div className="modal-card">
               <div className="modal-card-tag">Live discovery prototype</div>
@@ -1994,6 +2060,21 @@ function App() {
             </div>
           </div>
 
+        </Modal>
+      )}
+
+      {/* MODAL — Important to understand */}
+      {modal === 'important' && (
+        <Modal title="Important to understand" onClose={() => setModal(null)}>
+          <p>
+            Rates shown in this prototype may not exactly match brand.com or Booking.com at the moment you click through. Hotel pricing and availability can change quickly, taxes and fees may be handled differently by source, and the rate shown here comes from live third-party hotel data.
+          </p>
+          <p>
+            For independent hotels, "Book →" uses a direct Booking.com property link when SerpAPI provides one. If that exact property link is not available, it falls back to a Booking.com search using the selected hotel and dates, so you may need to choose the property again before booking.
+          </p>
+          <p>
+            Use the matrix as a fast comparison tool to spot better date combinations, then confirm the final room type, rate rules, taxes, fees, and availability on the hotel or booking site before making a reservation.
+          </p>
         </Modal>
       )}
     </div>

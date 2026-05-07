@@ -111,7 +111,7 @@ function decodeGoogleLink(url) {
       // Destination hotel URL is double-encoded inside the query string
       const raw1 = decodeURIComponent(url);
       const raw2 = decodeURIComponent(raw1);
-      const m = raw2.match(/(https?:\/\/(?:www\.)?(?:marriott|ritzcarlton|hilton|waldorfastoria|hyatt|ihg|intercontinental|kimptonhotels|holidayinn|crowneplaza|staybridge|candlewood)\.com[^\s"'<>\n]+)/i);
+      const m = raw2.match(/(https?:\/\/(?:www\.)?(?:marriott|ritzcarlton|hilton|waldorfastoria|hyatt|ihg|intercontinental|kimptonhotels|holidayinn|crowneplaza|staybridge|candlewood|booking|expedia|hotels|agoda)\.com[^\s"'<>\n]+)/i);
       return m ? m[1].split(/[?&]dclid=/)[0] : null;
     }
     const pcurl = parsed.searchParams.get("pcurl");
@@ -122,6 +122,15 @@ function decodeGoogleLink(url) {
 }
 
 const PREFERRED_OTAS = ["booking.com", "expedia", "hotels.com", "agoda"];
+
+function linkIncludesHost(link, host) {
+  if (!link) return false;
+  try {
+    return new URL(link).hostname.toLowerCase().includes(host);
+  } catch {
+    return link.toLowerCase().includes(host);
+  }
+}
 
 // IHG brand-code → brand path segment mapping (used to interpret /redirect? links).
 const IHG_BRAND_CODES = {
@@ -195,15 +204,21 @@ function extractIhgInfo(dataObj) {
   return null;
 }
 
-// Extract the best booking deep-link from SerpAPI prices[].
-// Priority: brand-direct hotel site → major OTA → first decodable link.
+// Extract the best booking deep-link from SerpAPI prices[] and featured_prices[].
+// Priority: brand-direct hotel site → Booking.com/direct OTA → first decodable link.
 function extractBookingUrl(dataObj) {
-  const prices = dataObj.prices || [];
-  if (!prices.length) return null;
+  const sources = [
+    ...(dataObj.prices || []),
+    ...(dataObj.featured_prices || []),
+    dataObj,
+  ];
 
   // Decode all links upfront, drop ones that can't be resolved
-  const decoded = prices
-    .map(p => ({ source: (p.source || "").toLowerCase(), link: decodeGoogleLink(p.link) }))
+  const decoded = sources
+    .map(p => ({
+      source: (p.source || p.name || "").toLowerCase(),
+      link: decodeGoogleLink(p.link || p.url),
+    }))
     .filter(p => p.link);
 
   // 1. Brand-direct hotel chain URL
@@ -214,7 +229,7 @@ function extractBookingUrl(dataObj) {
 
   // 2. Preferred OTA (dates are pre-filled in the decoded URL)
   for (const ota of PREFERRED_OTAS) {
-    const hit = decoded.find(p => p.source.includes(ota));
+    const hit = decoded.find(p => p.source.includes(ota) || linkIncludesHost(p.link, ota));
     if (hit) return hit.link;
   }
 
@@ -442,7 +457,7 @@ app.get("/api/rates", async (req, res) => {
   try {
     const nameUrl = `https://serpapi.com/search.json?engine=google_hotels&q=${encodeURIComponent(`${hotel} ${city}`)}&check_in_date=${checkin}&check_out_date=${checkout}&currency=${currency}&gl=us&hl=en&api_key=${SERPAPI_KEY}`;
     const tokenUrl = propertyToken
-      ? `https://serpapi.com/search.json?engine=google_hotels&property_token=${encodeURIComponent(propertyToken)}&check_in_date=${checkin}&check_out_date=${checkout}&currency=${currency}&gl=us&hl=en&api_key=${SERPAPI_KEY}`
+      ? `https://serpapi.com/search.json?engine=google_hotels&q=${encodeURIComponent(`${hotel} ${city}`)}&property_token=${encodeURIComponent(propertyToken)}&check_in_date=${checkin}&check_out_date=${checkout}&currency=${currency}&gl=us&hl=en&api_key=${SERPAPI_KEY}`
       : null;
 
     recordLiveCall(`rate "${hotel}"`);
