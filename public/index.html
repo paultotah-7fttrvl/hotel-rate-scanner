@@ -1530,7 +1530,7 @@ function ResultsTable({ results, loadingCells, hotels, validDates, sortBy, onSor
                   const nights = nightsBetween(d.checkIn, d.checkOut);
                   const bookUrl = buildBookingUrl(hotel, d.checkIn, d.checkOut);
                   const otaUrl  = buildOtaUrl(hotel, d.checkIn, d.checkOut);
-                  const isDemo  = !r || r.source === 'demo' || r.source === 'demo_fallback';
+                  const isDemo  = !r || r.source === 'demo' || r.source === 'demo_fallback' || r.source === 'demo_daily_limit';
 
                   if (loading) return (
                     <td key={di}>
@@ -1630,6 +1630,7 @@ function App() {
   const [showResults, setShowResults] = useState(false);
   const [sortBy, setSortBy] = useState('price');
   const [rateSource, setRateSource] = useState(null);
+  const [usageNotice, setUsageNotice] = useState(null);
   const [modal, setModal] = useState(null); // null | 'about' | 'casestudy'
   const [highlightKey, setHighlightKey] = useState(null);
   const resultsRef = useRef(null);
@@ -1676,6 +1677,7 @@ function App() {
     setIsComparing(true);
     setShowResults(false);
     setResults({});
+    setUsageNotice(null);
 
     // Build loading set
     const cells = new Set();
@@ -1691,6 +1693,7 @@ function App() {
           .then(() => fetchRate(hotel, dr.checkIn, dr.checkOut))
           .then(rateData => {
             if (rateData.source) setRateSource(rateData.source);
+            if (rateData.quotaLimited && rateData.message) setUsageNotice(rateData.message);
             setResults(prev => ({
               ...prev,
               [hotel.id]: { ...(prev[hotel.id] || {}), [di]: rateData }
@@ -1806,6 +1809,11 @@ function App() {
         {/* RESULTS */}
         {(showResults || loadingCells.size > 0) && (
           <div className="results-section" ref={resultsRef}>
+            {usageNotice && (
+              <div style={{ margin: "0 0 16px", padding: "14px 16px", border: "1px solid #E8D6A8", borderRadius: 14, background: "#FFF8E6", color: "#6F4E00", fontSize: 13, lineHeight: 1.5 }}>
+                <strong>Prototype note:</strong> {usageNotice}
+              </div>
+            )}
             <SummaryCards
               flatResults={flatResults}
               hotels={selectedHotels}

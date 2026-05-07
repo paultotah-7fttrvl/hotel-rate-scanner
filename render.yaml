@@ -9,3 +9,5 @@ services:
         sync: false
       - key: RATE_MODE
         value: live
+      - key: LIVE_DAILY_LIMIT
+        value: 33

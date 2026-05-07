@@ -5,6 +5,7 @@ const path = require("path");
 const app = express();
 const SERPAPI_KEY = process.env.SERPAPI_KEY;
 const RATE_MODE = process.env.RATE_MODE || "demo";
+const LIVE_DAILY_LIMIT = Number(process.env.LIVE_DAILY_LIMIT || 33);
 
 app.use(express.static(path.join(__dirname, "public")));
 
@@ -165,6 +166,7 @@ function demoRate(hotelName, checkin, checkout) {
 // ─── RATE CACHE (in-memory, 30-min TTL) ───────────────────────────────────────
 const rateCache = {};
 const CACHE_TTL_MS = 30 * 60 * 1000;
+let liveUsage = { day: new Date().toISOString().slice(0, 10), count: 0 };
 
 function cacheGet(key) {
   const entry = rateCache[key];
@@ -175,6 +177,40 @@ function cacheGet(key) {
 
 function cacheSet(key, data) {
   rateCache[key] = { data, ts: Date.now() };
+}
+
+function getLiveUsage() {
+  const today = new Date().toISOString().slice(0, 10);
+  if (liveUsage.day !== today) liveUsage = { day: today, count: 0 };
+  return liveUsage;
+}
+
+function canUseLiveRate() {
+  return getLiveUsage().count < LIVE_DAILY_LIMIT;
+}
+
+function recordLiveRateCall() {
+  const usage = getLiveUsage();
+  usage.count += 1;
+  return usage;
+}
+
+function demoFallbackResult(hotel, checkin, checkout, nights, currency, reason) {
+  const { rate, total } = demoRate(hotel, checkin, checkout);
+  return {
+    rate,
+    source: reason === "daily_limit" ? "demo_daily_limit" : "demo_fallback",
+    property_name: hotel,
+    check_in: checkin,
+    check_out: checkout,
+    total,
+    nights,
+    currency,
+    quotaLimited: reason === "daily_limit",
+    message: reason === "daily_limit"
+      ? "Daily live-rate limit reached. Showing demo rates to protect API usage."
+      : undefined,
+  };
 }
 
 // ─── RATE ENDPOINT ────────────────────────────────────────────────────────────
@@ -209,18 +245,24 @@ app.get("/api/rates", async (req, res) => {
     return res.json(cached);
   }
 
+  if (!canUseLiveRate()) {
+    const result = demoFallbackResult(hotel, checkin, checkout, nights, currency, "daily_limit");
+    cacheSet(cacheKey, result);
+    return res.json(result);
+  }
+
   try {
     const q = encodeURIComponent(`${hotel} ${city}`);
     const url = `https://serpapi.com/search.json?engine=google_hotels&q=${q}&check_in_date=${checkin}&check_out_date=${checkout}&currency=${currency}&gl=us&hl=en&api_key=${SERPAPI_KEY}`;
-    console.log(`[SerpAPI] ${hotel}, ${city} | ${checkin} → ${checkout}`);
+    const usage = recordLiveRateCall();
+    console.log(`[SerpAPI] ${hotel}, ${city} | ${checkin} → ${checkout} (${usage.count}/${LIVE_DAILY_LIMIT} today)`);
 
     const response = await fetch(url);
     const data = await response.json();
 
     if (data.error) {
       console.error("[SerpAPI] Error:", data.error);
-      const { rate, total } = demoRate(hotel, checkin, checkout);
-      const result = { rate, source: "demo_fallback", property_name: hotel, check_in: checkin, check_out: checkout, total, nights, currency };
+      const result = demoFallbackResult(hotel, checkin, checkout, nights, currency);
       return res.json(result);
     }
 
@@ -280,8 +322,7 @@ app.get("/api/rates", async (req, res) => {
 
   } catch (err) {
     console.error("[Error]", err.message);
-    const { rate, total } = demoRate(hotel, checkin, checkout);
-    return res.json({ rate, source: "demo_fallback", property_name: hotel, check_in: checkin, check_out: checkout, total, nights, currency });
+    return res.json(demoFallbackResult(hotel, checkin, checkout, nights, currency));
   }
 });
 
@@ -292,6 +333,8 @@ app.get("/api/status", (req, res) => {
     hotelCount: HOTELS.length,
     cityCount: new Set(HOTELS.map((h) => h.city)).size,
     cacheSize: Object.keys(rateCache).length,
+    liveRateUsage: getLiveUsage(),
+    liveDailyLimit: LIVE_DAILY_LIMIT,
   });
 });
 
