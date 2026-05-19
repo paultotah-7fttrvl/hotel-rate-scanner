@@ -1090,7 +1090,6 @@ async function fetchRate(hotel, checkIn, checkOut, bust = false) {
       ihgRegion: data.ihg_region || null,
       ihgLocale: data.ihg_locale || null,
       ihgPropCode: data.ihg_prop_code || null,
-      marriottPropCode: data.marriott_prop_code || null,
     };
   } catch (e) {
     return { rate: null, available: false };
@@ -1277,11 +1276,6 @@ function isIhgUrl(url) {
 }
 
 // Correct IHG booking URL — select-roomrate with date params (confirmed working format).
-function buildMarriottAvailabilityUrl(propCode, checkIn, checkOut) {
-  if (!propCode || !checkIn || !checkOut) return null;
-  return `https://www.marriott.com/reservation/availabilitySearch.mi?propertyCode=${propCode.toUpperCase()}&fromDate=${encodeURIComponent(fmtMMDDYYYY(checkIn))}&toDate=${encodeURIComponent(fmtMMDDYYYY(checkOut))}&numberOfRooms=1&numAdultsPerGuestRoom=2`;
-}
-
 function buildIhgSelectRoomrateUrl(brand, region, locale, propCode, address, checkIn, checkOut) {
   const ciD = +checkIn.split('-')[2];
   const coD = +checkOut.split('-')[2];
@@ -1401,16 +1395,10 @@ function resolveBookingUrl(hotel, rateResult, checkIn, checkOut) {
     if (properUrl) return properUrl;
   }
 
-  // Marriott — server-extracted property code (from travel slug / Koddi clk), then serpUrl, then hotel.url.
-  if (rateResult.marriottPropCode) {
-    const marriottUrl = buildMarriottAvailabilityUrl(rateResult.marriottPropCode, checkIn, checkOut);
-    if (marriottUrl) return marriottUrl;
-  }
+  // Marriott: extract propertyCode from decoded serpUrl and rebuild with user dates.
   if (serpUrl && (serpUrl.includes('marriott.com') || serpUrl.includes('ritzcarlton.com'))) {
     const m = serpUrl.match(/[?&]propertyCode=([A-Z0-9]+)/i);
-    if (m) return buildMarriottAvailabilityUrl(m[1], checkIn, checkOut);
-    const travel = serpUrl.match(/marriott\.com\/hotels\/travel\/([a-z0-9]{4,8})-/i);
-    if (travel) return buildMarriottAvailabilityUrl(travel[1], checkIn, checkOut);
+    if (m) return `https://www.marriott.com/reservation/availabilitySearch.mi?propertyCode=${m[1].toUpperCase()}&fromDate=${encodeURIComponent(fmtMMDDYYYY(checkIn))}&toDate=${encodeURIComponent(fmtMMDDYYYY(checkOut))}&numberOfRooms=1&numAdultsPerGuestRoom=2`;
     return serpUrl;
   }
 

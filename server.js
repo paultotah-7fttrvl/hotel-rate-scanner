@@ -42,12 +42,7 @@ app.use((req, res, next) => {
 
 // ─── BRAND SOURCE MATCHING (for rate extraction) ──────────────────────────────
 const BRAND_SOURCES = {
-  marriott:    [
-    "marriott", "ritz-carlton", "w hotels", "westin", "sheraton", "st. regis", "jw marriott",
-    "autograph", "luxury collection", "tribute", "le meridien", "renaissance", "courtyard",
-    "residence inn", "fairfield", "springhill", "edition", "moxy", "ac hotel", "element",
-    "delta hotel", "gaylord", "protea",
-  ],
+  marriott:    ["marriott", "ritz-carlton", "w hotels", "westin", "sheraton", "st. regis", "jw marriott"],
   hilton:      ["hilton", "waldorf astoria", "conrad", "curio collection"],
   hyatt:       ["hyatt", "world of hyatt", "park hyatt", "grand hyatt", "andaz", "alila"],
   ihg:         ["ihg", "intercontinental", "kimpton", "holiday inn", "crowne plaza"],
@@ -175,36 +170,9 @@ function collectRateCandidates(dataObj) {
   return rates;
 }
 
-/** Marriott-family row with a decodable brand link (marriott.com, ritzcarlton.com, or Koddi clk). */
-function pickMarriottDirectRate(dataObj) {
-  const prices = dataObj.prices || [];
-  for (const p of prices) {
-    const link = decodeGoogleLink(p.link || p.url);
-    if (!link) continue;
-    const marriottLink =
-      linkIncludesHost(link, "marriott.com") ||
-      linkIncludesHost(link, "ritzcarlton.com") ||
-      /marriottclk\.koddi\.com/i.test(link) ||
-      !!extractMarriottPropertyCode(link);
-    if (!marriottLink) continue;
-    const rate = publicDisplayRate(p.rate_per_night);
-    if (rate) {
-      return {
-        rate,
-        source: (p.source || "Marriott").replace(/\.com$/i, ""),
-        official: !!p.official,
-      };
-    }
-  }
-  return null;
-}
-
 /** Brand / official row from prices[] (display rate, not raw before_taxes only). */
 function pickOfficialBrandRate(dataObj) {
   const prices = dataObj.prices || [];
-  const marriottDirect = pickMarriottDirectRate(dataObj);
-  if (marriottDirect) return marriottDirect;
-
   const official = prices.find(p => p.official === true);
   if (official) {
     const rate = publicDisplayRate(official.rate_per_night);
@@ -443,8 +411,7 @@ function decodeGoogleLink(url) {
       // adurl may itself be a doubleclick redirect — recurse to unwrap fully
       return decodeGoogleLink(decodeURIComponent(adurl));
     }
-    if (url.includes("doubleclick.net") || url.includes("koddi.com")) {
-      // Destination hotel URL is multi-encoded inside Koddi / DoubleClick wrappers
+    if (url.includes("doubleclick.net")) {
       let raw = url;
       for (let i = 0; i < 5; i++) {
         try {
@@ -458,16 +425,7 @@ function decodeGoogleLink(url) {
       const proper = raw.match(/(https?:\/\/(?:www\.)?properhotel\.com[^\s"<>]+)/i);
       if (proper) return proper[1].split(/[?&]dclid=/)[0];
       const m = raw.match(/(https?:\/\/(?:www\.)?(?:marriott|ritzcarlton|hilton|waldorfastoria|hyatt|ihg|intercontinental|kimptonhotels|holidayinn|crowneplaza|staybridge|candlewood|booking|expedia|hotels|agoda)\.com[^\s"'<>\n]+)/i);
-      if (m) return m[1].split(/[?&]dclid=/)[0];
-      const propCode = raw.match(/[?&]propertyCode=([A-Z0-9]{4,8})/i);
-      if (propCode) {
-        return `https://www.marriott.com/reservation/availabilitySearch.mi?propertyCode=${propCode[1].toUpperCase()}`;
-      }
-      const travel = raw.match(/hotels\/travel\/([a-z0-9]{4,8})-/i);
-      if (travel) {
-        return `https://www.marriott.com/hotels/travel/${travel[1].toLowerCase()}/`;
-      }
-      return null;
+      return m ? m[1].split(/[?&]dclid=/)[0] : null;
     }
     const pcurl = parsed.searchParams.get("pcurl");
     return pcurl ? decodeURIComponent(pcurl) : url;
@@ -557,64 +515,6 @@ function extractIhgInfo(dataObj) {
     }
   }
   return null;
-}
-
-/** Marriott property code from brand URL (travel slug, availabilitySearch, Koddi-encoded clk). */
-function extractMarriottPropertyCode(link) {
-  if (!link) return null;
-  let m = link.match(/marriott\.com\/hotels\/travel\/([a-z0-9]{4,8})-/i);
-  if (m) return m[1].toUpperCase();
-  m = link.match(/[?&]propertyCode=([A-Z0-9]{4,8})/i);
-  if (m) return m[1].toUpperCase();
-  m = link.match(/propertyCode(?:=|%3D)([A-Z0-9]{4,8})/i);
-  if (m) return m[1].toUpperCase();
-  m = link.match(/ritzcarlton\.com\/[^/]+\/hotels\/([a-z0-9]{4,8})-/i);
-  if (m) return m[1].toUpperCase();
-  if (/koddi\.com|doubleclick\.net/i.test(link)) {
-    let raw = link;
-    for (let i = 0; i < 5; i++) {
-      try {
-        const next = decodeURIComponent(raw);
-        if (next === raw) break;
-        raw = next;
-      } catch {
-        break;
-      }
-    }
-    const pc = raw.match(/[?&]propertyCode=([A-Z0-9]{4,8})/i)
-      || raw.match(/propertyCode(?:=|%3D)([A-Z0-9]{4,8})/i);
-    if (pc) return pc[1].toUpperCase();
-    const tr = raw.match(/hotels\/travel\/([a-z0-9]{4,8})-/i);
-    if (tr) return tr[1].toUpperCase();
-  }
-  return null;
-}
-
-function extractMarriottInfo(dataObj) {
-  if (!dataObj) return null;
-  const sources = [...(dataObj.prices || []), ...(dataObj.featured_prices || [])];
-  for (const p of sources) {
-    const link = decodeGoogleLink(p.link || p.url);
-    const code = extractMarriottPropertyCode(link);
-    if (code) return { propCode: code };
-  }
-  const overview = decodeGoogleLink(dataObj.link) || dataObj.link;
-  const fromOverview = extractMarriottPropertyCode(overview);
-  if (fromOverview) return { propCode: fromOverview };
-  return null;
-}
-
-function buildMarriottBookingUrl(propCode, checkIn, checkOut) {
-  if (!propCode || !checkIn || !checkOut) return null;
-  const fmt = ds => {
-    const [y, mo, d] = ds.split("-");
-    return `${mo}/${d}/${y}`;
-  };
-  return (
-    `https://www.marriott.com/reservation/availabilitySearch.mi?propertyCode=${propCode.toUpperCase()}` +
-    `&fromDate=${encodeURIComponent(fmt(checkIn))}&toDate=${encodeURIComponent(fmt(checkOut))}` +
-    `&numberOfRooms=1&numAdultsPerGuestRoom=2`
-  );
 }
 
 // Extract the best booking deep-link from SerpAPI prices[].
@@ -709,8 +609,6 @@ function normalizeSerpHotel(p, idx, cityHint) {
     p.rate_per_night?.extracted_lowest ||
     200;
   const city = cityFromAddress(p.address) || cityHint;
-  const overviewLink = p.link || "";
-  const marriottCode = extractMarriottPropertyCode(overviewLink);
   return {
     id: `sb-${city.replace(/\s+/g, "-").toLowerCase()}-${idx}`,
     name: p.name,
@@ -718,10 +616,9 @@ function normalizeSerpHotel(p, idx, cityHint) {
     region: "",
     stars,
     baseRate,
-    url: overviewLink,
+    url: p.link || "",
     address: p.address || "",
-    chain: marriottCode ? "marriott" : null,
-    chainPropertyCode: marriottCode || null,
+    chain: null,
     property_token: p.property_token || null,
     rating: p.overall_rating || p.rating || null,
     variance: 0.25,
@@ -997,7 +894,6 @@ app.get("/api/rates", async (req, res) => {
     let rateSource = data;
     let bookingUrl = null;
     let ihgInfo = null;
-    let marriottInfo = null;
 
     if (data.type === "hotel") {
       matchName = data.name || hotel;
@@ -1092,7 +988,6 @@ app.get("/api/rates", async (req, res) => {
     const { rate, total } = validated;
     bookingUrl = extractBookingUrl(rateSource);
     ihgInfo = extractIhgInfo(rateSource);
-    marriottInfo = extractMarriottInfo(rateSource);
 
     console.log(
       `[SerpAPI Rate] "${matchName}" $${rate}/night (${validated.confidence}, ${validated.method})` +
@@ -1100,13 +995,6 @@ app.get("/api/rates", async (req, res) => {
     );
 
     if (ihgInfo) console.log(`[SerpAPI Rate] IHG info: brand=${ihgInfo.brand} propCode=${ihgInfo.propCode}`);
-    if (marriottInfo) {
-      const marriottBook = buildMarriottBookingUrl(marriottInfo.propCode, checkin, checkout);
-      if (marriottBook) {
-        bookingUrl = marriottBook;
-        console.log(`[Marriott] booking URL → availabilitySearch propertyCode=${marriottInfo.propCode}`);
-      }
-    }
     if (isProperHotelName(hotel) || isProperHotelName(matchName)) {
       const built = buildProperBookingUrlServer(matchName, city, checkin, checkout);
       if (built) {
@@ -1137,7 +1025,6 @@ app.get("/api/rates", async (req, res) => {
         ihg_locale: ihgInfo.locale,
         ihg_prop_code: ihgInfo.propCode,
       }),
-      ...(marriottInfo && { marriott_prop_code: marriottInfo.propCode }),
     };
 
     cacheSet(rateCache, cacheKey, result);
