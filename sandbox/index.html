@@ -581,28 +581,42 @@
     .rate-td {
       padding: 14px 12px; text-align: center;
       position: relative; min-width: 130px;
-      min-height: 118px; box-sizing: border-box;
+      min-height: 132px; box-sizing: border-box;
       display: flex; flex-direction: column; align-items: center;
-      justify-content: flex-start; gap: 2px;
+      justify-content: flex-start; gap: 0;
       transition: background var(--transition);
     }
     .rate-td.best { background: var(--gold-bg); }
+    .rate-td-badge-slot {
+      min-height: 26px; width: 100%;
+      display: flex; align-items: flex-start; justify-content: center;
+      flex-shrink: 0;
+    }
+    .rate-td-main {
+      flex: 1; width: 100%;
+      display: flex; flex-direction: column; align-items: center; gap: 2px;
+    }
+    .rate-td-actions {
+      width: 100%; margin-top: auto; padding-top: 8px;
+      display: flex; justify-content: center; flex-shrink: 0;
+    }
     .best-badge {
       display: inline-flex; align-items: center; gap: 3px;
       font-size: 9px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
       color: var(--gold); background: white;
       border: 1px solid var(--gold-border); border-radius: var(--radius-pill);
-      padding: 2px 7px; margin-bottom: 6px;
+      padding: 2px 7px;
     }
     .rate-adr {
       font-size: 17px; font-weight: 600; letter-spacing: -0.01em;
       color: var(--text-1); font-variant-numeric: tabular-nums;
     }
-    .rate-total { font-size: 11px; color: var(--text-2); margin-top: 2px; }
+    .rate-disclaimer { font-size: 9px; color: #9C9C9C; line-height: 1.3; margin-top: 4px; max-width: 118px; }
+    .rate-source-tag { font-size: 9px; color: #6B5A3E; font-weight: 600; margin-top: 2px; letter-spacing: 0.02em; }
     .rate-nights { font-size: 11px; color: var(--text-3); }
     .rate-book {
       display: inline-flex; align-items: center; justify-content: center; gap: 4px;
-      margin-top: auto; font-size: 12px; font-weight: 600;
+      font-size: 12px; font-weight: 600;
       padding: 5px 12px; border-radius: var(--radius-pill);
       border: 1.5px solid var(--border); color: var(--text-1);
       background: white; transition: all var(--transition); cursor: pointer;
@@ -877,18 +891,37 @@
     }
 
     /* ── RESPONSIVE ──────────────────────────────────────── */
+    /* Side-by-side stays 2 columns on mobile; stacked uses layout-rows (1 column). */
     @media (max-width: 820px) {
       .main-card-steps.layout-columns {
-        grid-template-columns: 1fr;
+        grid-template-columns: 1fr 1fr;
+      }
+      .main-card-steps.layout-columns .main-card-section {
+        padding: 20px 14px;
       }
       .main-card-steps.layout-columns .main-card-section--hotels {
-        border-right: none;
-        border-bottom: 1px solid var(--border);
+        border-right: 1px solid var(--border);
+        border-bottom: none;
       }
       .main-card-steps.layout-columns .section-subtitle {
-        width: auto;
-        margin-left: auto;
-        margin-top: 0;
+        width: 100%;
+        margin-left: 0;
+        margin-top: -6px;
+        font-size: 11px;
+        line-height: 1.35;
+      }
+      .main-card-steps.layout-columns .section-label {
+        font-size: 13px;
+        gap: 8px;
+      }
+      .main-card-steps.layout-columns .city-grid {
+        grid-template-columns: 1fr;
+      }
+      .main-card-steps.layout-columns .date-row {
+        padding: 0 4px;
+      }
+      .main-card-steps.layout-columns .drp-trigger-text {
+        font-size: 12px;
       }
     }
     @media (max-width: 620px) {
@@ -1038,11 +1071,14 @@ async function fetchRate(hotel, checkIn, checkOut, bust = false) {
       bookingUrl: data.booking_url || null,
       matchedProperty: data.property_name || data.matched_property || null,
       rateConfidence: data.rate_confidence || null,
+      rateDisclaimer: data.rate_disclaimer || 'Excl. taxes & resort/hotel fees',
+      rateSourceLabel: data.rate_source_label || null,
       isDemo,
       ihgBrand: data.ihg_brand || null,
       ihgRegion: data.ihg_region || null,
       ihgLocale: data.ihg_locale || null,
       ihgPropCode: data.ihg_prop_code || null,
+      marriottPropCode: data.marriott_prop_code || null,
     };
   } catch (e) {
     return { rate: null, available: false };
@@ -1229,6 +1265,11 @@ function isIhgUrl(url) {
 }
 
 // Correct IHG booking URL — select-roomrate with date params (confirmed working format).
+function buildMarriottAvailabilityUrl(propCode, checkIn, checkOut) {
+  if (!propCode || !checkIn || !checkOut) return null;
+  return `https://www.marriott.com/reservation/availabilitySearch.mi?propertyCode=${propCode.toUpperCase()}&fromDate=${encodeURIComponent(fmtMMDDYYYY(checkIn))}&toDate=${encodeURIComponent(fmtMMDDYYYY(checkOut))}&numberOfRooms=1&numAdultsPerGuestRoom=2`;
+}
+
 function buildIhgSelectRoomrateUrl(brand, region, locale, propCode, address, checkIn, checkOut) {
   const ciD = +checkIn.split('-')[2];
   const coD = +checkOut.split('-')[2];
@@ -1308,10 +1349,16 @@ function resolveBookingUrl(hotel, rateResult, checkIn, checkOut) {
     if (properUrl) return properUrl;
   }
 
-  // Marriott: extract propertyCode from decoded serpUrl and rebuild with user dates (same as demo).
+  // Marriott — server-extracted property code (from travel slug / Koddi clk), then serpUrl, then hotel.url.
+  if (rateResult.marriottPropCode) {
+    const marriottUrl = buildMarriottAvailabilityUrl(rateResult.marriottPropCode, checkIn, checkOut);
+    if (marriottUrl) return marriottUrl;
+  }
   if (serpUrl && (serpUrl.includes('marriott.com') || serpUrl.includes('ritzcarlton.com'))) {
     const m = serpUrl.match(/[?&]propertyCode=([A-Z0-9]+)/i);
-    if (m) return `https://www.marriott.com/reservation/availabilitySearch.mi?propertyCode=${m[1].toUpperCase()}&fromDate=${encodeURIComponent(fmtMMDDYYYY(checkIn))}&toDate=${encodeURIComponent(fmtMMDDYYYY(checkOut))}&numberOfRooms=1&numAdultsPerGuestRoom=2`;
+    if (m) return buildMarriottAvailabilityUrl(m[1], checkIn, checkOut);
+    const travel = serpUrl.match(/marriott\.com\/hotels\/travel\/([a-z0-9]{4,8})-/i);
+    if (travel) return buildMarriottAvailabilityUrl(travel[1], checkIn, checkOut);
     return serpUrl;
   }
 
@@ -1739,22 +1786,22 @@ function SummaryCards({ flatResults, hotels, validDates, onCardClick }) {
   const available = flatResults.filter(r => r.available);
   if (available.length === 0) return null;
 
-  const byTotal = [...available].sort((a, b) => a.total - b.total);
-  const byAdr   = [...available].sort((a, b) => a.rate - b.rate);
+  const byAdr = [...available].sort((a, b) => a.rate - b.rate);
 
-  const best = byTotal[0];
+  const best = byAdr[0];
+  const runnerUp = byAdr[1];
   const bestHotel = hotels.find(h => h.id === best.hotelId);
   const bestDate = validDates[best.dateIdx];
   const bestCellKey = `${best.hotelId}|${best.dateIdx}`;
-  const lowestCellKey = `${byAdr[0].hotelId}|${byAdr[0].dateIdx}`;
+  const runnerCellKey = runnerUp ? `${runnerUp.hotelId}|${runnerUp.dateIdx}` : bestCellKey;
 
   return (
     <div className="summary-cards">
       <div className="scard best scard-clickable" onClick={() => onCardClick(bestCellKey)} title="Jump to this cell in the table">
-        <div className="scard-label">⭐ Best Total Price</div>
-        <div className="scard-value">{formatCurrency(best.total, best.currency)}</div>
+        <div className="scard-label">⭐ Best Nightly Rate</div>
+        <div className="scard-value">{formatCurrency(best.rate, best.currency)}<span style={{ fontSize: 13, fontWeight: 400, color: '#5C5C5C' }}>/night</span></div>
         <div className="scard-meta">
-          {best.nights} night{best.nights !== 1 ? 's' : ''} · {formatCurrency(best.rate, best.currency)}/night<br />
+          {best.rateDisclaimer || 'Excl. taxes & resort/hotel fees'}<br />
           Option {OPTION_LABELS[best.dateIdx]} · {formatDate(bestDate.checkIn)}–{formatDate(bestDate.checkOut)}
         </div>
         <div className="scard-meta" style={{ fontWeight: 600, color: '#1A1A1A', marginTop: 4 }}>
@@ -1762,12 +1809,17 @@ function SummaryCards({ flatResults, hotels, validDates, onCardClick }) {
         </div>
         <div className="scard-action">View in table ↓</div>
       </div>
-      <div className="scard scard-clickable" onClick={() => onCardClick(lowestCellKey)} title="Jump to this cell in the table">
-        <div className="scard-label">Lowest Nightly Rate</div>
-        <div className="scard-value">{formatCurrency(byAdr[0].rate, byAdr[0].currency)}<span style={{ fontSize: 13, fontWeight: 400, color: '#5C5C5C' }}>/night</span></div>
+      <div className="scard scard-clickable" onClick={() => onCardClick(runnerCellKey)} title="Jump to this cell in the table">
+        <div className="scard-label">{runnerUp ? 'Next Best Nightly' : 'Also Compared'}</div>
+        <div className="scard-value">
+          {runnerUp
+            ? <>{formatCurrency(runnerUp.rate, runnerUp.currency)}<span style={{ fontSize: 13, fontWeight: 400, color: '#5C5C5C' }}>/night</span></>
+            : <span style={{ fontSize: 16 }}>—</span>}
+        </div>
         <div className="scard-meta">
-          {hotels.find(h => h.id === byAdr[0].hotelId)?.name}<br />
-          Option {OPTION_LABELS[byAdr[0].dateIdx]}
+          {runnerUp
+            ? <>{hotels.find(h => h.id === runnerUp.hotelId)?.name}<br />Option {OPTION_LABELS[runnerUp.dateIdx]}</>
+            : <>Only one priced option in this run</>}
         </div>
         <div className="scard-action">View in table ↓</div>
       </div>
@@ -1799,17 +1851,7 @@ function ResultsTable({ results, loadingCells, hotels, validDates, sortBy, onSor
     const minB = validDates.map((_, di) => results[b.id]?.[di]).filter(r => r?.available).map(r => r.rate);
     const mA = minA.length ? Math.min(...minA) : Infinity;
     const mB = minB.length ? Math.min(...minB) : Infinity;
-    if (sortBy === 'adr') return mA - mB;
-    // Sort by total: min rate × respective nights
-    const totA = validDates.map((d, di) => {
-      const r = results[a.id]?.[di]; if (!r?.available) return Infinity;
-      return r.rate * nightsBetween(d.checkIn, d.checkOut);
-    });
-    const totB = validDates.map((d, di) => {
-      const r = results[b.id]?.[di]; if (!r?.available) return Infinity;
-      return r.rate * nightsBetween(d.checkIn, d.checkOut);
-    });
-    return Math.min(...totA) - Math.min(...totB);
+    return mA - mB;
   });
 
   return (
@@ -1818,7 +1860,7 @@ function ResultsTable({ results, loadingCells, hotels, validDates, sortBy, onSor
         <span className="rtc-toolbar-label">{hotels.length} hotel{hotels.length !== 1 ? 's' : ''} · {validDates.length} date option{validDates.length !== 1 ? 's' : ''}</span>
         <span className="sort-label">Sort by</span>
         <div className="sort-btns">
-          {[['price','Total price'],['adr','Nightly rate'],['name','Name']].map(([k,l]) => (
+          {[['adr','Nightly rate'],['name','Name']].map(([k,l]) => (
             <button key={k} className={`sort-btn ${sortBy === k ? 'on' : ''}`} onClick={() => onSort(k)}>{l}</button>
           ))}
         </div>
@@ -1895,19 +1937,25 @@ function ResultsTable({ results, loadingCells, hotels, validDates, sortBy, onSor
                   return (
                     <td key={di}>
                       <div className={`rate-td ${isBest ? 'best' : ''} ${isHighlighted ? 'highlighted' : ''}`}>
-                        {isBest && <div className="best-badge">★ Best deal</div>}
-                        <div className="rate-adr">{formatCurrency(r.rate, r.currency)}<span style={{ fontSize: 11, fontWeight: 400, color: '#9C9C9C' }}>/nt</span></div>
-                        <div className="rate-total">{formatCurrency(total, r.currency)} total</div>
-                        <div className="rate-nights">{nights} night{nights !== 1 ? 's' : ''}</div>
-                        {needsKimptonLookup
-                          ? <KimptonBookButton hotel={hotel} checkIn={d.checkIn} checkOut={d.checkOut} isBest={isBest} />
-                          : <a href={bookUrl} target="_blank" rel="noopener noreferrer"
-                              className={`rate-book ${isBest ? 'gold' : ''}`}>
-                              Book →
-                            </a>
-                        }
-                      </div>
-                    </td>
+                        <div className="rate-td-badge-slot">
+                          {isBest && <div className="best-badge">★ Lowest rate</div>}
+                        </div>
+                        <div className="rate-td-main">
+                          <div className="rate-adr">{formatCurrency(r.rate, r.currency)}<span style={{ fontSize: 11, fontWeight: 400, color: '#9C9C9C' }}>/night</span></div>
+                          {r.rateSourceLabel && <div className="rate-source-tag">{r.rateSourceLabel}</div>}
+                          <div className="rate-disclaimer">{r.rateDisclaimer || 'Excl. taxes & resort/hotel fees'}</div>
+                          <div className="rate-nights">{nights} night{nights !== 1 ? 's' : ''}</div>
+                        </div>
+                        <div className="rate-td-actions">
+                          {needsKimptonLookup
+                            ? <KimptonBookButton hotel={hotel} checkIn={d.checkIn} checkOut={d.checkOut} isBest={isBest} />
+                            : <a href={bookUrl} target="_blank" rel="noopener noreferrer"
+                                className={`rate-book ${isBest ? 'gold' : ''}`}>
+                                Book →
+                              </a>
+                          }
+                        </div>
+                      </div>                    </td>
                   );
                 })}
               </tr>
@@ -1952,7 +2000,7 @@ function App() {
   const [loadingCells, setLoadingCells] = useState(new Set());
   const [isComparing, setIsComparing] = useState(false);
   const [showResults, setShowResults] = useState(false);
-  const [sortBy, setSortBy] = useState('price');
+  const [sortBy, setSortBy] = useState('adr');
   const [usageNotice, setUsageNotice] = useState(null);
   const [modal, setModal] = useState(null); // null | 'about' | 'casestudy'
   const [highlightKey, setHighlightKey] = useState(null);
@@ -1998,7 +2046,7 @@ function App() {
   // Best cell key
   const bestKey = (() => {
     if (!flatResults.length) return null;
-    const best = flatResults.reduce((a, b) => b.total < a.total ? b : a);
+    const best = flatResults.reduce((a, b) => b.rate < a.rate ? b : a);
     return `${best.hotelId}|${best.dateIdx}`;
   })();
 
