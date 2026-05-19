@@ -8,6 +8,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
   <script src="hotels.js"></script>
+  <script src="proper-azds.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,600;0,700;1,300;1,600&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
@@ -568,7 +569,7 @@
     }
     .rt th:first-child { text-align: left; }
     .rt th.date-th { text-align: center; min-width: 130px; }
-    .rt td { border-bottom: 1px solid var(--border); vertical-align: top; padding: 0; }
+    .rt td { border-bottom: 1px solid var(--border); vertical-align: middle; padding: 0; }
     .rt tr:last-child td { border-bottom: none; }
     .rt tr:hover .hotel-td { background: rgba(0,0,0,0.012); }
 
@@ -580,6 +581,9 @@
     .rate-td {
       padding: 14px 12px; text-align: center;
       position: relative; min-width: 130px;
+      min-height: 118px; box-sizing: border-box;
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: flex-start; gap: 2px;
       transition: background var(--transition);
     }
     .rate-td.best { background: var(--gold-bg); }
@@ -597,8 +601,8 @@
     .rate-total { font-size: 11px; color: var(--text-2); margin-top: 2px; }
     .rate-nights { font-size: 11px; color: var(--text-3); }
     .rate-book {
-      display: inline-flex; align-items: center; gap: 4px;
-      margin-top: 9px; font-size: 12px; font-weight: 600;
+      display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+      margin-top: auto; font-size: 12px; font-weight: 600;
       padding: 5px 12px; border-radius: var(--radius-pill);
       border: 1.5px solid var(--border); color: var(--text-1);
       background: white; transition: all var(--transition); cursor: pointer;
@@ -1108,7 +1112,57 @@ function isSupportedBrandUrl(url) {
     'hyatt.com', 'marriott.com', 'ritzcarlton.com',
     'hilton.com', 'waldorfastoria.com', 'conradhotels.com',
     'ihg.com', 'intercontinental.com', 'kimpton.com', 'kimptonhotels.com',
+    'properhotel.com',
   ].some(domain => (url || '').includes(domain));
+}
+
+const PROPER_PROPERTIES = {
+  austin: { slug: 'proper-austin', path: 'austin' },
+  'downtown la': { slug: 'proper-downtown-la', path: 'downtown-la' },
+  'los angeles': { slug: 'proper-downtown-la', path: 'downtown-la' },
+  'san francisco': { slug: 'proper-sf', path: 'san-francisco' },
+  'santa monica': { slug: 'proper-santa-monica', path: 'santa-monica' },
+};
+
+function isProperHotel(hotel) {
+  const name = (hotel?.name || '').toLowerCase();
+  const url = (hotel?.url || '').toLowerCase();
+  return name.includes('proper') || url.includes('properhotel.com');
+}
+
+function isProperUrl(url) {
+  return (url || '').includes('properhotel.com');
+}
+
+function resolveProperProperty(hotel, serpUrl) {
+  const blob = `${hotel?.name || ''} ${hotel?.city || ''} ${hotel?.url || ''} ${serpUrl || ''}`.toLowerCase();
+  for (const [key, prop] of Object.entries(PROPER_PROPERTIES)) {
+    if (blob.includes(key)) return prop;
+  }
+  const fromSerp = (serpUrl || '').match(/!'([^']+)'/);
+  if (fromSerp) {
+    const slug = fromSerp[1];
+    const path = slug.replace(/^proper-/, '');
+    return { slug, path };
+  }
+  const fromUrl = (hotel?.url || serpUrl || '').match(/properhotel\.com\/([^/#?]+)/i);
+  if (fromUrl) {
+    const path = fromUrl[1].toLowerCase();
+    return { slug: `proper-${path}`, path };
+  }
+  return null;
+}
+
+function buildProperBookingUrl(hotel, checkIn, checkOut, serpUrl) {
+  const prop = resolveProperProperty(hotel, serpUrl);
+  if (!prop) {
+    if (serpUrl && isProperUrl(serpUrl)) return serpUrl;
+    return null;
+  }
+  if (typeof ProperAzds !== 'undefined') {
+    return ProperAzds.buildBookingUrl(prop.path, prop.slug, checkIn, checkOut, serpUrl);
+  }
+  return `https://www.properhotel.com/${prop.path}/#/booking/step-1`;
 }
 
 function isKimptonHotel(hotel) {
@@ -1238,6 +1292,12 @@ function resolveBookingUrl(hotel, rateResult, checkIn, checkOut) {
     if (ihg) return buildIhgSelectRoomrateUrl(ihg.brand, ihg.region, ihg.locale, ihg.propCode, hotel.address || '', checkIn, checkOut);
   }
 
+  // Proper Hotels — always build AZDS URL from scanner dates (never reuse OTA or bare hotel links).
+  if (isProperHotel(hotel) || isProperUrl(serpUrl) || isProperUrl(hotel?.url)) {
+    const properUrl = buildProperBookingUrl(hotel, checkIn, checkOut, serpUrl);
+    if (properUrl) return properUrl;
+  }
+
   // Marriott: extract propertyCode from decoded serpUrl and rebuild with user dates (same as demo).
   if (serpUrl && (serpUrl.includes('marriott.com') || serpUrl.includes('ritzcarlton.com'))) {
     const m = serpUrl.match(/[?&]propertyCode=([A-Z0-9]+)/i);
@@ -1252,6 +1312,10 @@ function resolveBookingUrl(hotel, rateResult, checkIn, checkOut) {
   if (isSupportedBrandUrl(hotel?.url)) return buildBookingUrl(hotel, checkIn, checkOut);
 
   // OTA link (dates pre-filled from SerpAPI) or booking.com search fallback.
+  if (isProperHotel(hotel)) {
+    const properUrl = buildProperBookingUrl(hotel, checkIn, checkOut, null);
+    if (properUrl) return properUrl;
+  }
   return serpUrl || buildBookingUrl(hotel, checkIn, checkOut);
 }
 
@@ -1785,7 +1849,7 @@ function ResultsTable({ results, loadingCells, hotels, validDates, sortBy, onSor
 
                   if (loading) return (
                     <td key={di}>
-                      <div className="rate-td" style={{ paddingTop: 18 }}>
+                      <div className="rate-td">
                         <div className="skel skel-r" />
                         <div className="skel skel-t" />
                         <div className="skel skel-b" />
@@ -1981,6 +2045,7 @@ function App() {
           <div className="nav-logo">Hotel <em>Scanner</em></div>
           <div className="nav-right">
             <button className="nav-link" onClick={() => setModal('casestudy')}>About</button>
+            <div className="nav-badge">Portfolio Prototype</div>
             <div className="nav-badge">Sandbox</div>
           </div>
         </div>
@@ -1988,10 +2053,10 @@ function App() {
 
       {/* HERO */}
       <div className="hero">
-        <div className="hero-eyebrow">Seven Feet Travel</div>
         <h1 className="hero-headline">
           Compare rates<br />
-          <em>across dates.</em>
+          across dates,<br />
+          <em>not across tabs.</em>
         </h1>
         <p className="hero-value">
           Add the hotels you want.<br />
@@ -2112,8 +2177,6 @@ function App() {
       <footer className="footer">
         <div className="footer-author">
           Built by <a className="footer-a" href="https://linkedin.com/in/paultotah" target="_blank" rel="noopener noreferrer">Paul Totah</a>
-          <span className="footer-sep"> · </span>
-          <a className="footer-a" href="https://sevenfeettravel.com" target="_blank" rel="noopener noreferrer">Seven Feet Travel</a>
         </div>
       </footer>
 

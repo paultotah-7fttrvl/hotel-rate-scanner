@@ -15,6 +15,7 @@ const STATIC_ROUTES = {
   "/":                    { file: path.join("public", "index.html"),          type: "text/html" },
   "/index.html":          { file: path.join("public", "index.html"),          type: "text/html" },
   "/hotels.js":           { file: path.join("public", "hotels.js"),           type: "application/javascript" },
+  "/proper-azds.js":      { file: path.join("public", "proper-azds.js"),      type: "application/javascript" },
   "/theme-sevenfeet.css": { file: path.join("public", "theme-sevenfeet.css"),   type: "text/css" },
 };
 const STATIC_CACHED = {
@@ -45,9 +46,20 @@ const BRAND_SOURCES = {
   hilton:      ["hilton", "waldorf astoria", "conrad", "curio collection"],
   hyatt:       ["hyatt", "world of hyatt", "park hyatt", "grand hyatt", "andaz", "alila"],
   ihg:         ["ihg", "intercontinental", "kimpton", "holiday inn", "crowne plaza"],
+  proper:      ["proper", "proper hotel", "proper hotels"],
   fourseasons: ["four seasons"],
   fairmont:    ["fairmont"],
 };
+
+// Prefer brand-owned booking URLs by hostname (before OTA source labels).
+const BRAND_HOST_PRIORITY = [
+  "properhotel.com",
+  "marriott.com", "ritzcarlton.com",
+  "hilton.com", "waldorfastoria.com", "conradhotels.com",
+  "hyatt.com",
+  "ihg.com", "intercontinental.com", "kimptonhotels.com", "holidayinn.com", "crowneplaza.com",
+  "fourseasons.com", "fairmont.com",
+];
 
 // ─── CURRENCY BY CITY ─────────────────────────────────────────────────────────
 const CITY_CURRENCY = {
@@ -126,6 +138,9 @@ function decodeGoogleLink(url) {
       // Destination hotel URL is double-encoded inside the query string
       const raw1 = decodeURIComponent(url);
       const raw2 = decodeURIComponent(raw1);
+      // Proper booking hash data= contains quotes/parens — must not stop at '
+      const proper = raw2.match(/(https?:\/\/(?:www\.)?properhotel\.com[^\s"<>]+)/i);
+      if (proper) return proper[1].split(/[?&]dclid=/)[0];
       const m = raw2.match(/(https?:\/\/(?:www\.)?(?:marriott|ritzcarlton|hilton|waldorfastoria|hyatt|ihg|intercontinental|kimptonhotels|holidayinn|crowneplaza|staybridge|candlewood|booking|expedia|hotels|agoda)\.com[^\s"'<>\n]+)/i);
       return m ? m[1].split(/[?&]dclid=/)[0] : null;
     }
@@ -233,20 +248,65 @@ function extractBookingUrl(dataObj) {
     }))
     .filter(p => p.link);
 
-  // 1. Brand-direct hotel chain URL (matched by source label)
+  // 1. Brand-owned site by link hostname (Proper, Marriott, etc.) — beats OTA source labels
+  for (const host of BRAND_HOST_PRIORITY) {
+    const hit = decoded.find(p => linkIncludesHost(p.link, host));
+    if (hit) return hit.link;
+  }
+
+  // 2. Brand-direct by SerpAPI source label
   for (const [, frags] of Object.entries(BRAND_SOURCES)) {
     const hit = decoded.find(p => frags.some(f => p.source.includes(f)));
     if (hit) return hit.link;
   }
 
-  // 2. Preferred OTA by source label (dates are pre-filled in the decoded URL)
+  // 3. Preferred OTA by source label (dates are pre-filled in the decoded URL)
   for (const ota of PREFERRED_OTAS) {
     const hit = decoded.find(p => p.source.includes(ota));
     if (hit) return hit.link;
   }
 
-  // 3. First available decoded link
+  // 4. First available decoded link
   return decoded[0]?.link || null;
+}
+
+// ─── PROPER HOTELS (AZDS booking URLs) ───────────────────────────────────────
+const ProperAzds = require(path.join(__dirname, "public", "proper-azds.js"));
+
+const PROPER_HOTEL_MAP = [
+  { match: "austin", slug: "proper-austin", path: "austin" },
+  { match: "downtown la", slug: "proper-downtown-la", path: "downtown-la" },
+  { match: "los angeles", slug: "proper-downtown-la", path: "downtown-la" },
+  { match: "san francisco", slug: "proper-sf", path: "san-francisco" },
+  { match: "santa monica", slug: "proper-santa-monica", path: "santa-monica" },
+];
+
+function isProperHotelName(name) {
+  return (name || "").toLowerCase().includes("proper");
+}
+
+function resolveProperPropertyServer(hotelName, city) {
+  const blob = `${hotelName || ""} ${city || ""}`.toLowerCase();
+  for (const p of PROPER_HOTEL_MAP) {
+    if (blob.includes(p.match)) return { slug: p.slug, path: p.path };
+  }
+  return null;
+}
+
+function extractProperBookingUrlFromPrices(dataObj) {
+  if (!dataObj?.prices?.length) return null;
+  for (const p of dataObj.prices) {
+    const link = decodeGoogleLink(p.link);
+    if (link && ProperAzds.hasValidBookingData(link)) return link;
+  }
+  return null;
+}
+
+function buildProperBookingUrlServer(hotelName, city, checkIn, checkOut) {
+  const prop = resolveProperPropertyServer(hotelName, city);
+  if (!prop) return null;
+  // Always encode scanner dates — ignore SerpAPI booking links (often step-1, no dates).
+  return ProperAzds.buildBookingUrl(prop.path, prop.slug, checkIn, checkOut, null);
 }
 
 // ─── NORMALIZE SERP HOTEL OBJECT ──────────────────────────────────────────────
@@ -507,6 +567,7 @@ app.get("/api/rates", async (req, res) => {
     }
 
     let rate = null, total = null, matchName = hotel, bookingUrl = null, ihgInfo = null;
+    let rateSource = data;
 
     if (data.type === "hotel" && data.rate_per_night) {
       ({ rate, total } = extractBestRate(data, nights));
@@ -535,10 +596,18 @@ app.get("/api/rates", async (req, res) => {
       bookingUrl = extractBookingUrl(match);
       ihgInfo = extractIhgInfo(match);
       matchName = match.name || hotel;
+      rateSource = match;
       console.log(`[SerpAPI Rate] Best match: "${matchName}" $${rate}/night`);
     }
 
     if (ihgInfo) console.log(`[SerpAPI Rate] IHG info: brand=${ihgInfo.brand} propCode=${ihgInfo.propCode}`);
+    if (isProperHotelName(hotel) || isProperHotelName(matchName)) {
+      const built = buildProperBookingUrlServer(matchName, city, checkin, checkout);
+      if (built) {
+        bookingUrl = built;
+        console.log(`[Proper] booking URL → ${bookingUrl.includes("step-2") ? "step-2 (dates)" : "step-1 (pick dates)"}`);
+      }
+    }
 
     const result = {
       rate,

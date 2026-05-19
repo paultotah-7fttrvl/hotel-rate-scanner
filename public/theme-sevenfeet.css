@@ -361,11 +361,23 @@ button,
   font-weight: 600;
 }
 
+.rate-td {
+  min-height: 118px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 2px;
+  box-sizing: border-box;
+}
+
 .rate-book {
   font-size: 11px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   border-radius: 40px;
+  margin-top: auto;
+  align-self: center;
 }
 
 .rate-book.gold {
