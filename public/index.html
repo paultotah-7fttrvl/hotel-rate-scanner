@@ -1387,7 +1387,7 @@ function HotelSearch({ selectedHotels, onAdd, onRemove, allHotels, recentSearche
       setSearching(true);
       const words = query.toLowerCase().split(/\s+/).filter(w => w.length > 2);
       const filterByName = results => words.length
-        ? results.filter(h => words.some(w => (h.name || '').toLowerCase().includes(w)))
+        ? results.filter(h => words.some(w => (h.name || '').toLowerCase().includes(w) || (h.city || '').toLowerCase().includes(w)))
         : results;
       searchHotelsRemote(query, selectedHotels)
         .then(r => { setResults(filterByName(r)); setSearching(false); })
