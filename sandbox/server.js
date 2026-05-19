@@ -143,8 +143,36 @@ const RATE_AGREE_MIN = 0.70;
 const RATE_AGREE_MAX = 1.40;
 const RATE_MAX_SPREAD = 2.6;
 const RATE_DISCLAIMER = "Excl. taxes & resort/hotel fees";
-/** Brand nightly must be within this fraction of Google headline to be shown. */
+/** Non-official brand row must be within this fraction of headline to be shown. */
 const BRAND_HEADLINE_MAX_DIFF = 0.22;
+/** Reject official brand rate only when it is this much above headline (bad member/package noise). */
+const BRAND_OFFICIAL_MAX_ABOVE_HEADLINE = 0.45;
+
+const BRAND_HOST_LABELS = {
+  "properhotel.com": "Proper",
+  "marriott.com": "Marriott",
+  "ritzcarlton.com": "Ritz-Carlton",
+  "hilton.com": "Hilton",
+  "waldorfastoria.com": "Waldorf Astoria",
+  "conradhotels.com": "Conrad",
+  "hyatt.com": "Hyatt",
+  "ihg.com": "IHG",
+  "intercontinental.com": "InterContinental",
+  "kimptonhotels.com": "Kimpton",
+  "holidayinn.com": "Holiday Inn",
+  "crowneplaza.com": "Crowne Plaza",
+  "fourseasons.com": "Four Seasons",
+  "fairmont.com": "Fairmont",
+};
+
+function brandLabelFromHost(host) {
+  return BRAND_HOST_LABELS[host] || host.replace(".com", "").replace(/^\w/, c => c.toUpperCase());
+}
+
+function sanitizeRateSourceLabel(label) {
+  if (!label || /google/i.test(label)) return null;
+  return label;
+}
 
 /** Google Hotels nightly — prefer modest "lowest" when it reflects bundled taxes/fees. */
 function publicDisplayRate(rateObj) {
@@ -174,8 +202,31 @@ function collectRateCandidates(dataObj) {
   return rates;
 }
 
+/** Prefer a prices[] row whose decoded link is on the hotel's own domain. */
+function pickBrandHostnameDirectRate(dataObj) {
+  const prices = dataObj.prices || [];
+  for (const host of BRAND_HOST_PRIORITY) {
+    for (const p of prices) {
+      const link = decodeGoogleLink(p.link || p.url);
+      if (!link || !linkIncludesHost(link, host)) continue;
+      const rate = publicDisplayRate(p.rate_per_night);
+      if (rate) {
+        return {
+          rate,
+          source: brandLabelFromHost(host),
+          official: !!p.official,
+        };
+      }
+    }
+  }
+  return null;
+}
+
 /** Brand / official row from prices[] (display rate, not raw before_taxes only). */
 function pickOfficialBrandRate(dataObj) {
+  const hostnamePick = pickBrandHostnameDirectRate(dataObj);
+  if (hostnamePick) return hostnamePick;
+
   const prices = dataObj.prices || [];
   const official = prices.find(p => p.official === true);
   if (official) {
@@ -298,17 +349,31 @@ function extractValidatedRate(dataObj, nights) {
     return { ok: false, reason: "no_rates", rate: null, total: null };
   }
 
-  // Prefer brand only when it aligns with Google headline (avoids $1940 official vs $1085 headline)
-  if (brandPick?.rate && headline) {
+  // Official brand rate is trusted unless it is far above headline (e.g. premium member noise).
+  if (brandPick?.rate && headline && brandPick.official) {
+    if (brandPick.rate <= headline * (1 + BRAND_OFFICIAL_MAX_ABOVE_HEADLINE)) {
+      return {
+        ok: true,
+        rate: brandPick.rate,
+        total: brandPick.rate * nights,
+        confidence: "high",
+        method: "brand_official",
+        rate_source_label: sanitizeRateSourceLabel(brandPick.source),
+        headline,
+        agreeing: 1,
+        spread: 1,
+      };
+    }
+  } else if (brandPick?.rate && headline) {
     const diff = Math.abs(brandPick.rate - headline) / headline;
     if (diff <= BRAND_HEADLINE_MAX_DIFF) {
       return {
         ok: true,
         rate: brandPick.rate,
         total: brandPick.rate * nights,
-        confidence: brandPick.official ? "high" : "medium",
-        method: brandPick.official ? "brand_official" : "brand_direct",
-        rate_source_label: brandPick.source,
+        confidence: "medium",
+        method: "brand_direct",
+        rate_source_label: sanitizeRateSourceLabel(brandPick.source),
         headline,
         agreeing: 1,
         spread: 1,
@@ -322,8 +387,8 @@ function extractValidatedRate(dataObj, nights) {
       rate: headline,
       total: headline * nights,
       confidence: "medium",
-      method: "google_headline",
-      rate_source_label: "Google Hotels",
+      method: "headline",
+      rate_source_label: null,
       headline,
       agreeing: 1,
       spread: 1,
@@ -358,7 +423,7 @@ function extractValidatedRate(dataObj, nights) {
   ) {
     rate = Math.round(brandRate);
     method = "brand_direct";
-    rateSourceLabel = brandPick?.source || null;
+    rateSourceLabel = sanitizeRateSourceLabel(brandPick?.source);
   } else if (headline && (agreeing.length >= 1 || sorted.length === 1)) {
     rate = Math.round(headline);
     method = "headline";
@@ -393,7 +458,7 @@ function extractValidatedRate(dataObj, nights) {
     total: rate * nights,
     confidence,
     method,
-    rate_source_label: rateSourceLabel,
+    rate_source_label: sanitizeRateSourceLabel(rateSourceLabel),
     headline,
     agreeing: agreeing.length,
     spread: Math.round(spread * 100) / 100,

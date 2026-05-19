@@ -1072,7 +1072,8 @@ async function fetchRate(hotel, checkIn, checkOut, bust = false) {
       matchedProperty: data.property_name || data.matched_property || null,
       rateConfidence: data.rate_confidence || null,
       rateDisclaimer: data.rate_disclaimer || 'Excl. taxes & resort/hotel fees',
-      rateSourceLabel: data.rate_source_label || null,
+      rateSourceLabel: (data.rate_source_label && !/google/i.test(data.rate_source_label))
+        ? data.rate_source_label : null,
       isDemo,
       ihgBrand: data.ihg_brand || null,
       ihgRegion: data.ihg_region || null,
@@ -2248,7 +2249,7 @@ function App() {
             </div>
             <div className="modal-card">
               <div className="modal-card-tag">Sandbox environment</div>
-              <div className="modal-card-text">This build tests open-ended hotel discovery via SerpAPI. Search any hotel anywhere in the world — rates and results are live from Google Hotels data.</div>
+              <div className="modal-card-text">This build tests open-ended hotel discovery via SerpAPI. Search any hotel anywhere in the world — rates and results are from live hotel search data.</div>
             </div>
           </div>
 

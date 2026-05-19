@@ -1084,7 +1084,8 @@ async function fetchRate(hotel, checkIn, checkOut, bust = false) {
       matchedProperty: data.property_name || data.matched_property || null,
       rateConfidence: data.rate_confidence || null,
       rateDisclaimer: data.rate_disclaimer || 'Excl. taxes & resort/hotel fees',
-      rateSourceLabel: data.rate_source_label || null,
+      rateSourceLabel: (data.rate_source_label && !/google/i.test(data.rate_source_label))
+        ? data.rate_source_label : null,
       isDemo,
       ihgBrand: data.ihg_brand || null,
       ihgRegion: data.ihg_region || null,
@@ -2308,7 +2309,7 @@ function App() {
             </div>
             <div className="modal-card">
               <div className="modal-card-tag">Live discovery</div>
-              <div className="modal-card-text">Search any hotel worldwide — rates and results are live from Google Hotels data, with demo fallback when daily limits apply.</div>
+              <div className="modal-card-text">Search any hotel worldwide — rates and results are from live hotel search data, with demo fallback when daily limits apply.</div>
             </div>
           </div>
 
@@ -2335,7 +2336,7 @@ function App() {
       {modal === 'important' && (
         <Modal title="Important to understand" onClose={() => setModal(null)}>
           <p>
-            Each cell shows a nightly rate from Google Hotels (SerpAPI), preferring the official brand price when available. Rates exclude taxes and resort/hotel fees unless your booking site bundles them differently. Brand.com totals may not match exactly — Google and the hotel site can price different room types or packages.
+            Each cell shows a nightly rate from live search data, preferring the official brand price when available. Rates exclude taxes and resort/hotel fees unless your booking site bundles them differently. Brand.com totals may not match exactly — aggregators and the hotel site can price different room types or packages.
           </p>
           <p>
             For independent hotels, "Book →" uses a direct Booking.com property link when SerpAPI provides one. If that exact property link is not available, it falls back to a Booking.com search using the selected hotel and dates, so you may need to choose the property again before booking.
