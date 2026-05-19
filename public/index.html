@@ -1032,19 +1032,25 @@ async function fetchRate(hotel, checkIn, checkOut, bust = false) {
       checkin: checkIn,
       checkout: checkOut,
     });
+    if (hotel.property_token) params.set('propertyToken', hotel.property_token);
     if (bust) params.set('bust', '1');
     const res = await fetch(`/api/rates?${params}`);
     const data = await res.json();
+    const isDemo = data.source === 'demo_fallback' || data.source === 'demo_daily_limit';
     return {
       rate: data.rate,
-      available: data.rate != null && data.rate > 0,
+      available: data.rate != null && data.rate > 0 && !data.error,
       total: data.total,
       source: data.source,
+      error: data.error || null,
       quotaLimited: data.quotaLimited || false,
       message: data.message || null,
       nights: data.nights,
       currency: data.currency,
       bookingUrl: data.booking_url || null,
+      matchedProperty: data.property_name || data.matched_property || null,
+      rateConfidence: data.rate_confidence || null,
+      isDemo,
       ihgBrand: data.ihg_brand || null,
       ihgRegion: data.ihg_region || null,
       ihgLocale: data.ihg_locale || null,
@@ -1128,18 +1134,22 @@ function isSupportedBrandUrl(url) {
   ].some(domain => (url || '').includes(domain));
 }
 
+// Open Proper Hotels on properhotel.com (AZDS). Sister portfolio uses other domains.
 const PROPER_PROPERTIES = {
-  austin: { slug: 'proper-austin', path: 'austin' },
-  'downtown la': { slug: 'proper-downtown-la', path: 'downtown-la' },
-  'los angeles': { slug: 'proper-downtown-la', path: 'downtown-la' },
-  'san francisco': { slug: 'proper-sf', path: 'san-francisco' },
+  shelborne: { slug: 'proper-shelborne', path: 'shelborne' },
   'santa monica': { slug: 'proper-santa-monica', path: 'santa-monica' },
+  'san francisco': { slug: 'proper-sf', path: 'san-francisco' },
+  'downtown la': { slug: 'proper-downtown-la', path: 'downtown-la' },
+  'downtown l.a': { slug: 'proper-downtown-la', path: 'downtown-la' },
+  dtla: { slug: 'proper-downtown-la', path: 'downtown-la' },
+  'los angeles': { slug: 'proper-downtown-la', path: 'downtown-la' },
+  austin: { slug: 'proper-austin', path: 'austin' },
 };
 
 function isProperHotel(hotel) {
   const name = (hotel?.name || '').toLowerCase();
   const url = (hotel?.url || '').toLowerCase();
-  return name.includes('proper') || url.includes('properhotel.com');
+  return name.includes('proper') || name.includes('shelborne') || url.includes('properhotel.com');
 }
 
 function isProperUrl(url) {
@@ -1917,7 +1927,17 @@ function ResultsTable({ results, loadingCells, hotels, validDates, sortBy, onSor
                   if (!r.available) return (
                     <td key={di}>
                       <div className="rate-td">
-                        <div className="rate-unavail">Unavailable</div>
+                        <div className="rate-unavail">
+                          {r.error === 'rate_unverified' ? 'Unverified' :
+                           r.error === 'hotel_mismatch' ? 'Hotel mismatch' :
+                           r.isDemo ? 'Demo rate' :
+                           'Unavailable'}
+                        </div>
+                        {(r.message || r.isDemo) && (
+                          <div style={{ fontSize: 10, color: '#9C9C9C', marginTop: 4, lineHeight: 1.3 }}>
+                            {r.message || (r.isDemo ? 'Not a live rate' : '')}
+                          </div>
+                        )}
                       </div>
                     </td>
                   );

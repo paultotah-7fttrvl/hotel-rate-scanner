@@ -63,7 +63,7 @@ const BRAND_HOST_PRIORITY = [
 
 // ─── CURRENCY BY CITY ─────────────────────────────────────────────────────────
 const CITY_CURRENCY = {
-  london: "GBP", paris: "EUR", barcelona: "EUR", rome: "EUR",
+  london: "GBP", dublin: "EUR", paris: "EUR", barcelona: "EUR", rome: "EUR",
   vienna: "EUR", prague: "EUR", lisbon: "EUR", amsterdam: "EUR",
   budapest: "EUR", tokyo: "JPY", "hong kong": "HKD", bangkok: "THB",
   singapore: "SGD", sydney: "AUD",
@@ -80,43 +80,180 @@ function median(nums) {
   return s.length % 2 ? s[m] : Math.round((s[m - 1] + s[m]) / 2);
 }
 
-function extractBestRate(dataObj, nights) {
-  const r = obj => obj?.extracted_before_taxes_fees ?? obj?.extracted_lowest ?? null;
-  const allPrices = dataObj.prices || [];
+// ─── RATE VALIDATION (SerpAPI) ────────────────────────────────────────────────
+const HOTEL_MATCH_MIN_SCORE = 0.52;
+const RATE_AGREE_MIN = 0.70;
+const RATE_AGREE_MAX = 1.40;
+const RATE_MAX_SPREAD = 2.6;
 
-  // Strategy 1: brand-direct rate from prices[]
+function nightRateValue(rateObj) {
+  if (!rateObj) return null;
+  const v = rateObj.extracted_before_taxes_fees ?? rateObj.extracted_lowest ?? null;
+  return v != null && v > 0 ? v : null;
+}
+
+function collectRateCandidates(dataObj) {
+  const rates = [];
+  const add = (v) => { if (v != null && v > 0) rates.push(v); };
+  add(nightRateValue(dataObj.rate_per_night));
+  for (const p of dataObj.prices || []) add(nightRateValue(p.rate_per_night));
+  for (const fp of dataObj.featured_prices || []) {
+    add(nightRateValue(fp.rate_per_night));
+    add(nightRateValue(fp.rooms?.[0]?.rate_per_night));
+  }
+  return rates;
+}
+
+function pickBrandDirectRate(dataObj) {
   for (const [, frags] of Object.entries(BRAND_SOURCES)) {
-    const brand = allPrices.find(p => p.source && frags.some(f => p.source.toLowerCase().includes(f)));
+    const brand = (dataObj.prices || []).find(
+      p => p.source && frags.some(f => p.source.toLowerCase().includes(f))
+    );
     if (brand) {
-      const rate = r(brand.rate_per_night);
-      if (rate) return { rate, total: rate * nights };
+      const rate = nightRateValue(brand.rate_per_night);
+      if (rate) return rate;
+    }
+  }
+  return null;
+}
+
+function normalizeHotelNameForMatch(name) {
+  return (name || "")
+    .toLowerCase()
+    .replace(/['.]/g, "")
+    .replace(/\b(by proper|autograph collection|a luxury collection hotel|curio collection|tapestry collection)\b/gi, " ")
+    .replace(/\b(the|hotel|resort|suites?|collection|marriott|hilton|hyatt)\b/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function levenshtein(a, b) {
+  const m = a.length;
+  const n = b.length;
+  const dp = Array.from({ length: n + 1 }, (_, j) => j);
+  for (let i = 1; i <= m; i++) {
+    let prev = dp[0];
+    dp[0] = i;
+    for (let j = 1; j <= n; j++) {
+      const tmp = dp[j];
+      dp[j] = a[i - 1] === b[j - 1] ? prev : 1 + Math.min(prev, dp[j], dp[j - 1]);
+      prev = tmp;
+    }
+  }
+  return dp[n];
+}
+
+function hotelNameMatchScore(requested, candidate) {
+  const a = normalizeHotelNameForMatch(requested);
+  const b = normalizeHotelNameForMatch(candidate);
+  if (!a || !b) return 0;
+  if (a === b) return 1;
+  if (b.includes(a) || a.includes(b)) return 0.88;
+  const ta = a.split(" ").filter(t => t.length > 2);
+  const tb = b.split(" ").filter(t => t.length > 2);
+  if (!ta.length || !tb.length) return 0;
+  const setB = new Set(tb);
+  const setA = new Set(ta);
+  const inter = ta.filter(t => setB.has(t));
+  const union = new Set([...ta, ...tb]);
+  let score = inter.length / union.size;
+  const onlyA = ta.filter(t => !setB.has(t));
+  const onlyB = tb.filter(t => !setA.has(t));
+  for (const x of onlyA) {
+    for (const y of onlyB) {
+      if (x.length > 4 && y.length > 4 && levenshtein(x, y) === 1) score *= 0.42;
+    }
+  }
+  return score;
+}
+
+function findBestPropertyMatch(properties, requestedName) {
+  let best = null;
+  let bestScore = 0;
+  for (const p of properties) {
+    const score = hotelNameMatchScore(requestedName, p.name || "");
+    if (score > bestScore) {
+      bestScore = score;
+      best = p;
+    }
+  }
+  if (!best || bestScore < HOTEL_MATCH_MIN_SCORE) return { match: null, score: bestScore };
+  return { match: best, score: bestScore };
+}
+
+function extractValidatedRate(dataObj, nights) {
+  const headline = nightRateValue(dataObj.rate_per_night);
+  const brandRate = pickBrandDirectRate(dataObj);
+  const candidates = collectRateCandidates(dataObj);
+
+  if (!candidates.length) {
+    return { ok: false, reason: "no_rates", rate: null, total: null };
+  }
+
+  const sorted = [...new Set(candidates.map(r => Math.round(r)))].sort((a, b) => a - b);
+  const spread = sorted.length > 1 ? sorted[sorted.length - 1] / sorted[0] : 1;
+  const anchor = headline || sorted[Math.floor(sorted.length * 0.75)];
+  const agreeing = sorted.filter(r => r >= anchor * RATE_AGREE_MIN && r <= anchor * RATE_AGREE_MAX);
+
+  if (spread > RATE_MAX_SPREAD && agreeing.length < 2) {
+    return {
+      ok: false,
+      reason: "rate_disagreement",
+      rate: null,
+      total: null,
+      headline,
+      candidates: sorted,
+      spread: Math.round(spread * 100) / 100,
+    };
+  }
+
+  let rate;
+  let method;
+  if (
+    brandRate &&
+    brandRate >= anchor * RATE_AGREE_MIN &&
+    brandRate <= anchor * RATE_AGREE_MAX
+  ) {
+    rate = Math.round(brandRate);
+    method = "brand_direct";
+  } else if (headline && (agreeing.length >= 1 || sorted.length === 1)) {
+    rate = Math.round(headline);
+    method = "headline";
+  } else if (agreeing.length >= 2) {
+    rate = median(agreeing);
+    method = "consensus";
+  } else {
+    const p75 = sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * 0.75))];
+    rate = Math.round(p75);
+    method = "p75";
+    if (headline && rate < headline * RATE_AGREE_MIN) {
+      return {
+        ok: false,
+        reason: "rate_disagreement",
+        rate: null,
+        total: null,
+        headline,
+        candidates: sorted,
+        spread,
+      };
     }
   }
 
-  // Strategy 2: median of all prices[]
-  if (allPrices.length) {
-    const rates = allPrices.map(p => r(p.rate_per_night)).filter(v => v != null && v > 0);
-    if (rates.length) {
-      const rate = median(rates);
-      return { rate, total: rate * nights };
-    }
-  }
+  const confidence =
+    agreeing.length >= 3 ? "high" :
+    agreeing.length >= 2 || method === "headline" || method === "brand_direct" ? "medium" :
+    "low";
 
-  // Strategy 3: median of featured_prices
-  const featured = dataObj.featured_prices || [];
-  if (featured.length) {
-    const rates = featured
-      .map(p => r(p.rate_per_night || p.rooms?.[0]?.rate_per_night))
-      .filter(v => v != null && v > 0);
-    if (rates.length) {
-      const rate = median(rates);
-      return { rate, total: rate * nights };
-    }
-  }
-
-  // Strategy 4: top-level fallback
-  const rate = r(dataObj.rate_per_night);
-  return { rate, total: rate ? rate * nights : null };
+  return {
+    ok: true,
+    rate,
+    total: rate * nights,
+    confidence,
+    method,
+    headline,
+    agreeing: agreeing.length,
+    spread: Math.round(spread * 100) / 100,
+  };
 }
 
 // SerpAPI wraps booking links in two Google URL formats:
@@ -273,16 +410,24 @@ function extractBookingUrl(dataObj) {
 // ─── PROPER HOTELS (AZDS booking URLs) ───────────────────────────────────────
 const ProperAzds = require(path.join(__dirname, "public", "proper-azds.js"));
 
+// Open Proper Hotels on properhotel.com (AZDS booking). Sister portfolio properties
+// (Hotel June, Avalon, Ingleside, Montauk Yacht Club, Culver Hotel, etc.) book on
+// their own domains — SerpAPI OTA/brand links are used for those.
 const PROPER_HOTEL_MAP = [
-  { match: "austin", slug: "proper-austin", path: "austin" },
-  { match: "downtown la", slug: "proper-downtown-la", path: "downtown-la" },
-  { match: "los angeles", slug: "proper-downtown-la", path: "downtown-la" },
-  { match: "san francisco", slug: "proper-sf", path: "san-francisco" },
+  { match: "shelborne", slug: "proper-shelborne", path: "shelborne" },
   { match: "santa monica", slug: "proper-santa-monica", path: "santa-monica" },
+  { match: "san francisco", slug: "proper-sf", path: "san-francisco" },
+  { match: "downtown la", slug: "proper-downtown-la", path: "downtown-la" },
+  { match: "downtown l.a", slug: "proper-downtown-la", path: "downtown-la" },
+  { match: "dtla", slug: "proper-downtown-la", path: "downtown-la" },
+  { match: "los angeles", slug: "proper-downtown-la", path: "downtown-la" },
+  { match: "austin", slug: "proper-austin", path: "austin" },
+  // Coming soon on properhotel.com (booking not live yet): dallas, lake-tahoe, palm-springs
 ];
 
 function isProperHotelName(name) {
-  return (name || "").toLowerCase().includes("proper");
+  const n = (name || "").toLowerCase();
+  return n.includes("proper") || n.includes("shelborne");
 }
 
 function resolveProperPropertyServer(hotelName, city) {
@@ -403,6 +548,22 @@ function demoFallbackResult(hotel, checkin, checkout, nights, currency, reason) 
     message: reason === "daily_limit"
       ? "Daily live-rate limit reached. Showing demo rates to protect API usage."
       : undefined,
+  };
+}
+
+function liveUnavailableResult(hotel, checkin, checkout, nights, currency, error, message, extra = {}) {
+  return {
+    rate: null,
+    source: "live",
+    property_name: hotel,
+    check_in: checkin,
+    check_out: checkout,
+    total: null,
+    nights,
+    currency,
+    error,
+    message,
+    ...extra,
   };
 }
 
@@ -547,8 +708,8 @@ app.get("/api/rates", async (req, res) => {
     const response = await fetch(tokenUrl || nameUrl);
     let data = await response.json();
 
-    // If token call returned no rate data, fall back to name+city search
-    if (tokenUrl && !data.error && !data.rate_per_night && !(data.properties || []).length) {
+    // If token call returned no rate data, fall back to name+city search (strict match only)
+    if (tokenUrl && !data.error && data.type !== "hotel" && !(data.properties || []).length) {
       if (!canUseLiveCall()) {
         const result = demoFallbackResult(hotel, checkin, checkout, nights, currency, "daily_limit");
         cacheSet(rateCache, cacheKey, result);
@@ -562,43 +723,89 @@ app.get("/api/rates", async (req, res) => {
 
     if (data.error) {
       console.error("[SerpAPI Rate Error]", data.error);
-      const result = demoFallbackResult(hotel, checkin, checkout, nights, currency);
+      const result = liveUnavailableResult(
+        hotel, checkin, checkout, nights, currency, "api_error", String(data.error)
+      );
+      cacheSet(rateCache, cacheKey, result);
       return res.json(result);
     }
 
-    let rate = null, total = null, matchName = hotel, bookingUrl = null, ihgInfo = null;
+    let matchName = hotel;
+    let matchScore = propertyToken ? 1 : null;
     let rateSource = data;
+    let bookingUrl = null;
+    let ihgInfo = null;
 
-    if (data.type === "hotel" && data.rate_per_night) {
-      ({ rate, total } = extractBestRate(data, nights));
-      bookingUrl = extractBookingUrl(data);
-      ihgInfo = extractIhgInfo(data);
+    if (data.type === "hotel") {
       matchName = data.name || hotel;
-      console.log(`[SerpAPI Rate] Direct match: "${matchName}" $${rate}/night`);
+      matchScore = propertyToken ? 1 : hotelNameMatchScore(hotel, matchName);
+      rateSource = data;
     } else {
       const properties = data.properties || [];
       if (properties.length === 0) {
-        const result = { rate: null, source: "live", property_name: hotel, check_in: checkin, check_out: checkout, total: null, nights, currency, error: "no_results" };
+        const result = liveUnavailableResult(
+          hotel, checkin, checkout, nights, currency, "no_results",
+          "No hotels returned for this search."
+        );
         cacheSet(rateCache, cacheKey, result);
         return res.json(result);
       }
 
-      const hotelLower = hotel.toLowerCase();
-      const match = properties.find(p =>
-        p.name && (
-          p.name.toLowerCase() === hotelLower ||
-          p.name.toLowerCase().includes(hotelLower.split(" ").slice(-1)[0]) ||
-          hotelLower.includes(p.name.toLowerCase().split(" ").slice(-1)[0])
-        )
-      ) || properties[0];
+      const { match, score } = findBestPropertyMatch(properties, hotel);
+      if (!match) {
+        console.log(`[SerpAPI Rate] No confident hotel match (best score ${score.toFixed(2)})`);
+        const result = liveUnavailableResult(
+          hotel, checkin, checkout, nights, currency, "hotel_mismatch",
+          "Could not match this hotel in Google Hotels results.",
+          { match_score: score }
+        );
+        cacheSet(rateCache, cacheKey, result);
+        return res.json(result);
+      }
 
-      ({ rate, total } = extractBestRate(match, nights));
-      bookingUrl = extractBookingUrl(match);
-      ihgInfo = extractIhgInfo(match);
-      matchName = match.name || hotel;
       rateSource = match;
-      console.log(`[SerpAPI Rate] Best match: "${matchName}" $${rate}/night`);
+      matchName = match.name || hotel;
+      matchScore = score;
     }
+
+    if (!propertyToken && matchScore != null && matchScore < HOTEL_MATCH_MIN_SCORE) {
+      const result = liveUnavailableResult(
+        hotel, checkin, checkout, nights, currency, "hotel_mismatch",
+        `Matched "${matchName}" but name similarity is too low.`,
+        { matched_property: matchName, match_score: matchScore }
+      );
+      cacheSet(rateCache, cacheKey, result);
+      return res.json(result);
+    }
+
+    const validated = extractValidatedRate(rateSource, nights);
+    if (!validated.ok) {
+      console.log(
+        `[SerpAPI Rate] REJECTED ${validated.reason} for "${matchName}"` +
+        (validated.candidates ? ` candidates=[${validated.candidates.join(", ")}]` : "")
+      );
+      const result = liveUnavailableResult(
+        hotel, checkin, checkout, nights, currency, "rate_unverified",
+        "Rates from sources disagree — not shown to avoid misleading prices.",
+        {
+          rate_warning: validated.reason,
+          matched_property: matchName,
+          match_score: matchScore,
+          rate_candidates: validated.candidates || null,
+        }
+      );
+      cacheSet(rateCache, cacheKey, result);
+      return res.json(result);
+    }
+
+    const { rate, total } = validated;
+    bookingUrl = extractBookingUrl(rateSource);
+    ihgInfo = extractIhgInfo(rateSource);
+
+    console.log(
+      `[SerpAPI Rate] "${matchName}" $${rate}/night (${validated.confidence}, ${validated.method})` +
+      (matchScore != null && matchScore < 1 ? ` match=${matchScore.toFixed(2)}` : "")
+    );
 
     if (ihgInfo) console.log(`[SerpAPI Rate] IHG info: brand=${ihgInfo.brand} propCode=${ihgInfo.propCode}`);
     if (isProperHotelName(hotel) || isProperHotelName(matchName)) {
@@ -619,6 +826,9 @@ app.get("/api/rates", async (req, res) => {
       nights,
       currency,
       booking_url: bookingUrl,
+      rate_confidence: validated.confidence,
+      rate_method: validated.method,
+      match_score: matchScore,
       ...(ihgInfo && {
         ihg_brand: ihgInfo.brand,
         ihg_region: ihgInfo.region,
@@ -631,7 +841,9 @@ app.get("/api/rates", async (req, res) => {
     return res.json(result);
   } catch (err) {
     console.error("[Rate Error]", err.message);
-    return res.json(demoFallbackResult(hotel, checkin, checkout, nights, currency));
+    return res.json(liveUnavailableResult(
+      hotel, checkin, checkout, nights, currency, "api_error", err.message
+    ));
   }
 });
 
