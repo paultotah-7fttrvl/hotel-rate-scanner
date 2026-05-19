@@ -691,7 +691,21 @@ function isPortfolioChainHotel(hotelName, matchName) {
   return false;
 }
 
-function hasBrandBookableRate(dataObj) {
+function hasBrandBookableRate(dataObj, hotelName = "", matchName = "") {
+  if (
+    isProperHotelName(hotelName) ||
+    isProperHotelName(matchName) ||
+    isProperHotelName(dataObj?.name || "")
+  ) {
+    const official = (dataObj?.prices || []).find(p => p.official);
+    if (official) {
+      const rate =
+        brandDisplayRate(official.rate_per_night) || publicDisplayRate(official.rate_per_night);
+      if (rate) return true;
+    }
+    if (publicDisplayRate(dataObj?.rate_per_night)) return true;
+  }
+
   const prices = dataObj?.prices || [];
   for (const host of BRAND_HOST_PRIORITY) {
     for (const p of prices) {
@@ -1222,7 +1236,11 @@ app.get("/api/rates", async (req, res) => {
       }
     }
 
-    if (isPortfolioChainHotel(hotel, matchName) && !acProp && !hasBrandBookableRate(rateSource)) {
+    if (
+      isPortfolioChainHotel(hotel, matchName) &&
+      !acProp &&
+      !hasBrandBookableRate(rateSource, hotel, matchName)
+    ) {
       const { bookingUrl: brandBookUrl, ihgInfo: brandIhg } = resolveSandboxBookingUrl(
         rateSource,
         checkin,

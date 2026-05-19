@@ -257,7 +257,55 @@ function decodePriceRows(dataObj) {
  * row used to generate the Book link, so the user sees a rate aligned with the
  * destination they are sent to (Hyatt row → Hyatt rate, Expedia row → Expedia rate).
  */
+/** Proper: SerpAPI official row often uses google.com/travel links, not properhotel.com hostname. */
+function isProperSerpProperty(dataObj, hotelName = "", matchName = "") {
+  return (
+    isProperHotelName(hotelName) ||
+    isProperHotelName(matchName) ||
+    isProperHotelName(dataObj?.name || "")
+  );
+}
+
+function pickProperOfficialOffer(dataObj) {
+  const prices = dataObj?.prices || [];
+  if (!prices.length) return null;
+
+  const rowFromPrice = (p) => {
+    const rate = brandDisplayRate(p.rate_per_night) || publicDisplayRate(p.rate_per_night);
+    if (!rate) return null;
+    const link =
+      decodeGoogleLink(p.link || p.url, p.source || "") ||
+      extractProperBookingUrlFromPrices({ prices: [p] });
+    return {
+      rate,
+      link: link || "https://www.properhotel.com/",
+      host: "properhotel.com",
+      sourceLabel: "Proper",
+      official: !!p.official,
+      source: p.source,
+    };
+  };
+
+  const official = prices.find(p => p.official);
+  if (official) {
+    const offer = rowFromPrice(official);
+    if (offer) return offer;
+  }
+
+  for (const p of prices) {
+    const src = (p.source || "").toLowerCase();
+    if (!src.includes("proper") && !src.includes("shelborne")) continue;
+    const offer = rowFromPrice(p);
+    if (offer) return offer;
+  }
+
+  return null;
+}
+
 function pickBookingOffer(dataObj) {
+  const properOffer = pickProperOfficialOffer(dataObj);
+  if (properOffer) return properOffer;
+
   const rows = decodePriceRows(dataObj);
   if (!rows.length) return null;
 
@@ -928,7 +976,12 @@ function isPortfolioChainHotel(hotelName, matchName) {
   return false;
 }
 
-function hasBrandBookableRate(dataObj) {
+function hasBrandBookableRate(dataObj, hotelName = "", matchName = "") {
+  if (isProperSerpProperty(dataObj, hotelName, matchName)) {
+    if (pickProperOfficialOffer(dataObj)) return true;
+    if (publicDisplayRate(dataObj?.rate_per_night)) return true;
+  }
+
   const rows = decodePriceRows(dataObj);
   if (!rows.length) return false;
   for (const host of BRAND_HOST_PRIORITY) {
@@ -1514,7 +1567,11 @@ app.get("/api/rates", async (req, res) => {
       currency,
     };
 
-    if (isPortfolioChainHotel(hotel, matchName) && !acProp && !hasBrandBookableRate(rateSource)) {
+    if (
+      isPortfolioChainHotel(hotel, matchName) &&
+      !acProp &&
+      !hasBrandBookableRate(rateSource, hotel, matchName)
+    ) {
       const { bookingUrl: brandBookUrl, ihgInfo: brandIhg } = resolveLiveBookingUrl(
         rateSource,
         bookingCtx,
