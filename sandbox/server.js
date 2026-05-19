@@ -22,6 +22,7 @@ const STATIC = {
   "/index.html":    { buf: fs.readFileSync(path.join(__dirname, "index.html")),    type: "text/html" },
   "/hotels.js":     { buf: fs.readFileSync(path.join(__dirname, "hotels.js")),     type: "application/javascript" },
   "/hero-travel.jpg": { buf: fs.readFileSync(path.join(__dirname, "hero-travel.jpg")), type: "image/jpeg" },
+  "/theme-sevenfeet.css": { buf: fs.readFileSync(path.join(__dirname, "theme-sevenfeet.css")), type: "text/css" },
 };
 app.use((req, res, next) => {
   const entry = STATIC[req.path];

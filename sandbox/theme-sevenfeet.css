@@ -1,0 +1,222 @@
+/**
+ * Seven Feet Travel — sandbox visual preview
+ * CSS only: fonts, colors, spacing. No behavior changes.
+ * Remove the <link> in index.html to restore the default theme.
+ */
+
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,600;0,700;1,300;1,600&family=Inter:wght@300;400;500;600&display=swap');
+
+:root {
+  --font-serif: 'Cormorant Garamond', Georgia, serif;
+  --font-sans: 'Inter', system-ui, sans-serif;
+
+  --background: #f5f4f1;
+  --foreground: #111111;
+  --card: #ffffff;
+  --card-foreground: #111111;
+  --primary: #0d0d0d;
+  --primary-foreground: #ffffff;
+  --secondary: #ebeae6;
+  --secondary-foreground: #1e1e1e;
+  --muted: #ebeae6;
+  --muted-foreground: #555555;
+  --accent: #c8a84b;
+  --accent-foreground: #0d0d0d;
+  --destructive: hsl(0, 60%, 50%);
+  --destructive-foreground: #ffffff;
+  --border: #ddd9d0;
+  --input: #ddd9d0;
+  --ring: #c8a84b;
+  --radius: 0.5rem;
+  --shadow-card: 0 10px 30px -10px rgba(0, 0, 0, 0.06);
+
+  --border-strong: #c8c4ba;
+  --text-3: #888880;
+  --gold: #c8a84b;
+  --gold-light: #b5922e;
+  --gold-bg: rgba(200, 168, 75, 0.12);
+  --gold-border: rgba(200, 168, 75, 0.45);
+  --green: hsl(152, 44%, 30%);
+  --green-bg: hsl(152, 44%, 95%);
+}
+
+body {
+  font-weight: 300;
+}
+
+/* Nav — dark bar like sevenfeettravel.com */
+.nav {
+  background: rgba(13, 13, 13, 0.96);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border-bottom-color: #2a2a2a;
+}
+
+.nav-logo {
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  color: #ffffff;
+}
+
+.nav-link {
+  color: rgba(255, 255, 255, 0.66);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.nav-link:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #c8a84b;
+}
+
+.nav-badge {
+  background: rgba(255, 255, 255, 0.06) !important;
+  color: rgba(255, 255, 255, 0.72) !important;
+  border-color: rgba(255, 255, 255, 0.14) !important;
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+/* Hero — darker vignette, gold italic accent */
+.hero-section-wrap {
+  background:
+    linear-gradient(rgba(0, 0, 0, 0.72), rgba(0, 0, 0, 0.55)),
+    url('hero-travel.jpg') center/cover no-repeat;
+}
+
+.hero-eyebrow {
+  color: #c8a84b;
+  letter-spacing: 0.24em;
+}
+
+.hero-headline em {
+  color: #c8a84b;
+  font-style: italic;
+}
+
+.hero-headline {
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+/* Tool card on light “sec-light” background */
+.page {
+  background: var(--background);
+}
+
+.main-card {
+  border-radius: 14px;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.08);
+}
+
+/* Section labels — gold uppercase eyebrow */
+.section-label {
+  margin-bottom: 18px;
+}
+
+.section-num {
+  background: #c8a84b;
+  color: #0d0d0d;
+  font-weight: 600;
+}
+
+.section-title {
+  font-family: var(--font-sans);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: #8a7040;
+}
+
+.section-title::before {
+  content: '';
+  display: inline-block;
+  width: 20px;
+  height: 1px;
+  background: #8a7040;
+  margin-right: 8px;
+  vertical-align: middle;
+}
+
+/* Inputs */
+.search-box:focus-within,
+.date-row:focus-within {
+  border-color: #c8a84b;
+  box-shadow: 0 0 0 3px rgba(200, 168, 75, 0.18);
+}
+
+.drp-day.drp-start,
+.drp-day.drp-end {
+  background: #0d0d0d !important;
+}
+
+.sort-btn.on {
+  background: #0d0d0d;
+  border-color: #0d0d0d;
+}
+
+/* Primary CTA — gold pill button */
+.compare-btn {
+  background: #c8a84b;
+  color: #0d0d0d;
+  border-radius: 40px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.compare-btn:hover:not(:disabled) {
+  background: #b5922e;
+  opacity: 1;
+}
+
+.compare-btn:disabled {
+  background: var(--secondary);
+  color: var(--muted-foreground);
+}
+
+/* Results */
+.scard.best {
+  border-color: rgba(200, 168, 75, 0.5);
+}
+
+.scard.best .scard-label {
+  color: #8a7040;
+}
+
+.scard-value {
+  font-family: var(--font-serif);
+  font-weight: 600;
+}
+
+.best-badge {
+  color: #8a7040;
+  border-color: rgba(200, 168, 75, 0.45);
+  background: rgba(200, 168, 75, 0.08);
+}
+
+.rate-book.gold {
+  border-color: #c8a84b;
+  color: #8a7040;
+}
+
+.rate-book.gold:hover {
+  background: #c8a84b;
+  color: #0d0d0d;
+  border-color: #c8a84b;
+}
+
+.rate-book:hover {
+  background: #0d0d0d;
+  border-color: #0d0d0d;
+}
+
+/* Modals / footer accents */
+.modal-title {
+  font-family: var(--font-serif);
+  font-weight: 600;
+}
