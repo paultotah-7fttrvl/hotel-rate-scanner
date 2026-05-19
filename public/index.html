@@ -1072,7 +1072,7 @@ async function fetchRate(hotel, checkIn, checkOut, bust = false) {
     const isDemo = data.source === 'demo_fallback' || data.source === 'demo_daily_limit';
     return {
       rate: data.rate,
-      available: (data.rate != null && data.rate > 0 && !data.error) || (!!data.booking_url && data.agua_caliente),
+      available: (data.rate != null && data.rate > 0 && !data.error) || (!!data.booking_url && (data.agua_caliente || data.book_without_rate)),
       total: data.total,
       source: data.source,
       error: data.error || null,
@@ -1089,6 +1089,7 @@ async function fetchRate(hotel, checkIn, checkOut, bust = false) {
       rateSourceLabel: (data.rate_source_label && !/google/i.test(data.rate_source_label))
         ? data.rate_source_label : null,
       isDemo,
+      bookWithoutRate: data.book_without_rate || false,
       ihgBrand: data.ihg_brand || null,
       ihgRegion: data.ihg_region || null,
       ihgLocale: data.ihg_locale || null,
@@ -1893,31 +1894,42 @@ function DateRanges({ ranges, onChange }) {
 function SummaryCards({ flatResults, hotels, validDates, onCardClick }) {
   if (!flatResults || flatResults.length === 0) return null;
 
-  const available = flatResults.filter(r => r.available);
-  if (available.length === 0) return null;
+  const bookable = flatResults.filter(r => r.available);
+  if (bookable.length === 0) return null;
+  const priced = bookable.filter(r => r.rate > 0);
+  const byAdr = priced.length ? [...priced].sort((a, b) => a.rate - b.rate) : [];
+  const available = bookable;
 
-  const byAdr = [...available].sort((a, b) => a.rate - b.rate);
-
-  const best = byAdr[0];
-  const runnerUp = byAdr[1];
-  const bestHotel = hotels.find(h => h.id === best.hotelId);
-  const bestDate = validDates[best.dateIdx];
-  const bestCellKey = `${best.hotelId}|${best.dateIdx}`;
+  const best = byAdr[0] || null;
+  const runnerUp = byAdr[1] || null;
+  const bestHotel = best ? hotels.find(h => h.id === best.hotelId) : null;
+  const bestDate = best ? validDates[best.dateIdx] : null;
+  const bestCellKey = best ? `${best.hotelId}|${best.dateIdx}` : null;
   const runnerCellKey = runnerUp ? `${runnerUp.hotelId}|${runnerUp.dateIdx}` : bestCellKey;
 
   return (
     <div className="summary-cards">
-      <div className="scard best scard-clickable" onClick={() => onCardClick(bestCellKey)} title="Jump to this cell in the table">
+      <div className={`scard best ${best ? 'scard-clickable' : ''}`} onClick={best ? () => onCardClick(bestCellKey) : undefined} title={best ? 'Jump to this cell in the table' : undefined}>
         <div className="scard-label">⭐ Best Nightly Rate</div>
-        <div className="scard-value">{formatCurrency(best.rate, best.currency)}<span style={{ fontSize: 13, fontWeight: 400, color: '#5C5C5C' }}>/night</span></div>
+        <div className="scard-value">
+          {best
+            ? <>{formatCurrency(best.rate, best.currency)}<span style={{ fontSize: 13, fontWeight: 400, color: '#5C5C5C' }}>/night</span></>
+            : <span style={{ fontSize: 14, fontWeight: 400, color: '#5C5C5C' }}>No priced options — check hotel sites</span>}
+        </div>
         <div className="scard-meta">
-          {best.rateDisclaimer || 'Rates may or may not include resort or hotel fees. Taxes are not included.'}<br />
-          Option {OPTION_LABELS[best.dateIdx]} · {formatDate(bestDate.checkIn)}–{formatDate(bestDate.checkOut)}
+          {best
+            ? <>{best.rateDisclaimer || 'Rates may or may not include resort or hotel fees. Taxes are not included.'}<br />
+              Option {OPTION_LABELS[best.dateIdx]} · {formatDate(bestDate.checkIn)}–{formatDate(bestDate.checkOut)}</>
+            : 'Some options may be sold out or require a longer stay.'}
         </div>
-        <div className="scard-meta" style={{ fontWeight: 600, color: '#1A1A1A', marginTop: 4 }}>
-          {bestHotel?.name}
-        </div>
-        <div className="scard-action">View in table ↓</div>
+        {best && (
+          <>
+            <div className="scard-meta" style={{ fontWeight: 600, color: '#1A1A1A', marginTop: 4 }}>
+              {bestHotel?.name}
+            </div>
+            <div className="scard-action">View in table ↓</div>
+          </>
+        )}
       </div>
       <div className="scard scard-clickable" onClick={() => onCardClick(runnerCellKey)} title="Jump to this cell in the table">
         <div className="scard-label">{runnerUp ? 'Next Best Nightly' : 'Also Compared'}</div>
@@ -1957,8 +1969,8 @@ function ResultsTable({ results, loadingCells, hotels, validDates, sortBy, onSor
       return vals.length ? Math.min(...vals) : Infinity;
     };
     // Simpler sort: by minimum rate per night
-    const minA = validDates.map((_, di) => results[a.id]?.[di]).filter(r => r?.available).map(r => r.rate);
-    const minB = validDates.map((_, di) => results[b.id]?.[di]).filter(r => r?.available).map(r => r.rate);
+    const minA = validDates.map((_, di) => results[a.id]?.[di]).filter(r => r?.available && r.rate > 0).map(r => r.rate);
+    const minB = validDates.map((_, di) => results[b.id]?.[di]).filter(r => r?.available && r.rate > 0).map(r => r.rate);
     const mA = minA.length ? Math.min(...minA) : Infinity;
     const mB = minB.length ? Math.min(...minB) : Infinity;
     return mA - mB;
@@ -2021,19 +2033,47 @@ function ResultsTable({ results, loadingCells, hotels, validDates, sortBy, onSor
 
                   if (!r) return <td key={di}><div className="rate-td"><span className="rate-unavail">—</span></div></td>;
 
+                  if (r.available && (!r.rate || r.rate <= 0)) {
+                    const needsKimptonBookOnly = (
+                      isKimptonHotel(hotel) && !r.ihgPropCode && !isSupportedBrandUrl(hotel.url)
+                    );
+                    return (
+                      <td key={di}>
+                        <div className="rate-td">
+                          <div style={{ fontSize: 11, color: '#5C5C5C', lineHeight: 1.4, maxWidth: 168 }}>
+                            {r.message || 'This hotel is either sold out or has a length-of-stay restriction. Try changing your dates.'}
+                          </div>
+                          <div className="rate-td-actions" style={{ marginTop: 8 }}>
+                            {needsKimptonBookOnly
+                              ? <KimptonBookButton hotel={hotel} checkIn={d.checkIn} checkOut={d.checkOut} isBest={isBest} />
+                              : <a href={bookUrl} target="_blank" rel="noopener noreferrer" className={`rate-book ${isBest ? 'gold' : ''}`}>Book →</a>
+                            }
+                          </div>
+                        </div>
+                      </td>
+                    );
+                  }
+
                   if (!r.available) return (
                     <td key={di}>
                       <div className="rate-td">
-                        <div className="rate-unavail">
-                          {r.error === 'rate_unverified' ? 'Unverified' :
-                           r.error === 'hotel_mismatch' ? 'Hotel mismatch' :
-                           r.isDemo ? 'Demo rate' :
-                           'Unavailable'}
-                        </div>
-                        {(r.message || r.isDemo) && (
-                          <div style={{ fontSize: 10, color: '#9C9C9C', marginTop: 4, lineHeight: 1.3 }}>
-                            {r.message || (r.isDemo ? 'Not a live rate' : '')}
+                        {r.error === 'rate_unverified' ? (
+                          <div style={{ fontSize: 11, color: '#5C5C5C', lineHeight: 1.4, maxWidth: 168 }}>
+                            {r.message || 'This hotel is either sold out or has a length-of-stay restriction. Try changing your dates.'}
                           </div>
+                        ) : (
+                          <>
+                            <div className="rate-unavail">
+                              {r.error === 'hotel_mismatch' ? 'Hotel mismatch' :
+                               r.isDemo ? 'Demo rate' :
+                               'Unavailable'}
+                            </div>
+                            {(r.message || r.isDemo) && (
+                              <div style={{ fontSize: 10, color: '#9C9C9C', marginTop: 4, lineHeight: 1.3 }}>
+                                {r.message || (r.isDemo ? 'Not a live rate' : '')}
+                              </div>
+                            )}
+                          </>
                         )}
                       </div>
                     </td>

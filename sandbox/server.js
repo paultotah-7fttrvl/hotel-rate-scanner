@@ -143,6 +143,8 @@ const RATE_AGREE_MIN = 0.70;
 const RATE_AGREE_MAX = 1.40;
 const RATE_MAX_SPREAD = 2.6;
 const RATE_DISCLAIMER = "Rates may or may not include resort or hotel fees. Taxes are not included.";
+const RATE_UNVERIFIED_MESSAGE =
+  "This hotel is either sold out or has a length-of-stay restriction. Try changing your dates.";
 /** Non-official brand row must be within this fraction of headline to be shown. */
 const BRAND_HEADLINE_MAX_DIFF = 0.22;
 /** Reject official brand rate only when it is this much above headline (bad member/package noise). */
@@ -678,6 +680,79 @@ function extractBookingUrl(dataObj, checkIn, checkOut, aguaProp, currency = "USD
   return decoded[0]?.link || null;
 }
 
+function isPortfolioChainHotel(hotelName, matchName) {
+  if (AguaCaliente.resolveAguaCalienteProperty(hotelName, "")) return false;
+  if (AguaCaliente.resolveAguaCalienteProperty(matchName, "")) return false;
+  if (isProperHotelName(hotelName) || isProperHotelName(matchName)) return true;
+  const blob = `${hotelName || ""} ${matchName || ""}`.toLowerCase();
+  for (const frags of Object.values(BRAND_SOURCES)) {
+    if (frags.some(f => blob.includes(f))) return true;
+  }
+  return false;
+}
+
+function hasBrandBookableRate(dataObj) {
+  const prices = dataObj?.prices || [];
+  for (const host of BRAND_HOST_PRIORITY) {
+    for (const p of prices) {
+      const link = decodeGoogleLink(p.link || p.url, p.source || "");
+      if (!link || !linkIncludesHost(link, host)) continue;
+      const rate = brandDisplayRate(p.rate_per_night) || publicDisplayRate(p.rate_per_night);
+      if (rate) return true;
+    }
+  }
+  return false;
+}
+
+function resolveSandboxBookingUrl(rateSource, checkin, checkout, acProp, currency, hotel, matchName, city) {
+  let bookingUrl = extractBookingUrl(rateSource, checkin, checkout, acProp, currency);
+  const ihgInfo = extractIhgInfo(rateSource);
+  if (ihgInfo) bookingUrl = buildIhgBookingUrl(ihgInfo, checkin, checkout);
+  if (isProperHotelName(hotel) || isProperHotelName(matchName)) {
+    const built = buildProperBookingUrlServer(matchName, city, checkin, checkout);
+    if (built) bookingUrl = built;
+  }
+  return { bookingUrl, ihgInfo };
+}
+
+function chainNoBrandRateResult(
+  hotel,
+  checkin,
+  checkout,
+  nights,
+  currency,
+  matchName,
+  matchScore,
+  bookingUrl,
+  ihgInfo
+) {
+  return {
+    rate: null,
+    source: "live",
+    property_name: matchName,
+    check_in: checkin,
+    check_out: checkout,
+    total: null,
+    nights,
+    currency,
+    error: "rate_unverified",
+    message: RATE_UNVERIFIED_MESSAGE,
+    rate_warning: "no_brand_rate",
+    book_without_rate: true,
+    booking_url: bookingUrl,
+    rate_disclaimer: RATE_DISCLAIMER,
+    rate_basis: "nightly_before_taxes_fees",
+    matched_property: matchName,
+    match_score: matchScore,
+    ...(ihgInfo && {
+      ihg_brand: ihgInfo.brand,
+      ihg_region: ihgInfo.region,
+      ihg_locale: ihgInfo.locale,
+      ihg_prop_code: ihgInfo.propCode,
+    }),
+  };
+}
+
 const ProperAzds = require(path.join(__dirname, "proper-azds.js"));
 const AguaCaliente = require(path.join(__dirname, "..", "agua-caliente.js"));
 
@@ -1148,29 +1223,92 @@ app.get("/api/rates", async (req, res) => {
       }
     }
 
+    if (isPortfolioChainHotel(hotel, matchName) && !acProp && !hasBrandBookableRate(rateSource)) {
+      const { bookingUrl: brandBookUrl, ihgInfo: brandIhg } = resolveSandboxBookingUrl(
+        rateSource,
+        checkin,
+        checkout,
+        acProp,
+        currency,
+        hotel,
+        matchName,
+        city
+      );
+      console.log(
+        `[SerpAPI Rate] No brand-site rate for "${matchName}" — suppressing OTA matrix price` +
+        (brandBookUrl ? ` (Book → ${brandBookUrl.slice(0, 72)}…)` : "")
+      );
+      const result = chainNoBrandRateResult(
+        hotel,
+        checkin,
+        checkout,
+        nights,
+        currency,
+        matchName,
+        matchScore,
+        brandBookUrl,
+        brandIhg
+      );
+      cacheSet(rateCache, cacheKey, result);
+      return res.json(result);
+    }
+
     const validated = extractValidatedRate(rateSource, nights);
     if (!validated.ok) {
       console.log(
         `[SerpAPI Rate] REJECTED ${validated.reason} for "${matchName}"` +
         (validated.candidates ? ` candidates=[${validated.candidates.join(", ")}]` : "")
       );
+      const extra = {
+        rate_warning: validated.reason,
+        matched_property: matchName,
+        match_score: matchScore,
+        rate_candidates: validated.candidates || null,
+      };
+      if (isPortfolioChainHotel(hotel, matchName) && !acProp) {
+        const { bookingUrl: brandBookUrl, ihgInfo: brandIhg } = resolveSandboxBookingUrl(
+          rateSource,
+          checkin,
+          checkout,
+          acProp,
+          currency,
+          hotel,
+          matchName,
+          city
+        );
+        if (brandBookUrl) {
+          extra.booking_url = brandBookUrl;
+          extra.book_without_rate = true;
+          if (brandIhg) {
+            extra.ihg_brand = brandIhg.brand;
+            extra.ihg_region = brandIhg.region;
+            extra.ihg_locale = brandIhg.locale;
+            extra.ihg_prop_code = brandIhg.propCode;
+          }
+        }
+      }
       const result = liveUnavailableResult(
         hotel, checkin, checkout, nights, currency, "rate_unverified",
-        "Rates from sources disagree — not shown to avoid misleading prices.",
-        {
-          rate_warning: validated.reason,
-          matched_property: matchName,
-          match_score: matchScore,
-          rate_candidates: validated.candidates || null,
-        }
+        RATE_UNVERIFIED_MESSAGE,
+        extra
       );
       cacheSet(rateCache, cacheKey, result);
       return res.json(result);
     }
 
     let { rate, total } = validated;
-    bookingUrl = extractBookingUrl(rateSource, checkin, checkout, acProp, currency);
-    ihgInfo = extractIhgInfo(rateSource);
+    const resolved = resolveSandboxBookingUrl(
+      rateSource,
+      checkin,
+      checkout,
+      acProp,
+      currency,
+      hotel,
+      matchName,
+      city
+    );
+    bookingUrl = resolved.bookingUrl;
+    ihgInfo = resolved.ihgInfo;
 
     if (acProp) {
       const acOffer = extractAguaCalienteOffer(rateSource, checkin, checkout, acProp, currency);
