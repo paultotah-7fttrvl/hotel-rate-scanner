@@ -170,7 +170,7 @@ function sanitizeRateSourceLabel(label) {
   return label;
 }
 
-/** Google Hotels nightly — prefer modest "lowest" when it reflects bundled taxes/fees. */
+/** Headline / OTA — prefer modest "lowest" when it reflects bundled taxes/fees. */
 function publicDisplayRate(rateObj) {
   if (!rateObj) return null;
   const before = rateObj.extracted_before_taxes_fees;
@@ -180,6 +180,16 @@ function publicDisplayRate(rateObj) {
   if (lowest == null) return Math.round(before);
   if (lowest >= before && lowest <= before * 1.28) return Math.round(lowest);
   return Math.round(before);
+}
+
+/** Brand.com rows — match hyatt.com/hilton.com "before taxes" nightly, not tax-inclusive lowest. */
+function brandDisplayRate(rateObj) {
+  if (!rateObj) return null;
+  const before = rateObj.extracted_before_taxes_fees;
+  const lowest = rateObj.extracted_lowest;
+  if (before != null) return Math.round(before);
+  if (lowest != null) return Math.round(lowest);
+  return null;
 }
 
 function nightRateValue(rateObj) {
@@ -205,7 +215,7 @@ function pickBrandHostnameDirectRate(dataObj) {
     for (const p of prices) {
       const link = decodeGoogleLink(p.link || p.url);
       if (!link || !linkIncludesHost(link, host)) continue;
-      const rate = publicDisplayRate(p.rate_per_night);
+      const rate = brandDisplayRate(p.rate_per_night);
       if (rate) {
         return {
           rate,
@@ -226,7 +236,7 @@ function pickOfficialBrandRate(dataObj) {
   const prices = dataObj.prices || [];
   const official = prices.find(p => p.official === true);
   if (official) {
-    const rate = publicDisplayRate(official.rate_per_night);
+    const rate = brandDisplayRate(official.rate_per_night);
     if (rate) {
       return {
         rate,
@@ -240,7 +250,7 @@ function pickOfficialBrandRate(dataObj) {
       p => p.source && frags.some(f => p.source.toLowerCase().includes(f))
     );
     if (brand) {
-      const rate = publicDisplayRate(brand.rate_per_night);
+      const rate = brandDisplayRate(brand.rate_per_night);
       if (rate) {
         return {
           rate,
@@ -254,7 +264,7 @@ function pickOfficialBrandRate(dataObj) {
   if (hotelName.includes("proper")) {
     const proper = prices.find(p => (p.source || "").toLowerCase().includes("proper"));
     if (proper) {
-      const rate = publicDisplayRate(proper.rate_per_night);
+      const rate = brandDisplayRate(proper.rate_per_night);
       if (rate) {
         return {
           rate,
