@@ -394,8 +394,17 @@ app.get("/api/hotels/search", async (req, res) => {
     }
 
     // cityHint: use explicit city param if available, otherwise extract from
-    // the last word of the query (e.g. "Park Hyatt Tokyo" → "Tokyo")
-    const cityHint = city || (q.split(" ").length > 2 ? q.split(" ").pop() : q);
+    // the last meaningful word of the query — skipping common hotel-name suffixes
+    // so "Austin Proper Hotel" → "Austin" not "Hotel", "Park Hyatt Tokyo" → "Tokyo".
+    const HOTEL_SUFFIXES = new Set(['hotel', 'hotels', 'inn', 'resort', 'resorts', 'suites', 'lodge', 'motel', 'hostel', 'spa']);
+    const cityHint = city || (() => {
+      const words = q.split(" ");
+      if (words.length <= 2) return q;
+      for (let i = words.length - 1; i >= 0; i--) {
+        if (!HOTEL_SUFFIXES.has(words[i].toLowerCase())) return words[i];
+      }
+      return q;
+    })();
 
     let hotels;
     if (data.type === "hotel" && data.name) {
