@@ -47,7 +47,12 @@ app.use((req, res, next) => {
 
 // ─── BRAND SOURCE MATCHING (for rate extraction) ──────────────────────────────
 const BRAND_SOURCES = {
-  marriott:    ["marriott", "ritz-carlton", "w hotels", "westin", "sheraton", "st. regis", "jw marriott"],
+  marriott:    [
+    "marriott", "ritz-carlton", "w hotels", "westin", "sheraton", "st. regis", "jw marriott",
+    "autograph", "luxury collection", "tribute", "le meridien", "renaissance", "courtyard",
+    "residence inn", "fairfield", "springhill", "edition", "moxy", "ac hotel", "element",
+    "delta hotel", "gaylord", "protea",
+  ],
   hilton:      ["hilton", "waldorf astoria", "conrad", "curio collection"],
   hyatt:       ["hyatt", "world of hyatt", "park hyatt", "grand hyatt", "andaz", "alila"],
   ihg:         ["ihg", "intercontinental", "kimpton", "holiday inn", "crowne plaza"],
@@ -65,16 +70,69 @@ const BRAND_HOST_PRIORITY = [
   "fourseasons.com", "fairmont.com",
 ];
 
-// ─── CURRENCY BY CITY ─────────────────────────────────────────────────────────
+// ─── CURRENCY / LOCALE ────────────────────────────────────────────────────────
 const CITY_CURRENCY = {
   london: "GBP", dublin: "EUR", paris: "EUR", barcelona: "EUR", rome: "EUR",
   vienna: "EUR", prague: "EUR", lisbon: "EUR", amsterdam: "EUR",
   budapest: "EUR", tokyo: "JPY", "hong kong": "HKD", bangkok: "THB",
-  singapore: "SGD", sydney: "AUD",
+  singapore: "SGD", sydney: "AUD", miami: "USD", "new york": "USD",
+  "los angeles": "USD", chicago: "USD", boston: "USD",
 };
 
+const COUNTRY_CURRENCY = {
+  ireland: "EUR", uk: "GBP", "united kingdom": "GBP", england: "GBP",
+  scotland: "GBP", france: "EUR", germany: "EUR", italy: "EUR", spain: "EUR",
+  portugal: "EUR", netherlands: "EUR", austria: "EUR", japan: "JPY",
+  australia: "AUD", mexico: "MXN", canada: "CAD",
+};
+
+const CURRENCY_GL = {
+  EUR: "ie", GBP: "uk", USD: "us", JPY: "jp", AUD: "au", CAD: "ca", MXN: "mx",
+};
+
+function cityFromAddress(address) {
+  if (!address) return null;
+  const parts = address.split(",").map(s => s.trim()).filter(Boolean);
+  if (/ireland/i.test(address)) {
+    for (const part of parts) {
+      const c = part.toLowerCase();
+      if (CITY_CURRENCY[c]) return part;
+      if (/^dublin$/i.test(part)) return "Dublin";
+    }
+  }
+  if (/united kingdom| england| scotland| wales/i.test(address)) {
+    for (const part of parts) {
+      const key = part.toLowerCase();
+      if (CITY_CURRENCY[key]) return part;
+    }
+  }
+  return null;
+}
+
+function resolveCurrency(cityName, address, hotelName) {
+  const blob = `${cityName || ""} ${address || ""} ${hotelName || ""}`.toLowerCase();
+  for (const [country, cur] of Object.entries(COUNTRY_CURRENCY)) {
+    if (blob.includes(country)) return cur;
+  }
+  const fromAddr = cityFromAddress(address);
+  if (fromAddr && CITY_CURRENCY[fromAddr.toLowerCase()]) {
+    return CITY_CURRENCY[fromAddr.toLowerCase()];
+  }
+  const city = (cityName || "").toLowerCase().trim();
+  if (CITY_CURRENCY[city]) return CITY_CURRENCY[city];
+  for (const [name, cur] of Object.entries(CITY_CURRENCY)) {
+    if (city && (city.includes(name) || name.includes(city))) return cur;
+  }
+  return "USD";
+}
+
+function googleHotelsLocale(currency) {
+  const cur = currency || "USD";
+  return { currency: cur, gl: CURRENCY_GL[cur] || "us" };
+}
+
 function getCurrency(cityName) {
-  return CITY_CURRENCY[(cityName || "").toLowerCase()] || "USD";
+  return resolveCurrency(cityName, null, null);
 }
 
 function median(nums) {
@@ -89,11 +147,24 @@ const HOTEL_MATCH_MIN_SCORE = 0.52;
 const RATE_AGREE_MIN = 0.70;
 const RATE_AGREE_MAX = 1.40;
 const RATE_MAX_SPREAD = 2.6;
+const RATE_DISCLAIMER = "Excl. taxes & resort/hotel fees";
+/** Brand nightly must be within this fraction of Google headline to be shown. */
+const BRAND_HEADLINE_MAX_DIFF = 0.22;
+
+/** Google Hotels nightly — prefer modest "lowest" when it reflects bundled taxes/fees. */
+function publicDisplayRate(rateObj) {
+  if (!rateObj) return null;
+  const before = rateObj.extracted_before_taxes_fees;
+  const lowest = rateObj.extracted_lowest;
+  if (before == null && lowest == null) return null;
+  if (before == null) return Math.round(lowest);
+  if (lowest == null) return Math.round(before);
+  if (lowest >= before && lowest <= before * 1.28) return Math.round(lowest);
+  return Math.round(before);
+}
 
 function nightRateValue(rateObj) {
-  if (!rateObj) return null;
-  const v = rateObj.extracted_before_taxes_fees ?? rateObj.extracted_lowest ?? null;
-  return v != null && v > 0 ? v : null;
+  return publicDisplayRate(rateObj);
 }
 
 function collectRateCandidates(dataObj) {
@@ -108,17 +179,82 @@ function collectRateCandidates(dataObj) {
   return rates;
 }
 
-function pickBrandDirectRate(dataObj) {
-  for (const [, frags] of Object.entries(BRAND_SOURCES)) {
-    const brand = (dataObj.prices || []).find(
-      p => p.source && frags.some(f => p.source.toLowerCase().includes(f))
-    );
-    if (brand) {
-      const rate = nightRateValue(brand.rate_per_night);
-      if (rate) return rate;
+/** Marriott-family row with a decodable brand link (marriott.com, ritzcarlton.com, or Koddi clk). */
+function pickMarriottDirectRate(dataObj) {
+  const prices = dataObj.prices || [];
+  for (const p of prices) {
+    const link = decodeGoogleLink(p.link || p.url);
+    if (!link) continue;
+    const marriottLink =
+      linkIncludesHost(link, "marriott.com") ||
+      linkIncludesHost(link, "ritzcarlton.com") ||
+      /marriottclk\.koddi\.com/i.test(link) ||
+      !!extractMarriottPropertyCode(link);
+    if (!marriottLink) continue;
+    const rate = publicDisplayRate(p.rate_per_night);
+    if (rate) {
+      return {
+        rate,
+        source: (p.source || "Marriott").replace(/\.com$/i, ""),
+        official: !!p.official,
+      };
     }
   }
   return null;
+}
+
+/** Brand / official row from prices[] (display rate, not raw before_taxes only). */
+function pickOfficialBrandRate(dataObj) {
+  const prices = dataObj.prices || [];
+  const marriottDirect = pickMarriottDirectRate(dataObj);
+  if (marriottDirect) return marriottDirect;
+
+  const official = prices.find(p => p.official === true);
+  if (official) {
+    const rate = publicDisplayRate(official.rate_per_night);
+    if (rate) {
+      return {
+        rate,
+        source: (official.source || "Brand site").replace(/\.com$/i, ""),
+        official: true,
+      };
+    }
+  }
+  for (const [, frags] of Object.entries(BRAND_SOURCES)) {
+    const brand = prices.find(
+      p => p.source && frags.some(f => p.source.toLowerCase().includes(f))
+    );
+    if (brand) {
+      const rate = publicDisplayRate(brand.rate_per_night);
+      if (rate) {
+        return {
+          rate,
+          source: (brand.source || "Brand site").replace(/\.com$/i, ""),
+          official: false,
+        };
+      }
+    }
+  }
+  const hotelName = (dataObj.name || "").toLowerCase();
+  if (hotelName.includes("proper")) {
+    const proper = prices.find(p => (p.source || "").toLowerCase().includes("proper"));
+    if (proper) {
+      const rate = publicDisplayRate(proper.rate_per_night);
+      if (rate) {
+        return {
+          rate,
+          source: (proper.source || "Proper").replace(/\.com$/i, ""),
+          official: !!proper.official,
+        };
+      }
+    }
+  }
+  return null;
+}
+
+function pickBrandDirectRate(dataObj) {
+  const pick = pickOfficialBrandRate(dataObj);
+  return pick ? pick.rate : null;
 }
 
 function normalizeHotelNameForMatch(name) {
@@ -186,14 +322,47 @@ function findBestPropertyMatch(properties, requestedName) {
 }
 
 function extractValidatedRate(dataObj, nights) {
-  const headline = nightRateValue(dataObj.rate_per_night);
-  const brandRate = pickBrandDirectRate(dataObj);
+  const headline = publicDisplayRate(dataObj.rate_per_night);
+  const brandPick = pickOfficialBrandRate(dataObj);
   const candidates = collectRateCandidates(dataObj);
 
-  if (!candidates.length) {
+  if (!candidates.length && !headline) {
     return { ok: false, reason: "no_rates", rate: null, total: null };
   }
 
+  // Prefer brand only when it aligns with Google headline (avoids $1940 official vs $1085 headline)
+  if (brandPick?.rate && headline) {
+    const diff = Math.abs(brandPick.rate - headline) / headline;
+    if (diff <= BRAND_HEADLINE_MAX_DIFF) {
+      return {
+        ok: true,
+        rate: brandPick.rate,
+        total: brandPick.rate * nights,
+        confidence: brandPick.official ? "high" : "medium",
+        method: brandPick.official ? "brand_official" : "brand_direct",
+        rate_source_label: brandPick.source,
+        headline,
+        agreeing: 1,
+        spread: 1,
+      };
+    }
+  }
+
+  if (headline) {
+    return {
+      ok: true,
+      rate: headline,
+      total: headline * nights,
+      confidence: "medium",
+      method: "google_headline",
+      rate_source_label: "Google Hotels",
+      headline,
+      agreeing: 1,
+      spread: 1,
+    };
+  }
+
+  const brandRate = brandPick?.rate ?? null;
   const sorted = [...new Set(candidates.map(r => Math.round(r)))].sort((a, b) => a - b);
   const spread = sorted.length > 1 ? sorted[sorted.length - 1] / sorted[0] : 1;
   const anchor = headline || sorted[Math.floor(sorted.length * 0.75)];
@@ -213,6 +382,7 @@ function extractValidatedRate(dataObj, nights) {
 
   let rate;
   let method;
+  let rateSourceLabel = null;
   if (
     brandRate &&
     brandRate >= anchor * RATE_AGREE_MIN &&
@@ -220,6 +390,7 @@ function extractValidatedRate(dataObj, nights) {
   ) {
     rate = Math.round(brandRate);
     method = "brand_direct";
+    rateSourceLabel = brandPick?.source || null;
   } else if (headline && (agreeing.length >= 1 || sorted.length === 1)) {
     rate = Math.round(headline);
     method = "headline";
@@ -254,6 +425,7 @@ function extractValidatedRate(dataObj, nights) {
     total: rate * nights,
     confidence,
     method,
+    rate_source_label: rateSourceLabel,
     headline,
     agreeing: agreeing.length,
     spread: Math.round(spread * 100) / 100,
@@ -275,14 +447,30 @@ function decodeGoogleLink(url) {
       // adurl may itself be a doubleclick redirect — recurse to unwrap fully
       return decodeGoogleLink(decodeURIComponent(adurl));
     }
-    if (url.includes("doubleclick.net")) {
-      // Destination hotel URL is double-encoded inside the query string
-      const raw1 = decodeURIComponent(url);
-      const raw2 = decodeURIComponent(raw1);
-      const proper = raw2.match(/(https?:\/\/(?:www\.)?properhotel\.com[^\s"<>]+)/i);
+    if (url.includes("doubleclick.net") || url.includes("koddi.com")) {
+      let raw = url;
+      for (let i = 0; i < 5; i++) {
+        try {
+          const next = decodeURIComponent(raw);
+          if (next === raw) break;
+          raw = next;
+        } catch {
+          break;
+        }
+      }
+      const proper = raw.match(/(https?:\/\/(?:www\.)?properhotel\.com[^\s"<>]+)/i);
       if (proper) return proper[1].split(/[?&]dclid=/)[0];
-      const m = raw2.match(/(https?:\/\/(?:www\.)?(?:marriott|ritzcarlton|hilton|waldorfastoria|hyatt|ihg|intercontinental|kimptonhotels|holidayinn|crowneplaza|staybridge|candlewood|booking|expedia|hotels|agoda)\.com[^\s"'<>\n]+)/i);
-      return m ? m[1].split(/[?&]dclid=/)[0] : null;
+      const m = raw.match(/(https?:\/\/(?:www\.)?(?:marriott|ritzcarlton|hilton|waldorfastoria|hyatt|ihg|intercontinental|kimptonhotels|holidayinn|crowneplaza|staybridge|candlewood|booking|expedia|hotels|agoda)\.com[^\s"'<>\n]+)/i);
+      if (m) return m[1].split(/[?&]dclid=/)[0];
+      const propCode = raw.match(/[?&]propertyCode=([A-Z0-9]{4,8})/i);
+      if (propCode) {
+        return `https://www.marriott.com/reservation/availabilitySearch.mi?propertyCode=${propCode[1].toUpperCase()}`;
+      }
+      const travel = raw.match(/hotels\/travel\/([a-z0-9]{4,8})-/i);
+      if (travel) {
+        return `https://www.marriott.com/hotels/travel/${travel[1].toLowerCase()}/`;
+      }
+      return null;
     }
     const pcurl = parsed.searchParams.get("pcurl");
     return pcurl ? decodeURIComponent(pcurl) : url;
@@ -374,6 +562,63 @@ function extractIhgInfo(dataObj) {
   return null;
 }
 
+function extractMarriottPropertyCode(link) {
+  if (!link) return null;
+  let m = link.match(/marriott\.com\/hotels\/travel\/([a-z0-9]{4,8})-/i);
+  if (m) return m[1].toUpperCase();
+  m = link.match(/[?&]propertyCode=([A-Z0-9]{4,8})/i);
+  if (m) return m[1].toUpperCase();
+  m = link.match(/propertyCode(?:=|%3D)([A-Z0-9]{4,8})/i);
+  if (m) return m[1].toUpperCase();
+  m = link.match(/ritzcarlton\.com\/[^/]+\/hotels\/([a-z0-9]{4,8})-/i);
+  if (m) return m[1].toUpperCase();
+  if (/koddi\.com|doubleclick\.net/i.test(link)) {
+    let raw = link;
+    for (let i = 0; i < 5; i++) {
+      try {
+        const next = decodeURIComponent(raw);
+        if (next === raw) break;
+        raw = next;
+      } catch {
+        break;
+      }
+    }
+    const pc = raw.match(/[?&]propertyCode=([A-Z0-9]{4,8})/i)
+      || raw.match(/propertyCode(?:=|%3D)([A-Z0-9]{4,8})/i);
+    if (pc) return pc[1].toUpperCase();
+    const tr = raw.match(/hotels\/travel\/([a-z0-9]{4,8})-/i);
+    if (tr) return tr[1].toUpperCase();
+  }
+  return null;
+}
+
+function extractMarriottInfo(dataObj) {
+  if (!dataObj) return null;
+  const sources = [...(dataObj.prices || []), ...(dataObj.featured_prices || [])];
+  for (const p of sources) {
+    const link = decodeGoogleLink(p.link || p.url);
+    const code = extractMarriottPropertyCode(link);
+    if (code) return { propCode: code };
+  }
+  const overview = decodeGoogleLink(dataObj.link) || dataObj.link;
+  const fromOverview = extractMarriottPropertyCode(overview);
+  if (fromOverview) return { propCode: fromOverview };
+  return null;
+}
+
+function buildMarriottBookingUrl(propCode, checkIn, checkOut) {
+  if (!propCode || !checkIn || !checkOut) return null;
+  const fmt = ds => {
+    const [y, mo, d] = ds.split("-");
+    return `${mo}/${d}/${y}`;
+  };
+  return (
+    `https://www.marriott.com/reservation/availabilitySearch.mi?propertyCode=${propCode.toUpperCase()}` +
+    `&fromDate=${encodeURIComponent(fmt(checkIn))}&toDate=${encodeURIComponent(fmt(checkOut))}` +
+    `&numberOfRooms=1&numAdultsPerGuestRoom=2`
+  );
+}
+
 // Extract the best booking deep-link from SerpAPI prices[].
 // Priority: brand-direct hotel site → major OTA → first decodable link.
 function extractBookingUrl(dataObj) {
@@ -460,16 +705,20 @@ function normalizeSerpHotel(p, idx, cityHint) {
     p.rate_per_night?.extracted_before_taxes_fees ||
     p.rate_per_night?.extracted_lowest ||
     200;
+  const city = cityFromAddress(p.address) || cityHint;
+  const overviewLink = p.link || "";
+  const marriottCode = extractMarriottPropertyCode(overviewLink);
   return {
-    id: `sb-${cityHint.replace(/\s+/g, "-").toLowerCase()}-${idx}`,
+    id: `sb-${city.replace(/\s+/g, "-").toLowerCase()}-${idx}`,
     name: p.name,
-    city: cityHint,
+    city,
     region: "",
     stars,
     baseRate,
-    url: p.link || "",
+    url: overviewLink,
     address: p.address || "",
-    chain: null,
+    chain: marriottCode ? "marriott" : null,
+    chainPropertyCode: marriottCode || null,
     property_token: p.property_token || null,
     rating: p.overall_rating || p.rating || null,
     variance: 0.25,
@@ -661,10 +910,10 @@ app.get("/api/rates", async (req, res) => {
 
   const nights = Math.max(1, Math.round((new Date(checkout) - new Date(checkin)) / 86400000));
   // Include propertyToken in cache key so token-based lookups don't collide with name-based ones
+  let currency = resolveCurrency(city, null, hotel);
   const cacheKey = propertyToken
-    ? `pt:${propertyToken}|${checkin}|${checkout}`
-    : `${hotel}|${city}|${checkin}|${checkout}`;
-  const currency = getCurrency(city);
+    ? `pt:${propertyToken}|${checkin}|${checkout}|${currency}`
+    : `${hotel}|${city}|${checkin}|${checkout}|${currency}`;
   const bust = req.query.bust === '1';
 
   if (!bust) {
@@ -686,16 +935,26 @@ app.get("/api/rates", async (req, res) => {
   }
 
   try {
-    const nameUrl = `https://serpapi.com/search.json?engine=google_hotels&q=${encodeURIComponent(`${hotel} ${city}`)}&check_in_date=${checkin}&check_out_date=${checkout}&currency=${currency}&gl=us&hl=en&api_key=${SERPAPI_KEY}`;
-    const tokenUrl = propertyToken
-      ? `https://serpapi.com/search.json?engine=google_hotels&q=${encodeURIComponent(`${hotel} ${city}`)}&property_token=${encodeURIComponent(propertyToken)}&check_in_date=${checkin}&check_out_date=${checkout}&currency=${currency}&gl=us&hl=en&api_key=${SERPAPI_KEY}`
-      : null;
+    const buildHotelsUrl = (cur, gl) => {
+      const base = `https://serpapi.com/search.json?engine=google_hotels&q=${encodeURIComponent(`${hotel} ${city}`)}&check_in_date=${checkin}&check_out_date=${checkout}&currency=${cur}&gl=${gl}&hl=en&api_key=${SERPAPI_KEY}`;
+      return propertyToken
+        ? `${base}&property_token=${encodeURIComponent(propertyToken)}`
+        : base;
+    };
+
+    let { currency: serpCurrency, gl } = googleHotelsLocale(currency);
+    let nameUrl = buildHotelsUrl(serpCurrency, gl);
+    let tokenUrl = propertyToken ? nameUrl : null;
 
     recordLiveCall(`rate "${hotel}"`);
     console.log(`[SerpAPI Rate] "${hotel}", ${city} | ${checkin} → ${checkout}${tokenUrl ? " (token)" : ""}`);
 
-    const response = await fetch(tokenUrl || nameUrl);
-    let data = await response.json();
+    const fetchHotelData = async (cur, gl) => {
+      const res = await fetch(buildHotelsUrl(cur, gl));
+      return res.json();
+    };
+
+    let data = await fetchHotelData(serpCurrency, gl);
 
     // If token call returned no rate data, fall back to name+city search (strict match only)
     if (tokenUrl && !data.error && data.type !== "hotel" && !(data.properties || []).length) {
@@ -706,8 +965,7 @@ app.get("/api/rates", async (req, res) => {
       }
       console.log(`[SerpAPI Rate] Token returned empty — falling back to name+city search`);
       recordLiveCall(`rate fallback "${hotel}"`);
-      const fallback = await fetch(nameUrl);
-      data = await fallback.json();
+      data = await fetchHotelData(serpCurrency, gl);
     }
 
     if (data.error) {
@@ -724,6 +982,7 @@ app.get("/api/rates", async (req, res) => {
     let rateSource = data;
     let bookingUrl = null;
     let ihgInfo = null;
+    let marriottInfo = null;
 
     if (data.type === "hotel") {
       matchName = data.name || hotel;
@@ -767,6 +1026,34 @@ app.get("/api/rates", async (req, res) => {
       return res.json(result);
     }
 
+    const addr = rateSource?.address || data?.address || "";
+    const resolvedCurrency = resolveCurrency(city, addr, hotel);
+    if (resolvedCurrency !== serpCurrency && canUseLiveCall()) {
+      console.log(`[SerpAPI Rate] Currency ${serpCurrency} → ${resolvedCurrency} (${addr || city})`);
+      currency = resolvedCurrency;
+      ({ currency: serpCurrency, gl } = googleHotelsLocale(currency));
+      recordLiveCall(`rate recurrency "${hotel}"`);
+      const refetched = await fetchHotelData(serpCurrency, gl);
+      if (!refetched.error) {
+        data = refetched;
+        if (data.type === "hotel") {
+          rateSource = data;
+          matchName = data.name || hotel;
+          matchScore = propertyToken ? 1 : hotelNameMatchScore(hotel, matchName);
+        } else {
+          const { match, score } = findBestPropertyMatch(data.properties || [], hotel);
+          if (match) {
+            rateSource = match;
+            matchName = match.name || hotel;
+            matchScore = score;
+          }
+        }
+      }
+    } else {
+      currency = resolvedCurrency;
+    }
+    if (data.search_parameters?.currency) currency = data.search_parameters.currency;
+
     const validated = extractValidatedRate(rateSource, nights);
     if (!validated.ok) {
       console.log(
@@ -790,6 +1077,7 @@ app.get("/api/rates", async (req, res) => {
     const { rate, total } = validated;
     bookingUrl = extractBookingUrl(rateSource);
     ihgInfo = extractIhgInfo(rateSource);
+    marriottInfo = extractMarriottInfo(rateSource);
 
     console.log(
       `[SerpAPI Rate] "${matchName}" $${rate}/night (${validated.confidence}, ${validated.method})` +
@@ -797,7 +1085,13 @@ app.get("/api/rates", async (req, res) => {
     );
 
     if (ihgInfo) console.log(`[SerpAPI Rate] IHG info: brand=${ihgInfo.brand} propCode=${ihgInfo.propCode}`);
-
+    if (marriottInfo) {
+      const marriottBook = buildMarriottBookingUrl(marriottInfo.propCode, checkin, checkout);
+      if (marriottBook) {
+        bookingUrl = marriottBook;
+        console.log(`[Marriott] booking URL → availabilitySearch propertyCode=${marriottInfo.propCode}`);
+      }
+    }
     if (isProperHotelName(hotel) || isProperHotelName(matchName)) {
       const built = buildProperBookingUrlServer(matchName, city, checkin, checkout);
       if (built) {
@@ -816,6 +1110,9 @@ app.get("/api/rates", async (req, res) => {
       nights,
       currency,
       booking_url: bookingUrl,
+      rate_disclaimer: RATE_DISCLAIMER,
+      rate_basis: "nightly_before_taxes_fees",
+      rate_source_label: validated.rate_source_label || null,
       rate_confidence: validated.confidence,
       rate_method: validated.method,
       match_score: matchScore,
@@ -825,6 +1122,7 @@ app.get("/api/rates", async (req, res) => {
         ihg_locale: ihgInfo.locale,
         ihg_prop_code: ihgInfo.propCode,
       }),
+      ...(marriottInfo && { marriott_prop_code: marriottInfo.propCode }),
     };
 
     cacheSet(rateCache, cacheKey, result);
