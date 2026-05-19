@@ -1258,6 +1258,17 @@ function parseIhgUrl(url) {
   // qSlH on any IHG domain
   const m2 = url.match(/ihg\.com\/([\w-]+).*[?&]qSlH=([a-z0-9]{3,8})/i);
   if (m2) return { brand: m2[1], region: 'us', locale: 'en', propCode: m2[2].toUpperCase() };
+  // hotel-search redirect (Kimpton): qPm=PROPCODE
+  const m2b = url.match(/ihg\.com\/([\w-]+).*hotel-search.*[?&]qPm=([a-z0-9]{3,8})/i);
+  if (m2b) return { brand: m2b[1], region: 'us', locale: 'en', propCode: m2b[2].toUpperCase() };
+  const qpm = url.match(/[?&]qPm=([a-z0-9]{3,8})/i);
+  if (qpm && /ihg\.com/i.test(url)) {
+    const brandM = url.match(/ihg\.com\/([\w-]+)/i);
+    return { brand: brandM ? brandM[1] : 'kimptonhotels', region: 'us', locale: 'en', propCode: qpm[1].toUpperCase() };
+  }
+  // redirect?hotelCode=PROPCODE
+  const m3 = url.match(/ihg\.com\/redirect.*[?&]hotelCode=([a-z0-9]{3,8})/i);
+  if (m3) return { brand: 'kimptonhotels', region: 'us', locale: 'en', propCode: m3[1].toUpperCase() };
   // Brand-specific domains (intercontinental.com, crowneplaza.com, etc.)
   for (const [domain, brand] of Object.entries(IHG_BRAND_DOMAINS)) {
     if (!url.includes(domain)) continue;
@@ -1405,7 +1416,16 @@ function resolveBookingUrl(hotel, rateResult, checkIn, checkOut) {
     return serpUrl;
   }
 
-  // Other supported brand-direct links (Hilton, Hyatt, etc.) from SerpAPI.
+  // Other supported brand-direct links (Hilton, Hyatt, etc.) — never pass through raw IHG URLs.
+  if (serpUrl && isIhgUrl(serpUrl)) {
+    const ihgFromSerp = parseIhgUrl(serpUrl);
+    if (ihgFromSerp) {
+      return buildIhgSelectRoomrateUrl(
+        ihgFromSerp.brand, ihgFromSerp.region, ihgFromSerp.locale, ihgFromSerp.propCode,
+        hotel.address || '', checkIn, checkOut
+      );
+    }
+  }
   if (serpUrl && isSupportedBrandUrl(serpUrl)) return serpUrl;
 
   // Booking.com property link from SerpAPI. Keep selected dates attached.

@@ -701,14 +701,20 @@ function fmtBookingDate(ds) {
   return `${m}/${d}/${y}`;
 }
 
+// IHG parses qCiMy/qCoMy with 0-indexed months (Jan=00, Jun=05, …).
+function ihgMonthYear(dateStr) {
+  const [y, m] = dateStr.split("-");
+  return String(+m - 1).padStart(2, "0") + y;
+}
+
 function buildIhgBookingUrl(info, checkIn, checkOut) {
   const ciD = +checkIn.split("-")[2];
   const coD = +checkOut.split("-")[2];
-  const ciMy = `${checkIn.slice(5, 7)}${checkIn.slice(0, 4)}`;
-  const coMy = `${checkOut.slice(5, 7)}${checkOut.slice(0, 4)}`;
   return (
     `https://www.ihg.com/${info.brand}/hotels/${info.region}/${info.locale}/find-hotels/select-roomrate` +
-    `?qCiD=${ciD}&qCiMy=${ciMy}&qCoD=${coD}&qCoMy=${coMy}&qAdlt=2&qChld=0&qRms=1&qSlH=${info.propCode}&qRmFltr=`
+    `?qCiD=${ciD}&qCiMy=${ihgMonthYear(checkIn)}` +
+    `&qCoD=${coD}&qCoMy=${ihgMonthYear(checkOut)}` +
+    `&qAdlt=2&qChld=0&qRms=1&qSlH=${info.propCode}&qRmFltr=`
   );
 }
 
