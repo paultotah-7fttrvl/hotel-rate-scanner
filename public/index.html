@@ -891,12 +891,12 @@ function searchHotelsFallback(query, excluded, city, hotels = HOTELS_STATIC) {
     return (byCity[city] || []).filter(h => !excludeSet.has(h.id)).slice(0, 8);
   }
 
-  const term = (query || '').trim().toLowerCase();
-  if (!term) return [];
+  const words = (query || '').trim().toLowerCase().split(/\s+/).filter(w => w.length > 1);
+  if (!words.length) return [];
 
   return hotels
     .filter(h => !excludeSet.has(h.id))
-    .filter(h => [h.name, h.city, h.region].some(v => (v || '').toLowerCase().includes(term)))
+    .filter(h => words.some(w => [h.name, h.city, h.region].some(v => (v || '').toLowerCase().includes(w))))
     .slice(0, 8);
 }
 
@@ -1387,7 +1387,7 @@ function HotelSearch({ selectedHotels, onAdd, onRemove, allHotels, recentSearche
       setSearching(true);
       const words = query.toLowerCase().split(/\s+/).filter(w => w.length > 2);
       const filterByName = results => words.length
-        ? results.filter(h => words.some(w => (h.name || '').toLowerCase().includes(w)))
+        ? results.filter(h => words.some(w => (h.name || '').toLowerCase().includes(w) || (h.city || '').toLowerCase().includes(w)))
         : results;
       searchHotelsRemote(query, selectedHotels)
         .then(r => { setResults(filterByName(r)); setSearching(false); })
