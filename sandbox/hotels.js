@@ -160,4 +160,8 @@ window.HOTELS_RAW = [
   { name: "The Royal Hawaiian, a Luxury Collection Resort", city: "Honolulu", region: "Hawaii, US", stars: 5, baseRate: 549, url: "https://www.marriott.com/hotels/travel/hnllc-the-royal-hawaiian-a-luxury-collection-resort-waikiki", chain: "marriott", chainPropertyCode: "HNLLC" },
   { name: "Hyatt Regency Waikiki Beach Resort & Spa", city: "Honolulu", region: "Hawaii, US", stars: 4, baseRate: 379, url: "https://www.hyatt.com/hyatt-regency/en-US/hnlrw-hyatt-regency-waikiki-beach-resort-and-spa", chain: "hyatt", chainPropertyCode: "hnlrw" },
   { name: "Moana Surfrider, A Westin Resort & Spa", city: "Honolulu", region: "Hawaii, US", stars: 4, baseRate: 429, url: "https://www.marriott.com/hotels/travel/hnlwi-moana-surfrider-a-westin-resort-and-spa-waikiki-beach", chain: "marriott", chainPropertyCode: "HNLWI" },
+  // Agua Caliente Casinos — Greater Palm Springs (brand booking only)
+  { name: "Agua Caliente Resort Casino Spa Rancho Mirage", city: "Rancho Mirage", region: "California, US", stars: 4, baseRate: 554, url: "https://www.aguacalientecasinos.com/resort/", chain: "aguacaliente", aguaCalienteId: "ac-rancho-mirage" },
+  { name: "Agua Caliente Casino Palm Springs", city: "Palm Springs", region: "California, US", stars: 4, baseRate: 199, url: "https://www.aguacalientecasinos.com/properties/palm-springs/", chain: "aguacaliente", aguaCalienteId: "ac-palm-springs" },
+  { name: "Agua Caliente Casino Cathedral City", city: "Cathedral City", region: "California, US", stars: 4, baseRate: 179, url: "https://www.aguacalientecasinos.com/properties/cathedral-city/", chain: "aguacaliente", aguaCalienteId: "ac-cathedral-city" },
 ];

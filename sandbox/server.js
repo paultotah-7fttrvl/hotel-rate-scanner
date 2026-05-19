@@ -336,7 +336,17 @@ function hotelNameMatchScore(requested, candidate) {
   return score;
 }
 
-function findBestPropertyMatch(properties, requestedName) {
+function findBestPropertyMatch(properties, requestedName, city = "") {
+  const acProp = AguaCaliente.resolveAguaCalienteProperty(requestedName, city);
+  if (acProp) {
+    for (const p of properties) {
+      if (AguaCaliente.matchesAguaCalienteProperty(p.name, acProp)) {
+        return { match: p, score: 1 };
+      }
+    }
+    return { match: null, score: 0 };
+  }
+
   let best = null;
   let bestScore = 0;
   for (const p of properties) {
@@ -348,6 +358,25 @@ function findBestPropertyMatch(properties, requestedName) {
   }
   if (!best || bestScore < HOTEL_MATCH_MIN_SCORE) return { match: null, score: bestScore };
   return { match: best, score: bestScore };
+}
+
+function extractAguaCalienteOffer(dataObj, checkIn, checkOut, prop, currency = "USD") {
+  if (!prop) return null;
+  for (const p of dataObj?.prices || []) {
+    const source = (p.source || "").toLowerCase();
+    const link = decodeGoogleLink(p.link || p.url, p.source || "");
+    if (!source.includes("agua caliente") && !AguaCaliente.isAguaCalienteBrandUrl(link)) continue;
+    const rate =
+      brandDisplayRate(p.rate_per_night) || publicDisplayRate(p.rate_per_night);
+    return {
+      rate,
+      url: AguaCaliente.buildAguaCalienteBookingUrl(prop, checkIn, checkOut, link, currency),
+    };
+  }
+  return {
+    rate: null,
+    url: AguaCaliente.buildAguaCalienteBookingUrl(prop, checkIn, checkOut, null, currency),
+  };
 }
 
 function extractValidatedRate(dataObj, nights) {
@@ -503,7 +532,7 @@ function decodeGoogleLink(url) {
       }
       const proper = raw.match(/(https?:\/\/(?:www\.)?properhotel\.com[^\s"<>]+)/i);
       if (proper) return proper[1].split(/[?&]dclid=/)[0];
-      const m = raw.match(/(https?:\/\/(?:www\.)?(?:marriott|ritzcarlton|hilton|waldorfastoria|hyatt|ihg|intercontinental|kimptonhotels|holidayinn|crowneplaza|staybridge|candlewood|booking|expedia|hotels|agoda)\.com[^\s"'<>\n]+)/i);
+      const m = raw.match(/(https?:\/\/(?:www\.)?(?:marriott|ritzcarlton|hilton|waldorfastoria|hyatt|ihg|intercontinental|kimptonhotels|holidayinn|crowneplaza|staybridge|candlewood|aguacalientecasinos|secure-hotel-tracker|booking|expedia|hotels|agoda)\.[^\s"'<>\n]+)/i);
       return m ? m[1].split(/[?&]dclid=/)[0] : null;
     }
     const pcurl = parsed.searchParams.get("pcurl");
@@ -598,14 +627,34 @@ function extractIhgInfo(dataObj) {
 
 // Extract the best booking deep-link from SerpAPI prices[].
 // Priority: brand-direct hotel site → major OTA → first decodable link.
-function extractBookingUrl(dataObj) {
+function extractBookingUrl(dataObj, checkIn, checkOut, aguaProp, currency = "USD") {
   const prices = dataObj.prices || [];
-  if (!prices.length) return null;
+  if (!prices.length) {
+    return aguaProp
+      ? AguaCaliente.buildAguaCalienteBookingUrl(aguaProp, checkIn, checkOut, null, currency)
+      : null;
+  }
 
   // Decode all links upfront, drop ones that can't be resolved
   const decoded = prices
-    .map(p => ({ source: (p.source || "").toLowerCase(), link: decodeGoogleLink(p.link) }))
+    .map(p => ({
+      source: (p.source || "").toLowerCase(),
+      link: decodeGoogleLink(p.link || p.url, p.source || ""),
+    }))
     .filter(p => p.link);
+
+  // 0. Agua Caliente brand row (never Booking.com when brand link exists)
+  for (const row of decoded) {
+    if (row.source.includes("agua caliente") || AguaCaliente.isAguaCalienteBrandUrl(row.link)) {
+      return AguaCaliente.buildAguaCalienteBookingUrl(
+        aguaProp,
+        checkIn,
+        checkOut,
+        row.link,
+        currency
+      );
+    }
+  }
 
   // 1. Brand-owned site by link hostname
   for (const host of BRAND_HOST_PRIORITY) {
@@ -630,6 +679,7 @@ function extractBookingUrl(dataObj) {
 }
 
 const ProperAzds = require(path.join(__dirname, "proper-azds.js"));
+const AguaCaliente = require(path.join(__dirname, "..", "agua-caliente.js"));
 
 // Open Proper Hotels on properhotel.com (AZDS booking). Sister portfolio properties
 // (Hotel June, Avalon, Ingleside, Montauk Yacht Club, Culver Hotel, etc.) book on
@@ -816,6 +866,12 @@ app.get("/api/hotels/search", async (req, res) => {
   const searchTerm = city ? `hotels in ${city}` : q || null;
   if (!searchTerm) return res.json([]);
 
+  if (AguaCaliente.isAguaCalienteQuery(q, city)) {
+    const curated = AguaCaliente.curatedHotelsForSearch(excludeSet);
+    console.log(`[Agua Caliente] Curated search → ${curated.length} properties`);
+    return res.json(curated);
+  }
+
   const cacheKey = searchTerm.toLowerCase();
   const cached = cacheGet(searchCache, cacheKey, SEARCH_TTL_MS);
   if (cached) {
@@ -972,8 +1028,55 @@ app.get("/api/rates", async (req, res) => {
         return res.json(result);
       }
 
-      const { match, score } = findBestPropertyMatch(properties, hotel);
+      let { match, score } = findBestPropertyMatch(properties, hotel, city);
+      const acPropEarly = AguaCaliente.resolveAguaCalienteProperty(hotel, city);
+      if (!match && acPropEarly && canUseLiveCall()) {
+        console.log(`[Agua Caliente] Refetching "${acPropEarly.displayName}"`);
+        recordLiveCall(`rate agua "${acPropEarly.displayName}"`);
+        const refetch = await fetch(
+          `https://serpapi.com/search.json?engine=google_hotels&q=${encodeURIComponent(acPropEarly.displayName)}` +
+          `&check_in_date=${checkin}&check_out_date=${checkout}&currency=${serpCurrency}&gl=${gl}&hl=en&api_key=${SERPAPI_KEY}`
+        ).then(r => r.json());
+        if (!refetch.error && refetch.type === "hotel") {
+          rateSource = refetch;
+          matchName = refetch.name || acPropEarly.displayName;
+          matchScore = 1;
+          match = refetch;
+        }
+      }
       if (!match) {
+        if (acPropEarly) {
+          console.log(`[Agua Caliente] No Google Hotels listing — brand book URL only (${acPropEarly.city})`);
+          const brandUrl = AguaCaliente.buildAguaCalienteBookingUrl(
+            acPropEarly,
+            checkin,
+            checkout,
+            null,
+            currency
+          );
+          const result = {
+            rate: null,
+            source: "live",
+            property_name: acPropEarly.displayName,
+            check_in: checkin,
+            check_out: checkout,
+            total: null,
+            nights,
+            currency,
+            booking_url: brandUrl,
+            rate_disclaimer: RATE_DISCLAIMER,
+            rate_basis: "nightly_before_taxes_fees",
+            rate_source_label: "Agua Caliente",
+            rate_confidence: "low",
+            rate_method: "brand_direct",
+            agua_caliente: true,
+            rooms_on_google_hotels: false,
+            message:
+              "No room rates in Google Hotels for this property. Book links to the official Agua Caliente site.",
+          };
+          cacheSet(rateCache, cacheKey, result);
+          return res.json(result);
+        }
         console.log(`[SerpAPI Rate] No confident hotel match (best score ${score.toFixed(2)})`);
         const result = liveUnavailableResult(
           hotel, checkin, checkout, nights, currency, "hotel_mismatch",
@@ -1014,7 +1117,7 @@ app.get("/api/rates", async (req, res) => {
           matchName = data.name || hotel;
           matchScore = propertyToken ? 1 : hotelNameMatchScore(hotel, matchName);
         } else {
-          const { match, score } = findBestPropertyMatch(data.properties || [], hotel);
+          const { match, score } = findBestPropertyMatch(data.properties || [], hotel, city);
           if (match) {
             rateSource = match;
             matchName = match.name || hotel;
@@ -1026,6 +1129,24 @@ app.get("/api/rates", async (req, res) => {
       currency = resolvedCurrency;
     }
     if (data.search_parameters?.currency) currency = data.search_parameters.currency;
+
+    const acProp =
+      AguaCaliente.resolveAguaCalienteProperty(hotel, city) ||
+      AguaCaliente.resolveAguaCalienteProperty(matchName, city);
+
+    const detailToken = propertyToken || rateSource.property_token;
+    if (acProp && detailToken && !(rateSource.prices?.length) && canUseLiveCall()) {
+      recordLiveCall(`rate agua detail "${hotel}"`);
+      const detailData = await fetch(
+        `https://serpapi.com/search.json?engine=google_hotels&q=${encodeURIComponent(acProp.displayName)}` +
+        `&check_in_date=${checkin}&check_out_date=${checkout}&currency=${serpCurrency}&gl=${gl}&hl=en` +
+        `&property_token=${encodeURIComponent(detailToken)}&api_key=${SERPAPI_KEY}`
+      ).then(r => r.json());
+      if (!detailData.error && detailData.type === "hotel") {
+        rateSource = detailData;
+        matchName = detailData.name || matchName;
+      }
+    }
 
     const validated = extractValidatedRate(rateSource, nights);
     if (!validated.ok) {
@@ -1047,9 +1168,19 @@ app.get("/api/rates", async (req, res) => {
       return res.json(result);
     }
 
-    const { rate, total } = validated;
-    bookingUrl = extractBookingUrl(rateSource);
+    let { rate, total } = validated;
+    bookingUrl = extractBookingUrl(rateSource, checkin, checkout, acProp, currency);
     ihgInfo = extractIhgInfo(rateSource);
+
+    if (acProp) {
+      const acOffer = extractAguaCalienteOffer(rateSource, checkin, checkout, acProp, currency);
+      if (acOffer?.url) bookingUrl = acOffer.url;
+      if (acOffer?.rate) {
+        rate = acOffer.rate;
+        total = rate * nights;
+      }
+      console.log(`[Agua Caliente] Book → ${bookingUrl?.slice(0, 90)}…`);
+    }
 
     console.log(
       `[SerpAPI Rate] "${matchName}" $${rate}/night (${validated.confidence}, ${validated.method})` +

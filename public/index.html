@@ -1072,7 +1072,7 @@ async function fetchRate(hotel, checkIn, checkOut, bust = false) {
     const isDemo = data.source === 'demo_fallback' || data.source === 'demo_daily_limit';
     return {
       rate: data.rate,
-      available: data.rate != null && data.rate > 0 && !data.error,
+      available: (data.rate != null && data.rate > 0 && !data.error) || (!!data.booking_url && data.agua_caliente),
       total: data.total,
       source: data.source,
       error: data.error || null,
@@ -1232,6 +1232,45 @@ function isKimptonHotel(hotel) {
   );
 }
 
+function isAguaCalienteHotel(hotel) {
+  const blob = `${hotel?.name || ''} ${hotel?.city || ''} ${hotel?.url || ''}`.toLowerCase();
+  return hotel?.chain === 'aguacaliente' || /agua\s*caliente/.test(blob) || blob.includes('aguacalientecasinos.com');
+}
+
+function aguaCalienteNights(checkIn, checkOut) {
+  const a = new Date(checkIn);
+  const b = new Date(checkOut);
+  return Math.max(1, Math.round((b - a) / 86400000));
+}
+
+function buildAguaCalienteBookingUrl(hotel, checkIn, checkOut, serpUrl) {
+  const u = (serpUrl || '').toLowerCase();
+  if (u.includes('secure-hotel-tracker.com')) {
+    try {
+      const parsed = new URL(serpUrl);
+      parsed.searchParams.set('checkin', checkIn);
+      parsed.searchParams.set('checkout', checkOut);
+      return parsed.toString();
+    } catch { /* fall through to PEGS */ }
+  }
+  const los = aguaCalienteNights(checkIn, checkOut);
+  const params = new URLSearchParams({
+    locale: 'en',
+    offerCode: '',
+    flow: 'tf',
+    Rooms: '1',
+    CheckinDate: checkIn,
+    LOS: String(los),
+    Adults_1: '2',
+    Children_1: '0',
+    iataNumber: '',
+    Currency: 'USD',
+    multi: 'false',
+    accessCode: '',
+  });
+  return `https://aguacalientecasinos.book.pegsbe.com/rooms?${params.toString()}`;
+}
+
 // IHG's frontend parses qCiMy/qCoMy month values as 0-indexed (Jan=0, Feb=1, …).
 // So we must subtract 1 from the calendar month before embedding it in the URL.
 function ihgMonthYear(dateStr) {
@@ -1384,6 +1423,11 @@ function withBookingDates(url, checkIn, checkOut) {
 function resolveBookingUrl(hotel, rateResult, checkIn, checkOut) {
   if (!rateResult?.available) return '#';
   const serpUrl = rateResult.bookingUrl;
+
+  if (isAguaCalienteHotel(hotel) || (serpUrl && /aguacaliente|secure-hotel-tracker|pegsbe/i.test(serpUrl))) {
+    const acUrl = buildAguaCalienteBookingUrl(hotel, checkIn, checkOut, serpUrl);
+    if (acUrl) return acUrl;
+  }
 
   // IHG — try all three sources in priority order, then build select-roomrate URL with user dates.
   // 1. Server extracted brand+propCode from prices[] (most reliable)
