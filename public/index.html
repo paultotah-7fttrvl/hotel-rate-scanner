@@ -1081,9 +1081,11 @@ async function fetchRate(hotel, checkIn, checkOut, bust = false) {
       nights: data.nights,
       currency: data.currency,
       bookingUrl: data.booking_url || null,
+      bookingHost: data.booking_host || null,
+      rateMethod: data.rate_method || null,
       matchedProperty: data.property_name || data.matched_property || null,
       rateConfidence: data.rate_confidence || null,
-      rateDisclaimer: data.rate_disclaimer || 'Excl. taxes & resort/hotel fees',
+      rateDisclaimer: data.rate_disclaimer || 'Rates may or may not include resort or hotel fees. Taxes are not included.',
       rateSourceLabel: (data.rate_source_label && !/google/i.test(data.rate_source_label))
         ? data.rate_source_label : null,
       isDemo,
@@ -1845,7 +1847,7 @@ function SummaryCards({ flatResults, hotels, validDates, onCardClick }) {
         <div className="scard-label">⭐ Best Nightly Rate</div>
         <div className="scard-value">{formatCurrency(best.rate, best.currency)}<span style={{ fontSize: 13, fontWeight: 400, color: '#5C5C5C' }}>/night</span></div>
         <div className="scard-meta">
-          {best.rateDisclaimer || 'Excl. taxes & resort/hotel fees'}<br />
+          {best.rateDisclaimer || 'Rates may or may not include resort or hotel fees. Taxes are not included.'}<br />
           Option {OPTION_LABELS[best.dateIdx]} · {formatDate(bestDate.checkIn)}–{formatDate(bestDate.checkOut)}
         </div>
         <div className="scard-meta" style={{ fontWeight: 600, color: '#1A1A1A', marginTop: 4 }}>
@@ -1987,7 +1989,7 @@ function ResultsTable({ results, loadingCells, hotels, validDates, sortBy, onSor
                         <div className="rate-td-main">
                           <div className="rate-adr">{formatCurrency(r.rate, r.currency)}<span style={{ fontSize: 11, fontWeight: 400, color: '#9C9C9C' }}>/night</span></div>
                           {r.rateSourceLabel && <div className="rate-source-tag">{r.rateSourceLabel}</div>}
-                          <div className="rate-disclaimer">{r.rateDisclaimer || 'Excl. taxes & resort/hotel fees'}</div>
+                          <div className="rate-disclaimer">{r.rateDisclaimer || 'Rates may or may not include resort or hotel fees. Taxes are not included.'}</div>
                           <div className="rate-nights">{nights} night{nights !== 1 ? 's' : ''}</div>
                         </div>
                         <div className="rate-td-actions">

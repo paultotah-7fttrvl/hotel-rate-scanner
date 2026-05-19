@@ -142,7 +142,7 @@ const HOTEL_MATCH_MIN_SCORE = 0.52;
 const RATE_AGREE_MIN = 0.70;
 const RATE_AGREE_MAX = 1.40;
 const RATE_MAX_SPREAD = 2.6;
-const RATE_DISCLAIMER = "Excl. taxes & resort/hotel fees";
+const RATE_DISCLAIMER = "Rates may or may not include resort or hotel fees. Taxes are not included.";
 /** Non-official brand row must be within this fraction of headline to be shown. */
 const BRAND_HEADLINE_MAX_DIFF = 0.22;
 /** Reject official brand rate only when it is this much above headline (bad member/package noise). */

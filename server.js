@@ -138,7 +138,7 @@ const HOTEL_MATCH_MIN_SCORE = 0.52;
 const RATE_AGREE_MIN = 0.70;
 const RATE_AGREE_MAX = 1.40;
 const RATE_MAX_SPREAD = 2.6;
-const RATE_DISCLAIMER = "Excl. taxes & resort/hotel fees";
+const RATE_DISCLAIMER = "Rates may or may not include resort or hotel fees. Taxes are not included.";
 /** Non-official brand row must be within this fraction of headline to be shown. */
 const BRAND_HEADLINE_MAX_DIFF = 0.22;
 /** Reject official brand rate only when it is this much above headline (bad member/package noise). */
@@ -208,73 +208,111 @@ function collectRateCandidates(dataObj) {
   return rates;
 }
 
-/** Prefer a prices[] row whose decoded link is on the hotel's own domain. */
-function pickBrandHostnameDirectRate(dataObj) {
-  const prices = dataObj.prices || [];
-  for (const host of BRAND_HOST_PRIORITY) {
-    for (const p of prices) {
-      const link = decodeGoogleLink(p.link || p.url);
-      if (!link || !linkIncludesHost(link, host)) continue;
-      const rate = brandDisplayRate(p.rate_per_night);
-      if (rate) {
-        return {
-          rate,
-          source: brandLabelFromHost(host),
-          official: !!p.official,
-        };
-      }
-    }
-  }
-  return null;
+function isBrandBookingHost(host) {
+  return BRAND_HOST_PRIORITY.some(h => host === h || (host && host.includes(h.replace(".com", ""))));
 }
 
-/** Brand / official row from prices[] (display rate, not raw before_taxes only). */
-function pickOfficialBrandRate(dataObj) {
-  const hostnamePick = pickBrandHostnameDirectRate(dataObj);
-  if (hostnamePick) return hostnamePick;
+/** Nightly rate for the row that matches where Book → sends the user. */
+function rateForBookingHost(host, rateObj) {
+  if (!rateObj) return null;
+  if (isBrandBookingHost(host) || (host && host.includes("properhotel"))) {
+    return brandDisplayRate(rateObj);
+  }
+  return publicDisplayRate(rateObj);
+}
 
-  const prices = dataObj.prices || [];
-  const official = prices.find(p => p.official === true);
-  if (official) {
-    const rate = brandDisplayRate(official.rate_per_night);
-    if (rate) {
+function decodePriceRows(dataObj) {
+  return (dataObj.prices || [])
+    .map(p => {
+      const link = decodeGoogleLink(p.link || p.url, p.source || "");
+      if (!link) return null;
+      let host = null;
+      for (const h of BRAND_HOST_PRIORITY) {
+        if (linkIncludesHost(link, h)) { host = h; break; }
+      }
+      if (!host) {
+        for (const ota of PREFERRED_OTAS) {
+          if (linkIncludesHost(link, ota)) { host = ota; break; }
+        }
+      }
+      if (!host) {
+        try { host = new URL(link).hostname.replace(/^www\./, ""); } catch { host = null; }
+      }
       return {
-        rate,
-        source: (official.source || "Brand site").replace(/\.com$/i, ""),
-        official: true,
+        source: p.source || "",
+        official: !!p.official,
+        link,
+        host,
+        rateObj: p.rate_per_night,
       };
+    })
+    .filter(Boolean);
+}
+
+/**
+ * Pick one prices[] row for both matrix rate and booking URL (same destination).
+ *
+ * Product rule: the displayed matrix rate must come from the same SerpAPI prices[]
+ * row used to generate the Book link, so the user sees a rate aligned with the
+ * destination they are sent to (Hyatt row → Hyatt rate, Expedia row → Expedia rate).
+ */
+function pickBookingOffer(dataObj) {
+  const rows = decodePriceRows(dataObj);
+  if (!rows.length) return null;
+
+  const toOffer = (row, host, sourceLabel) => {
+    const rate = rateForBookingHost(host, row.rateObj);
+    if (!rate) return null;
+    return {
+      rate,
+      link: row.link,
+      host,
+      sourceLabel: sourceLabel || brandLabelFromHost(host),
+      official: row.official,
+      source: row.source,
+    };
+  };
+
+  for (const host of BRAND_HOST_PRIORITY) {
+    const row = rows.find(r => linkIncludesHost(r.link, host));
+    if (row) {
+      const offer = toOffer(row, host, brandLabelFromHost(host));
+      if (offer) return offer;
     }
   }
+
   for (const [, frags] of Object.entries(BRAND_SOURCES)) {
-    const brand = prices.find(
-      p => p.source && frags.some(f => p.source.toLowerCase().includes(f))
+    const row = rows.find(
+      r => r.source && frags.some(f => r.source.toLowerCase().includes(f))
     );
-    if (brand) {
-      const rate = brandDisplayRate(brand.rate_per_night);
-      if (rate) {
-        return {
-          rate,
-          source: (brand.source || "Brand site").replace(/\.com$/i, ""),
-          official: false,
-        };
-      }
+    if (row) {
+      const offer = toOffer(row, row.host, (row.source || "Brand site").replace(/\.com$/i, ""));
+      if (offer) return offer;
     }
   }
-  const hotelName = (dataObj.name || "").toLowerCase();
-  if (hotelName.includes("proper")) {
-    const proper = prices.find(p => (p.source || "").toLowerCase().includes("proper"));
-    if (proper) {
-      const rate = brandDisplayRate(proper.rate_per_night);
-      if (rate) {
-        return {
-          rate,
-          source: (proper.source || "Proper").replace(/\.com$/i, ""),
-          official: !!proper.official,
-        };
-      }
+
+  for (const ota of PREFERRED_OTAS) {
+    const row = rows.find(
+      r => linkIncludesHost(r.link, ota) || (r.source || "").toLowerCase().includes(ota)
+    );
+    if (row) {
+      const offer = toOffer(row, ota, ota.replace(".com", "").replace(/^\w/, c => c.toUpperCase()));
+      if (offer) return offer;
     }
   }
-  return null;
+
+  const row = rows[0];
+  return toOffer(row, row.host, row.source);
+}
+
+function pickOfficialBrandRate(dataObj) {
+  const offer = pickBookingOffer(dataObj);
+  if (!offer) return null;
+  return {
+    rate: offer.rate,
+    source: offer.sourceLabel,
+    official: offer.official,
+  };
 }
 
 function pickBrandDirectRate(dataObj) {
@@ -346,13 +384,32 @@ function findBestPropertyMatch(properties, requestedName) {
   return { match: best, score: bestScore };
 }
 
-function extractValidatedRate(dataObj, nights) {
+function extractValidatedRate(dataObj, nights, bookingOfferIn) {
   const headline = publicDisplayRate(dataObj.rate_per_night);
-  const brandPick = pickOfficialBrandRate(dataObj);
+  const offer = bookingOfferIn || pickBookingOffer(dataObj);
+  const brandPick = offer
+    ? { rate: offer.rate, source: offer.sourceLabel, official: offer.official }
+    : pickOfficialBrandRate(dataObj);
   const candidates = collectRateCandidates(dataObj);
 
-  if (!candidates.length && !headline) {
+  if (!candidates.length && !headline && !offer?.rate) {
     return { ok: false, reason: "no_rates", rate: null, total: null };
+  }
+
+  // Matrix rate = same SerpAPI row as the booking destination (hyatt.com, booking.com, etc.).
+  if (offer?.rate) {
+    return {
+      ok: true,
+      rate: offer.rate,
+      total: offer.rate * nights,
+      confidence: offer.official ? "high" : "medium",
+      method: "booking_destination",
+      rate_source_label: sanitizeRateSourceLabel(offer.sourceLabel),
+      booking_host: offer.host,
+      headline,
+      agreeing: 1,
+      spread: 1,
+    };
   }
 
   // Official brand rate is trusted unless it is far above headline (e.g. premium member noise).
@@ -476,7 +533,7 @@ function extractValidatedRate(dataObj, nights) {
 //   google.com/aclk        — paid/ad results, destination in `adurl` param
 // Brand-direct links (Marriott, Hilton, etc.) almost always come through aclk
 // because hotels bid on their own brand. Both formats carry date-prefilled URLs.
-function decodeGoogleLink(url) {
+function decodeGoogleLink(url, sourceHint = "") {
   if (!url) return null;
   try {
     const parsed = new URL(url);
@@ -484,9 +541,12 @@ function decodeGoogleLink(url) {
       const adurl = parsed.searchParams.get("adurl");
       if (!adurl) return null;
       // adurl may itself be a doubleclick redirect — recurse to unwrap fully
-      return decodeGoogleLink(decodeURIComponent(adurl));
+      return normalizeDecodedBookingLink(
+        decodeGoogleLink(decodeURIComponent(adurl), sourceHint),
+        sourceHint
+      );
     }
-    if (url.includes("doubleclick.net")) {
+    if (url.includes("doubleclick.net") || url.includes("koddi.com")) {
       let raw = url;
       for (let i = 0; i < 5; i++) {
         try {
@@ -500,13 +560,24 @@ function decodeGoogleLink(url) {
       const proper = raw.match(/(https?:\/\/(?:www\.)?properhotel\.com[^\s"<>]+)/i);
       if (proper) return proper[1].split(/[?&]dclid=/)[0];
       const m = raw.match(/(https?:\/\/(?:www\.)?(?:marriott|ritzcarlton|hilton|waldorfastoria|hyatt|ihg|intercontinental|kimptonhotels|holidayinn|crowneplaza|staybridge|candlewood|booking|expedia|hotels|agoda)\.com[^\s"'<>\n]+)/i);
-      return m ? m[1].split(/[?&]dclid=/)[0] : null;
+      return normalizeDecodedBookingLink(m ? m[1].split(/[?&]dclid=/)[0] : null, sourceHint);
     }
     const pcurl = parsed.searchParams.get("pcurl");
-    return pcurl ? decodeURIComponent(pcurl) : url;
+    return normalizeDecodedBookingLink(pcurl ? decodeURIComponent(pcurl) : url, sourceHint);
   } catch {
     return url;
   }
+}
+
+/** Map partner redirect URLs (Derbysoft, etc.) to the brand site the user books on. */
+function normalizeDecodedBookingLink(link, sourceHint = "") {
+  if (!link) return null;
+  const hint = `${sourceHint} ${link}`.toLowerCase();
+  const hiltonCode = link.match(/[?&]providerHotelCode=([A-Z0-9]+)/i);
+  if (hiltonCode && /derbysoft/i.test(link) && /hilton/i.test(hint) && !/kimpton|ihg|intercontinental|holiday inn|crowne plaza/i.test(hint)) {
+    return `https://www.hilton.com/en/book/reservation/rooms/?ctyhocn=${hiltonCode[1].toUpperCase()}`;
+  }
+  return link;
 }
 
 const PREFERRED_OTAS = ["booking.com", "expedia", "hotels.com", "agoda"];
@@ -547,14 +618,9 @@ const KIMPTON_PROPERTY_CODES = {
   "kimpton alton hotel fisherman's wharf": { propCode: "SFOFW", brand: "kimptonhotels", region: "us", locale: "en" },
 };
 
-// Extract IHG brand + property code from any prices[] link — ihg.com or brand-owned domain.
-// Returns { brand, region, locale, propCode } or null.
-function extractIhgInfo(dataObj) {
-  const sources = [...(dataObj.prices || []), ...(dataObj.featured_prices || [])];
-  for (const p of sources) {
-    const link = decodeGoogleLink(p.link || p.url);
-    if (!link) continue;
-    console.log(`[IHG extract] decoded link: ${link.slice(0, 120)}`);
+// Extract IHG brand + property code from a single booking link.
+function extractIhgInfoFromLink(link) {
+  if (!link) return null;
 
     // Pattern 1: ihg.com/{brand}/hotels/{region}/{locale}/{city}/{propCode}/
     const m1 = link.match(/ihg\.com\/([\w-]+)\/hotels\/(\w+)\/(\w+)\/[\w-]+\/([a-z0-9]{3,8})(?:\/|$)/i);
@@ -570,6 +636,22 @@ function extractIhgInfo(dataObj) {
       const bcm = link.match(/[?&]brandCode=([^&]+)/i);
       const brand = (bcm && IHG_BRAND_CODES[bcm[1]]) || 'intercontinental';
       return { brand, region: 'us', locale: 'en', propCode: m3[1].toUpperCase() };
+    }
+
+    // Pattern 3b: hotel-search?...qPm=PROPCODE (Kimpton / IHG search redirect)
+    const m3b = link.match(/ihg\.com\/([\w-]+).*hotel-search.*[?&]qPm=([a-z0-9]{3,8})/i);
+    if (m3b) {
+      return { brand: m3b[1], region: 'us', locale: 'en', propCode: m3b[2].toUpperCase() };
+    }
+    const qpm = link.match(/[?&]qPm=([a-z0-9]{3,8})/i);
+    if (qpm && /ihg\.com\/(kimptonhotels|ihg)/i.test(link)) {
+      const brandM = link.match(/ihg\.com\/([\w-]+)/i);
+      return {
+        brand: brandM ? brandM[1] : 'kimptonhotels',
+        region: 'us',
+        locale: 'en',
+        propCode: qpm[1].toUpperCase(),
+      };
     }
 
     // Pattern 4: brand-specific domain (intercontinental.com, crowneplaza.com, etc.)
@@ -588,44 +670,135 @@ function extractIhgInfo(dataObj) {
         return { brand, region: 'us', locale: 'en', propCode: pathM[1].toUpperCase() };
       }
     }
+  return null;
+}
+
+function lookupKimptonProperty(hotelName) {
+  const key = (hotelName || "").toLowerCase().trim();
+  if (KIMPTON_PROPERTY_CODES[key]) return KIMPTON_PROPERTY_CODES[key];
+  for (const [name, info] of Object.entries(KIMPTON_PROPERTY_CODES)) {
+    if (key.includes(name) || name.includes(key)) return info;
   }
   return null;
 }
 
-// Extract the best booking deep-link from SerpAPI prices[].
-// Priority: brand-direct hotel site → preferred OTA → first decodable link.
+function extractIhgInfo(dataObj) {
+  for (const p of dataObj.prices || []) {
+    const link = decodeGoogleLink(p.link || p.url, p.source || "");
+    const info = extractIhgInfoFromLink(link);
+    if (info) return info;
+  }
+  const offer = pickBookingOffer(dataObj);
+  if (offer?.link) {
+    const fromOffer = extractIhgInfoFromLink(offer.link);
+    if (fromOffer) return fromOffer;
+  }
+  return null;
+}
+
+function fmtBookingDate(ds) {
+  const [y, m, d] = ds.split("-");
+  return `${m}/${d}/${y}`;
+}
+
+function buildIhgBookingUrl(info, checkIn, checkOut) {
+  const ciD = +checkIn.split("-")[2];
+  const coD = +checkOut.split("-")[2];
+  const ciMy = `${checkIn.slice(5, 7)}${checkIn.slice(0, 4)}`;
+  const coMy = `${checkOut.slice(5, 7)}${checkOut.slice(0, 4)}`;
+  return (
+    `https://www.ihg.com/${info.brand}/hotels/${info.region}/${info.locale}/find-hotels/select-roomrate` +
+    `?qCiD=${ciD}&qCiMy=${ciMy}&qCoD=${coD}&qCoMy=${coMy}&qAdlt=2&qChld=0&qRms=1&qSlH=${info.propCode}&qRmFltr=`
+  );
+}
+
+function buildCanonicalBookingUrl(offer, { hotelName, city, checkIn, checkOut }) {
+  if (!offer?.link) return null;
+  const { link, host } = offer;
+
+  if (isProperHotelName(hotelName) || host === "properhotel.com") {
+    return buildProperBookingUrlServer(hotelName, city, checkIn, checkOut);
+  }
+
+  const knownKimpton = lookupKimptonProperty(hotelName);
+  if (knownKimpton) return buildIhgBookingUrl(knownKimpton, checkIn, checkOut);
+
+  const ihg = extractIhgInfoFromLink(link);
+  if (ihg) return buildIhgBookingUrl(ihg, checkIn, checkOut);
+
+  if (host === "hyatt.com" || linkIncludesHost(link, "hyatt.com")) {
+    const codeM = link.match(/hyatt\.com\/shop\/(?:rooms\/)?([A-Za-z0-9]+)/i);
+    if (codeM) {
+      const code = codeM[1].toUpperCase();
+      return (
+        `https://www.hyatt.com/shop/rooms/${code}?rooms=1&adults=2` +
+        `&checkinDate=${checkIn}&checkoutDate=${checkOut}&kids=0&rate=Standard&accessibilityCheck=false`
+      );
+    }
+    return link;
+  }
+
+  if (host === "marriott.com" || host === "ritzcarlton.com" || linkIncludesHost(link, "marriott.com")) {
+    let code = null;
+    const pc = link.match(/[?&]propertyCode=([A-Z0-9]{4,8})/i);
+    if (pc) code = pc[1].toUpperCase();
+    if (!code) {
+      const tr = link.match(/hotels\/travel\/([a-z0-9]{4,8})-/i);
+      if (tr) code = tr[1].toUpperCase();
+    }
+    if (code) {
+      return (
+        `https://www.marriott.com/reservation/availabilitySearch.mi?propertyCode=${code}` +
+        `&fromDate=${encodeURIComponent(fmtBookingDate(checkIn))}` +
+        `&toDate=${encodeURIComponent(fmtBookingDate(checkOut))}` +
+        `&numberOfRooms=1&numAdultsPerGuestRoom=2`
+      );
+    }
+    return link;
+  }
+
+  if (
+    host === "hilton.com" ||
+    linkIncludesHost(link, "hilton.com") ||
+    linkIncludesHost(link, "waldorfastoria.com")
+  ) {
+    const cty = link.match(/[?&]ctyhocn=([A-Z0-9]+)/i);
+    if (cty) {
+      return (
+        `https://www.hilton.com/en/book/reservation/rooms/?ctyhocn=${cty[1].toUpperCase()}` +
+        `&arrivalDate=${checkIn}&departureDate=${checkOut}&room1NumAdults=2`
+      );
+    }
+    const slug = link.split("?")[0].split("/").filter(Boolean).pop() || "";
+    const slugCode = slug.match(/^([A-Z0-9]+)/i);
+    if (slugCode) {
+      return (
+        `https://www.hilton.com/en/book/reservation/rooms/?ctyhocn=${slugCode[1].toUpperCase()}` +
+        `&arrivalDate=${checkIn}&departureDate=${checkOut}&room1NumAdults=2`
+      );
+    }
+    return link;
+  }
+
+  if (host === "booking.com" || linkIncludesHost(link, "booking.com")) {
+    try {
+      const parsed = new URL(link);
+      parsed.searchParams.set("checkin", checkIn);
+      parsed.searchParams.set("checkout", checkOut);
+      parsed.searchParams.set("group_adults", parsed.searchParams.get("group_adults") || "2");
+      parsed.searchParams.set("no_rooms", parsed.searchParams.get("no_rooms") || "1");
+      return parsed.toString();
+    } catch {
+      return link;
+    }
+  }
+
+  return link;
+}
+
 function extractBookingUrl(dataObj) {
-  const prices = dataObj.prices || [];
-  if (!prices.length) return null;
-
-  // Decode all links upfront, drop ones that can't be resolved
-  const decoded = prices
-    .map(p => ({
-      source: (p.source || "").toLowerCase(),
-      link: decodeGoogleLink(p.link),
-    }))
-    .filter(p => p.link);
-
-  // 1. Brand-owned site by link hostname (Proper, Marriott, etc.) — beats OTA source labels
-  for (const host of BRAND_HOST_PRIORITY) {
-    const hit = decoded.find(p => linkIncludesHost(p.link, host));
-    if (hit) return hit.link;
-  }
-
-  // 2. Brand-direct by SerpAPI source label
-  for (const [, frags] of Object.entries(BRAND_SOURCES)) {
-    const hit = decoded.find(p => frags.some(f => p.source.includes(f)));
-    if (hit) return hit.link;
-  }
-
-  // 3. Preferred OTA by source label (dates are pre-filled in the decoded URL)
-  for (const ota of PREFERRED_OTAS) {
-    const hit = decoded.find(p => p.source.includes(ota));
-    if (hit) return hit.link;
-  }
-
-  // 4. First available decoded link
-  return decoded[0]?.link || null;
+  const offer = pickBookingOffer(dataObj);
+  return offer?.link || null;
 }
 
 // ─── PROPER HOTELS (AZDS booking URLs) ───────────────────────────────────────
@@ -1040,7 +1213,23 @@ app.get("/api/rates", async (req, res) => {
     }
     if (data.search_parameters?.currency) currency = data.search_parameters.currency;
 
-    const validated = extractValidatedRate(rateSource, nights);
+    const detailToken = propertyToken || rateSource.property_token;
+    if (detailToken && !(rateSource.prices?.length) && canUseLiveCall()) {
+      recordLiveCall(`rate property "${hotel}"`);
+      console.log(`[SerpAPI Rate] Loading property details for booking offers`);
+      const detailData = await fetch(
+        `https://serpapi.com/search.json?engine=google_hotels&q=${encodeURIComponent(`${hotel} ${city}`)}` +
+        `&check_in_date=${checkin}&check_out_date=${checkout}&currency=${serpCurrency}&gl=${gl}&hl=en` +
+        `&property_token=${encodeURIComponent(detailToken)}&api_key=${SERPAPI_KEY}`
+      ).then(r => r.json());
+      if (!detailData.error && detailData.type === "hotel") {
+        rateSource = detailData;
+        matchName = detailData.name || matchName;
+      }
+    }
+
+    const bookingOffer = pickBookingOffer(rateSource);
+    const validated = extractValidatedRate(rateSource, nights, bookingOffer);
     if (!validated.ok) {
       console.log(
         `[SerpAPI Rate] REJECTED ${validated.reason} for "${matchName}"` +
@@ -1061,22 +1250,41 @@ app.get("/api/rates", async (req, res) => {
     }
 
     const { rate, total } = validated;
-    bookingUrl = extractBookingUrl(rateSource);
-    ihgInfo = extractIhgInfo(rateSource);
+    bookingUrl = bookingOffer
+      ? buildCanonicalBookingUrl(bookingOffer, {
+          hotelName: matchName,
+          city,
+          checkIn: checkin,
+          checkOut: checkout,
+        })
+      : extractBookingUrl(rateSource);
+    const resolvedBookingHost = (() => {
+      if (!bookingUrl) return bookingOffer?.host || validated.booking_host || null;
+      try {
+        const h = new URL(bookingUrl).hostname.replace(/^www\./, "");
+        if (h.includes("properhotel")) return "properhotel.com";
+        return h;
+      } catch {
+        return bookingOffer?.host || validated.booking_host || null;
+      }
+    })();
+    ihgInfo =
+      lookupKimptonProperty(hotel) ||
+      lookupKimptonProperty(matchName) ||
+      extractIhgInfo(rateSource) ||
+      (bookingOffer?.link ? extractIhgInfoFromLink(bookingOffer.link) : null);
+
+    if (ihgInfo) {
+      bookingUrl = buildIhgBookingUrl(ihgInfo, checkin, checkout);
+    }
 
     console.log(
-      `[SerpAPI Rate] "${matchName}" $${rate}/night (${validated.confidence}, ${validated.method})` +
+      `[SerpAPI Rate] "${matchName}" $${rate}/night (${validated.confidence}, ${validated.method}` +
+      `${bookingOffer?.host ? ` → ${bookingOffer.host}` : ""})` +
       (matchScore != null && matchScore < 1 ? ` match=${matchScore.toFixed(2)}` : "")
     );
 
     if (ihgInfo) console.log(`[SerpAPI Rate] IHG info: brand=${ihgInfo.brand} propCode=${ihgInfo.propCode}`);
-    if (isProperHotelName(hotel) || isProperHotelName(matchName)) {
-      const built = buildProperBookingUrlServer(matchName, city, checkin, checkout);
-      if (built) {
-        bookingUrl = built;
-        console.log(`[Proper] booking URL → ${bookingUrl.includes("step-2") ? "step-2 (dates)" : "step-1 (pick dates)"}`);
-      }
-    }
 
     const result = {
       rate,
@@ -1088,6 +1296,7 @@ app.get("/api/rates", async (req, res) => {
       nights,
       currency,
       booking_url: bookingUrl,
+      booking_host: resolvedBookingHost,
       rate_disclaimer: RATE_DISCLAIMER,
       rate_basis: "nightly_before_taxes_fees",
       rate_source_label: validated.rate_source_label || null,
