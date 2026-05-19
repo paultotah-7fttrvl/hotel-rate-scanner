@@ -13,20 +13,33 @@ const app = express();
 const SERPAPI_KEY = process.env.SERPAPI_KEY;
 const LIVE_DAILY_LIMIT = Number(process.env.LIVE_DAILY_LIMIT || 33);
 
-// ─── STATIC FILES (in-memory) ─────────────────────────────────────────────────
-// Read static assets once at startup into memory buffers. This avoids repeated
-// sendfile() syscalls, which fail intermittently on macOS (Unknown system error -11)
-// when the process is running as a launchd agent from ~/Desktop.
-const STATIC = {
-  "/":              { buf: fs.readFileSync(path.join(__dirname, "index.html")),    type: "text/html" },
-  "/index.html":    { buf: fs.readFileSync(path.join(__dirname, "index.html")),    type: "text/html" },
-  "/hotels.js":     { buf: fs.readFileSync(path.join(__dirname, "hotels.js")),     type: "application/javascript" },
-  "/hero-travel.jpg": { buf: fs.readFileSync(path.join(__dirname, "hero-travel.jpg")), type: "image/jpeg" },
-  "/theme-sevenfeet.css": { buf: fs.readFileSync(path.join(__dirname, "theme-sevenfeet.css")), type: "text/css" },
+// ─── STATIC FILES ─────────────────────────────────────────────────────────────
+// HTML/JS/CSS are read from disk on each request so UI edits show without restart.
+// hero-travel.jpg stays in memory (large, rarely changes; avoids macOS sendfile quirks).
+const STATIC_ROUTES = {
+  "/":                    { file: "index.html",            type: "text/html" },
+  "/index.html":          { file: "index.html",            type: "text/html" },
+  "/hotels.js":           { file: "hotels.js",             type: "application/javascript" },
+  "/theme-sevenfeet.css": { file: "theme-sevenfeet.css",   type: "text/css" },
+};
+const STATIC_CACHED = {
+  "/hero-travel.jpg": {
+    buf: fs.readFileSync(path.join(__dirname, "hero-travel.jpg")),
+    type: "image/jpeg",
+  },
 };
 app.use((req, res, next) => {
-  const entry = STATIC[req.path];
-  if (entry) return res.type(entry.type).send(entry.buf);
+  const cached = STATIC_CACHED[req.path];
+  if (cached) return res.type(cached.type).send(cached.buf);
+  const route = STATIC_ROUTES[req.path];
+  if (route) {
+    try {
+      const buf = fs.readFileSync(path.join(__dirname, route.file));
+      return res.type(route.type).send(buf);
+    } catch (err) {
+      return res.status(404).send("Not found");
+    }
+  }
   next();
 });
 

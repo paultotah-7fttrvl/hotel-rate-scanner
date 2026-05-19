@@ -11,15 +11,30 @@ const LIVE_DAILY_LIMIT = Number(process.env.LIVE_DAILY_LIMIT || 33);
 // Read static assets once at startup into memory buffers. This avoids repeated
 // sendfile() syscalls, which fail intermittently on macOS (Unknown system error -11)
 // when the process is running as a launchd agent from ~/Desktop.
-const STATIC = {
-  "/":              { buf: fs.readFileSync(path.join(__dirname, "public", "index.html")),    type: "text/html" },
-  "/index.html":    { buf: fs.readFileSync(path.join(__dirname, "public", "index.html")),    type: "text/html" },
-  "/hotels.js":     { buf: fs.readFileSync(path.join(__dirname, "public", "hotels.js")),     type: "application/javascript" },
-  "/hero-travel.jpg": { buf: fs.readFileSync(path.join(__dirname, "public", "hero-travel.jpg")), type: "image/jpeg" },
+const STATIC_ROUTES = {
+  "/":                    { file: path.join("public", "index.html"),          type: "text/html" },
+  "/index.html":          { file: path.join("public", "index.html"),          type: "text/html" },
+  "/hotels.js":           { file: path.join("public", "hotels.js"),           type: "application/javascript" },
+  "/theme-sevenfeet.css": { file: path.join("public", "theme-sevenfeet.css"),   type: "text/css" },
+};
+const STATIC_CACHED = {
+  "/hero-travel.jpg": {
+    buf: fs.readFileSync(path.join(__dirname, "public", "hero-travel.jpg")),
+    type: "image/jpeg",
+  },
 };
 app.use((req, res, next) => {
-  const entry = STATIC[req.path];
-  if (entry) return res.type(entry.type).send(entry.buf);
+  const cached = STATIC_CACHED[req.path];
+  if (cached) return res.type(cached.type).send(cached.buf);
+  const route = STATIC_ROUTES[req.path];
+  if (route) {
+    try {
+      const buf = fs.readFileSync(path.join(__dirname, route.file));
+      return res.type(route.type).send(buf);
+    } catch (err) {
+      return res.status(404).send("Not found");
+    }
+  }
   next();
 });
 

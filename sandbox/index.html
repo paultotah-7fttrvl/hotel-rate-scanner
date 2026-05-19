@@ -3,19 +3,19 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Hotel Rate Matrix — Sandbox</title>
+  <title>Hotel Scanner — Sandbox</title>
   <meta name="description" content="Sandbox: search any hotel anywhere using live SerpAPI data." />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
   <script src="hotels.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,600;0,700;1,300;1,600&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
   <style>
     /* ── DESIGN SYSTEM TOKENS ────────────────────────────── */
     :root {
-      --font-serif:             'Playfair Display', Georgia, serif;
-      --font-sans:              'DM Sans', system-ui, sans-serif;
+      --font-serif:             'Cormorant Garamond', Georgia, serif;
+      --font-sans:              'Inter', system-ui, sans-serif;
 
       --background:             hsl(40, 20%, 97%);
       --foreground:             hsl(220, 20%, 14%);
@@ -26,7 +26,7 @@
       --secondary:              hsl(38, 12%, 92%);
       --secondary-foreground:   hsl(220, 18%, 22%);
       --muted:                  hsl(40, 10%, 94%);
-      --muted-foreground:       hsl(220, 10%, 46%);
+      --muted-foreground:       hsl(220, 10%, 40%);
       --accent:                 hsl(32, 30%, 52%);
       --accent-foreground:      hsl(40, 20%, 97%);
       --destructive:            hsl(0, 60%, 50%);
@@ -44,7 +44,7 @@
       --border-strong:   hsl(38, 15%, 74%);
       --text-1:          var(--foreground);
       --text-2:          var(--muted-foreground);
-      --text-3:          hsl(220, 10%, 62%);
+      --text-3:          hsl(220, 10%, 48%);
       --ink:             var(--primary);
       --gold:            var(--accent);
       --gold-light:      hsl(32, 36%, 62%);
@@ -70,6 +70,7 @@
     html { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
     body {
       font-family: var(--font-sans);
+      font-weight: 400;
       background: var(--background);
       color: var(--foreground);
       -webkit-font-smoothing: antialiased;
@@ -86,7 +87,7 @@
 
     /* ── LAYOUT ──────────────────────────────────────────── */
     .page { min-height: 100vh; }
-    .container { max-width: 860px; margin: 0 auto; padding: 0 24px; }
+    .container { max-width: 1040px; margin: 0 auto; padding: 0 24px; }
 
     /* ── NAV ─────────────────────────────────────────────── */
     .hero-section-wrap { position: relative; }
@@ -98,7 +99,7 @@
       border-bottom: 1px solid rgba(210,205,196,0.5);
     }
     .nav-inner {
-      max-width: 860px; margin: 0 auto; padding: 0 24px;
+      max-width: 1040px; margin: 0 auto; padding: 0 24px;
       height: 56px;
       display: flex; align-items: center; justify-content: space-between;
     }
@@ -189,6 +190,92 @@
     }
     .main-card-section:last-child { border-bottom: none; }
 
+    /* Steps 1 + 2 — row vs column layout (toggle in UI) */
+    .step-layout-bar {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      padding: 14px 40px 0;
+    }
+    .step-layout-group {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .step-layout-label {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-2);
+    }
+    .step-layout-toggle {
+      display: inline-flex;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-pill);
+      overflow: hidden;
+      background: var(--surface-2);
+    }
+    .step-layout-btn {
+      font-family: var(--font-sans);
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.06em;
+      padding: 7px 14px;
+      color: var(--text-2);
+      transition: all var(--transition);
+    }
+    .step-layout-btn:hover { color: var(--text-1); }
+    .step-layout-btn.on {
+      background: var(--ink);
+      color: var(--primary-foreground);
+    }
+
+    .main-card-steps {
+      display: grid;
+      align-items: start;
+    }
+    .main-card-steps.layout-rows {
+      grid-template-columns: 1fr;
+    }
+    .main-card-steps.layout-rows .main-card-section--hotels {
+      border-right: none;
+      border-bottom: 1px solid var(--border);
+    }
+    .main-card-steps.layout-columns {
+      grid-template-columns: 1fr 1fr;
+    }
+    .main-card-steps.layout-columns .main-card-section--hotels {
+      border-right: 1px solid var(--border);
+      border-bottom: none;
+    }
+    .main-card-steps .main-card-section {
+      border-bottom: none;
+      min-width: 0;
+    }
+    .main-card-steps.layout-columns .section-label {
+      flex-wrap: wrap;
+    }
+    .main-card-steps.layout-columns .section-subtitle {
+      width: 100%;
+      margin-left: 32px;
+      margin-top: -8px;
+    }
+    @media (min-width: 821px) {
+      .main-card-steps.layout-columns .city-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+      .main-card-steps.layout-columns .date-row {
+        padding: 0 10px;
+      }
+      .main-card-steps.layout-columns .drp-trigger-text {
+        font-size: 13px;
+      }
+      .main-card-steps.layout-columns .main-card-section {
+        padding: 28px 24px;
+      }
+    }
+
     /* ── SECTION LABELS ──────────────────────────────────── */
     .section-label {
       display: flex; align-items: center; gap: 10px;
@@ -213,11 +300,12 @@
 
     /* ── HOTEL SEARCH ────────────────────────────────────── */
     .search-wrap { position: relative; }
+    .search-box-wrap { width: 100%; min-width: 0; }
     .search-box {
       display: flex; align-items: center; gap: 10px;
       background: var(--bg); border: 1px solid var(--border);
-      border-radius: var(--radius-md); padding: 0 16px;
-      height: 48px;
+      border-radius: var(--radius-md); padding: 0 14px;
+      min-height: 48px;
       transition: border-color var(--transition), box-shadow var(--transition);
     }
     .search-box:focus-within {
@@ -226,11 +314,15 @@
     }
     .search-box-icon { color: var(--text-3); flex-shrink: 0; line-height: 1; }
     .search-box input {
-      flex: 1; border: none; outline: none;
-      font-size: 15px; background: transparent; color: var(--text-1);
+      flex: 1 1 8rem; min-width: 0; width: 100%;
+      border: none; outline: none;
+      font-size: 14px; font-weight: 400; background: transparent; color: var(--text-1);
     }
-    .search-box input::placeholder { color: var(--text-3); }
-    .search-box-hint { font-size: 12px; color: var(--text-3); flex-shrink: 0; }
+    .search-box input::placeholder { color: var(--text-2); opacity: 1; }
+    .search-meta {
+      font-size: 12px; font-weight: 500; color: var(--text-2);
+      margin-top: 6px; padding-left: 2px;
+    }
 
     .search-dropdown {
       position: absolute; top: calc(100% + 6px); left: 0; right: 0;
@@ -626,7 +718,8 @@
 
     /* ── SEARCH HELPER / DROPDOWN FOOTER ────────────────── */
     .search-helper {
-      font-size: 12px; color: var(--text-3); margin-top: 7px;
+      font-size: 12px; font-weight: 400; color: var(--text-2);
+      margin-top: 8px; line-height: 1.45;
     }
     .search-dropdown-footer {
       padding: 8px 16px; font-size: 11px; color: var(--text-3);
@@ -768,10 +861,36 @@
       to   { opacity: 1; transform: translateY(0); }
     }
 
+    .usage-notice {
+      margin: 0 0 16px;
+      padding: 14px 16px;
+      border: 1px solid #E8D6A8;
+      border-radius: 14px;
+      background: #FFF8E6;
+      color: #6F4E00;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
     /* ── RESPONSIVE ──────────────────────────────────────── */
+    @media (max-width: 820px) {
+      .main-card-steps.layout-columns {
+        grid-template-columns: 1fr;
+      }
+      .main-card-steps.layout-columns .main-card-section--hotels {
+        border-right: none;
+        border-bottom: 1px solid var(--border);
+      }
+      .main-card-steps.layout-columns .section-subtitle {
+        width: auto;
+        margin-left: auto;
+        margin-top: 0;
+      }
+    }
     @media (max-width: 620px) {
       .summary-cards { grid-template-columns: 1fr; }
       .why-grid { grid-template-columns: 1fr; gap: 12px; }
+      .step-layout-bar { padding: 12px 20px 0; }
       .main-card-section, .cta-wrap { padding: 20px 20px; }
       .hero { padding: 48px 0 64px; }
       .main-card { margin-top: -24px; }
@@ -1392,7 +1511,7 @@ function HotelSearch({ selectedHotels, onAdd, onRemove, allHotels, recentSearche
   return (
     <div ref={ref}>
       {/* positioned wrapper scoped to just the search box so dropdown appears immediately below it */}
-      <div style={{ position: 'relative' }}>
+      <div className="search-box-wrap" style={{ position: 'relative' }}>
         <div className="search-box">
           <span className="search-box-icon">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -1406,13 +1525,14 @@ function HotelSearch({ selectedHotels, onAdd, onRemove, allHotels, recentSearche
             onChange={e => { setQuery(e.target.value); setSelectedCity(null); }}
             onKeyDown={handleKey}
             onFocus={() => setIsFocused(true)}
-            placeholder={maxed ? `Maximum ${MAX_HOTELS} hotels selected` : 'Search any hotel worldwide, or browse popular destinations…'}
+            placeholder={maxed ? `Max ${MAX_HOTELS} hotels selected` : 'Search hotels or destinations…'}
             disabled={maxed}
+            aria-label="Search hotels or destinations"
           />
-          {selectedHotels.length > 0 && (
-            <span className="search-box-hint">{selectedHotels.length}/{MAX_HOTELS} selected</span>
-          )}
         </div>
+        {selectedHotels.length > 0 && (
+          <div className="search-meta">{selectedHotels.length}/{MAX_HOTELS} selected</div>
+        )}
 
         {/* Typed search — absolute dropdown overlay (standard autocomplete) */}
         {query && showDrop && (
@@ -1428,7 +1548,7 @@ function HotelSearch({ selectedHotels, onAdd, onRemove, allHotels, recentSearche
       </div>
 
       {!maxed && (
-        <div className="search-helper">Search any hotel worldwide or browse popular destinations</div>
+        <div className="search-helper">Type a hotel or city, or browse popular destinations below</div>
       )}
 
       {/* Browse mode — inline panel, expands inside card section */}
@@ -1752,8 +1872,15 @@ function App() {
   const [usageNotice, setUsageNotice] = useState(null);
   const [modal, setModal] = useState(null); // null | 'about' | 'casestudy'
   const [highlightKey, setHighlightKey] = useState(null);
+  const [stepLayout, setStepLayout] = useState(() => {
+    try { return localStorage.getItem('hs-step-layout') || 'columns'; } catch { return 'columns'; }
+  });
   const resultsRef = useRef(null);
   const tableRef = useRef(null);
+
+  useEffect(() => {
+    try { localStorage.setItem('hs-step-layout', stepLayout); } catch {}
+  }, [stepLayout]);
 
   // Load full hotel list from server on mount
   useEffect(() => {
@@ -1851,23 +1978,26 @@ function App() {
       <div className="hero-section-wrap">
       <nav className="nav">
         <div className="nav-inner">
-          <div className="nav-logo">Hotel Rate Matrix</div>
+          <div className="nav-logo">Hotel <em>Scanner</em></div>
           <div className="nav-right">
             <button className="nav-link" onClick={() => setModal('casestudy')}>About</button>
-            <div className="nav-badge" style={{ background: 'hsl(32,80%,94%)', color: 'hsl(32,55%,35%)', borderColor: 'hsl(32,50%,78%)' }}>Sandbox</div>
-            <div className="nav-badge">Portfolio Prototype</div>
+            <div className="nav-badge">Sandbox</div>
           </div>
         </div>
       </nav>
 
       {/* HERO */}
       <div className="hero">
-        <div className="hero-eyebrow">Hotel Rate Comparison Tool</div>
+        <div className="hero-eyebrow">Seven Feet Travel</div>
         <h1 className="hero-headline">
-          Compare rates across dates,<br />
-          <em>not across tabs.</em>
+          Compare rates<br />
+          <em>across dates.</em>
         </h1>
-        <p className="hero-value">Add the hotels you want. Pick the dates that could work. See every combination at once.</p>
+        <p className="hero-value">
+          Add the hotels you want.<br />
+          Pick the dates that could work.<br />
+          See every combination at once.
+        </p>
         <p className="hero-note">Search any hotel anywhere — sandbox powered by live SerpAPI data.</p>
       </div>
       </div>
@@ -1876,8 +2006,27 @@ function App() {
       <div className="container">
         <div className="main-card">
 
+          <div className="step-layout-bar">
+            <div className="step-layout-group">
+              <span className="step-layout-label">View</span>
+              <div className="step-layout-toggle" role="group" aria-label="View: stacked or side by side">
+              <button
+                type="button"
+                className={`step-layout-btn ${stepLayout === 'rows' ? 'on' : ''}`}
+                onClick={() => setStepLayout('rows')}
+              >Stacked</button>
+              <button
+                type="button"
+                className={`step-layout-btn ${stepLayout === 'columns' ? 'on' : ''}`}
+                onClick={() => setStepLayout('columns')}
+              >Side by side</button>
+              </div>
+            </div>
+          </div>
+
+          <div className={`main-card-steps layout-${stepLayout}`}>
           {/* STEP 1 — Hotels */}
-          <div className="main-card-section">
+          <div className="main-card-section main-card-section--hotels">
             <div className="section-label">
               <span className="section-num">1</span>
               <span className="section-title">Search and add hotels</span>
@@ -1893,13 +2042,14 @@ function App() {
           </div>
 
           {/* STEP 2 — Dates */}
-          <div className="main-card-section">
+          <div className="main-card-section main-card-section--dates">
             <div className="section-label">
               <span className="section-num">2</span>
               <span className="section-title">Add date options</span>
               <span className="section-subtitle">{MIN_DATE_RANGES} – {MAX_DATE_RANGES} ranges</span>
             </div>
             <DateRanges ranges={dateRanges} onChange={setDateRanges} />
+          </div>
           </div>
 
           {/* STEP 3 — CTA */}
@@ -1931,7 +2081,7 @@ function App() {
         {(showResults || loadingCells.size > 0) && (
           <div className="results-section" ref={resultsRef}>
             {usageNotice && (
-              <div style={{ margin: "0 0 16px", padding: "14px 16px", border: "1px solid #E8D6A8", borderRadius: 14, background: "#FFF8E6", color: "#6F4E00", fontSize: 13, lineHeight: 1.5 }}>
+              <div className="usage-notice">
                 <strong>Prototype note:</strong> {usageNotice}
               </div>
             )}
@@ -1962,6 +2112,8 @@ function App() {
       <footer className="footer">
         <div className="footer-author">
           Built by <a className="footer-a" href="https://linkedin.com/in/paultotah" target="_blank" rel="noopener noreferrer">Paul Totah</a>
+          <span className="footer-sep"> · </span>
+          <a className="footer-a" href="https://sevenfeettravel.com" target="_blank" rel="noopener noreferrer">Seven Feet Travel</a>
         </div>
       </footer>
 
