@@ -738,8 +738,7 @@ function chainNoBrandRateResult(
     error: "rate_unverified",
     message: RATE_UNVERIFIED_MESSAGE,
     rate_warning: "no_brand_rate",
-    book_without_rate: true,
-    booking_url: bookingUrl,
+    booking_url: null,
     rate_disclaimer: RATE_DISCLAIMER,
     rate_basis: "nightly_before_taxes_fees",
     matched_property: matchName,
@@ -1265,28 +1264,6 @@ app.get("/api/rates", async (req, res) => {
         match_score: matchScore,
         rate_candidates: validated.candidates || null,
       };
-      if (isPortfolioChainHotel(hotel, matchName) && !acProp) {
-        const { bookingUrl: brandBookUrl, ihgInfo: brandIhg } = resolveSandboxBookingUrl(
-          rateSource,
-          checkin,
-          checkout,
-          acProp,
-          currency,
-          hotel,
-          matchName,
-          city
-        );
-        if (brandBookUrl) {
-          extra.booking_url = brandBookUrl;
-          extra.book_without_rate = true;
-          if (brandIhg) {
-            extra.ihg_brand = brandIhg.brand;
-            extra.ihg_region = brandIhg.region;
-            extra.ihg_locale = brandIhg.locale;
-            extra.ihg_prop_code = brandIhg.propCode;
-          }
-        }
-      }
       const result = liveUnavailableResult(
         hotel, checkin, checkout, nights, currency, "rate_unverified",
         RATE_UNVERIFIED_MESSAGE,

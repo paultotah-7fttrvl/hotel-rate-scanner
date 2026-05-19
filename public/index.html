@@ -1072,7 +1072,7 @@ async function fetchRate(hotel, checkIn, checkOut, bust = false) {
     const isDemo = data.source === 'demo_fallback' || data.source === 'demo_daily_limit';
     return {
       rate: data.rate,
-      available: (data.rate != null && data.rate > 0 && !data.error) || (!!data.booking_url && (data.agua_caliente || data.book_without_rate)),
+      available: (data.rate != null && data.rate > 0 && !data.error) || (!!data.booking_url && data.agua_caliente),
       total: data.total,
       source: data.source,
       error: data.error || null,
@@ -1089,7 +1089,7 @@ async function fetchRate(hotel, checkIn, checkOut, bust = false) {
       rateSourceLabel: (data.rate_source_label && !/google/i.test(data.rate_source_label))
         ? data.rate_source_label : null,
       isDemo,
-      bookWithoutRate: data.book_without_rate || false,
+      aguaCaliente: !!data.agua_caliente,
       ihgBrand: data.ihg_brand || null,
       ihgRegion: data.ihg_region || null,
       ihgLocale: data.ihg_locale || null,
@@ -2033,21 +2033,15 @@ function ResultsTable({ results, loadingCells, hotels, validDates, sortBy, onSor
 
                   if (!r) return <td key={di}><div className="rate-td"><span className="rate-unavail">—</span></div></td>;
 
-                  if (r.available && (!r.rate || r.rate <= 0)) {
-                    const needsKimptonBookOnly = (
-                      isKimptonHotel(hotel) && !r.ihgPropCode && !isSupportedBrandUrl(hotel.url)
-                    );
+                  if (r.available && r.aguaCaliente && (!r.rate || r.rate <= 0)) {
                     return (
                       <td key={di}>
                         <div className="rate-td">
                           <div style={{ fontSize: 11, color: '#5C5C5C', lineHeight: 1.4, maxWidth: 168 }}>
-                            {r.message || 'This hotel is either sold out or has a length-of-stay restriction. Try changing your dates.'}
+                            {r.message || 'No room rates in Google Hotels for this property. Book links to the official Agua Caliente site.'}
                           </div>
                           <div className="rate-td-actions" style={{ marginTop: 8 }}>
-                            {needsKimptonBookOnly
-                              ? <KimptonBookButton hotel={hotel} checkIn={d.checkIn} checkOut={d.checkOut} isBest={isBest} />
-                              : <a href={bookUrl} target="_blank" rel="noopener noreferrer" className={`rate-book ${isBest ? 'gold' : ''}`}>Book →</a>
-                            }
+                            <a href={bookUrl} target="_blank" rel="noopener noreferrer" className={`rate-book ${isBest ? 'gold' : ''}`}>Book →</a>
                           </div>
                         </div>
                       </td>
