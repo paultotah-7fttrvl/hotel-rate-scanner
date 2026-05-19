@@ -204,32 +204,29 @@ function extractIhgInfo(dataObj) {
   return null;
 }
 
-// Extract the best booking deep-link from SerpAPI prices[] and featured_prices[].
-// Priority: brand-direct hotel site → Booking.com/direct OTA → first decodable link.
+// Extract the best booking deep-link from SerpAPI prices[].
+// Priority: brand-direct hotel site → preferred OTA → first decodable link.
 function extractBookingUrl(dataObj) {
-  const sources = [
-    ...(dataObj.prices || []),
-    ...(dataObj.featured_prices || []),
-    dataObj,
-  ];
+  const prices = dataObj.prices || [];
+  if (!prices.length) return null;
 
   // Decode all links upfront, drop ones that can't be resolved
-  const decoded = sources
+  const decoded = prices
     .map(p => ({
-      source: (p.source || p.name || "").toLowerCase(),
-      link: decodeGoogleLink(p.link || p.url),
+      source: (p.source || "").toLowerCase(),
+      link: decodeGoogleLink(p.link),
     }))
     .filter(p => p.link);
 
-  // 1. Brand-direct hotel chain URL
+  // 1. Brand-direct hotel chain URL (matched by source label)
   for (const [, frags] of Object.entries(BRAND_SOURCES)) {
     const hit = decoded.find(p => frags.some(f => p.source.includes(f)));
     if (hit) return hit.link;
   }
 
-  // 2. Preferred OTA (dates are pre-filled in the decoded URL)
+  // 2. Preferred OTA by source label (dates are pre-filled in the decoded URL)
   for (const ota of PREFERRED_OTAS) {
-    const hit = decoded.find(p => p.source.includes(ota) || linkIncludesHost(p.link, ota));
+    const hit = decoded.find(p => p.source.includes(ota));
     if (hit) return hit.link;
   }
 
