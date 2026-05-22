@@ -552,11 +552,19 @@
       overflow: hidden; animation: fadeUp 0.35s ease-out;
     }
     .rtc-toolbar {
-      display: flex; align-items: center; gap: 10px;
+      display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
       padding: 12px 20px; border-bottom: 1px solid var(--border);
       background: var(--surface-2);
     }
-    .rtc-toolbar-label { font-size: 12px; font-weight: 600; color: var(--text-2); flex: 1; }
+    .rtc-toolbar-label { font-size: 12px; font-weight: 600; color: var(--text-2); flex: 1; min-width: 140px; }
+    .rtc-toolbar-note {
+      padding: 6px 20px 10px;
+      font-size: 11px;
+      line-height: 1.4;
+      color: #8A8A8A;
+      background: var(--surface-2);
+      border-bottom: 1px solid var(--border);
+    }
     .sort-label { font-size: 11px; color: var(--text-3); }
     .sort-btns { display: flex; gap: 4px; }
     .sort-btn {
@@ -634,6 +642,18 @@
       border: 1px solid #E8E4DC;
       border-radius: 10px;
     }
+    .currency-control--inline {
+      display: inline-flex;
+      flex-wrap: nowrap;
+      align-items: center;
+      gap: 8px;
+      margin: 0 14px 0 0;
+      padding: 0;
+      background: transparent;
+      border: none;
+      border-radius: 0;
+    }
+    .rtc-toolbar .sort-label { margin-left: 4px; }
     .currency-control-label { font-size: 12px; font-weight: 600; color: #3D3D3D; }
     .currency-toggle {
       display: inline-flex;
@@ -2034,12 +2054,12 @@ function DateRanges({ ranges, onChange }) {
 }
 
 // ─── CURRENCY DISPLAY CONTROL ─────────────────────────────────────────────────
-function CurrencyDisplayControl({ mode, localCurrency, onChange }) {
+function CurrencyDisplayControl({ mode, localCurrency, onChange, inline = false }) {
   const localLabel = localCurrency && localCurrency !== 'USD'
     ? `Local (${localCurrency})`
     : 'Local currency';
   return (
-    <div className="currency-control">
+    <div className={`currency-control ${inline ? 'currency-control--inline' : ''}`}>
       <span className="currency-control-label">Show rates in</span>
       <div className="currency-toggle" role="group" aria-label="Rate display currency">
         <button
@@ -2053,7 +2073,7 @@ function CurrencyDisplayControl({ mode, localCurrency, onChange }) {
           onClick={() => onChange('local')}
         >{localLabel}</button>
       </div>
-      <p className="currency-control-note">{CURRENCY_DISPLAY_NOTE}</p>
+      {!inline && <p className="currency-control-note">{CURRENCY_DISPLAY_NOTE}</p>}
     </div>
   );
 }
@@ -2126,7 +2146,7 @@ function SummaryCards({ flatResults, hotels, validDates, onCardClick }) {
 }
 
 // ─── RESULTS TABLE ────────────────────────────────────────────────────────────
-function ResultsTable({ results, loadingCells, hotels, validDates, sortBy, onSort, bestKey, highlightKey }) {
+function ResultsTable({ results, loadingCells, hotels, validDates, sortBy, onSort, bestKey, highlightKey, displayCurrencyMode, onDisplayCurrencyChange, localCurrencyCode }) {
   const stars = n => STAR_CHAR.repeat(n);
 
   const sortedHotels = [...hotels].sort((a, b) => {
@@ -2148,6 +2168,12 @@ function ResultsTable({ results, loadingCells, hotels, validDates, sortBy, onSor
     <div className="results-table-card">
       <div className="rtc-toolbar">
         <span className="rtc-toolbar-label">{hotels.length} hotel{hotels.length !== 1 ? 's' : ''} · {validDates.length} date option{validDates.length !== 1 ? 's' : ''}</span>
+        <CurrencyDisplayControl
+          inline
+          mode={displayCurrencyMode}
+          localCurrency={localCurrencyCode}
+          onChange={onDisplayCurrencyChange}
+        />
         <span className="sort-label">Sort by</span>
         <div className="sort-btns">
           {[['adr','Nightly rate'],['name','Name']].map(([k,l]) => (
@@ -2155,6 +2181,7 @@ function ResultsTable({ results, loadingCells, hotels, validDates, sortBy, onSor
           ))}
         </div>
       </div>
+      <div className="rtc-toolbar-note">{CURRENCY_DISPLAY_NOTE}</div>
       <div style={{ overflowX: 'auto' }}>
         <table className="rt">
           <thead>
@@ -2544,11 +2571,6 @@ function App() {
                 <strong>Prototype note:</strong> {usageNotice}
               </div>
             )}
-            <CurrencyDisplayControl
-              mode={displayCurrencyMode}
-              localCurrency={localCurrencyCode}
-              onChange={setDisplayCurrencyMode}
-            />
             <SummaryCards
               flatResults={flatResults}
               hotels={selectedHotels}
@@ -2565,6 +2587,9 @@ function App() {
                 onSort={setSortBy}
                 bestKey={bestKey}
                 highlightKey={highlightKey}
+                displayCurrencyMode={displayCurrencyMode}
+                onDisplayCurrencyChange={setDisplayCurrencyMode}
+                localCurrencyCode={localCurrencyCode}
               />
             </div>
             <div style={{ display: "flex", justifyContent: "center", marginTop: 16 }}>
