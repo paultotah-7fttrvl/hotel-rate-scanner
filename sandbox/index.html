@@ -557,11 +557,14 @@
       overflow: hidden; animation: fadeUp 0.35s ease-out;
     }
     .rtc-toolbar {
-      display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 12px;
       padding: 12px 20px; border-bottom: 1px solid var(--border);
       background: var(--surface-2);
     }
-    .rtc-toolbar-label { font-size: 12px; font-weight: 600; color: var(--text-2); flex: 1; min-width: 140px; }
+    .rtc-toolbar-label { font-size: 12px; font-weight: 600; color: var(--text-2); flex: none; min-width: 0; }
     .rtc-toolbar-note {
       padding: 6px 20px 10px;
       font-size: 11px;
@@ -570,7 +573,7 @@
       background: var(--surface-2);
       border-bottom: 1px solid var(--border);
     }
-    .sort-label { font-size: 11px; color: var(--text-3); }
+    .sort-label { font-size: 12px; font-weight: 600; color: #3D3D3D; }
     .sort-btns { display: flex; gap: 4px; }
     .sort-btn {
       font-size: 11px; font-weight: 500; color: var(--text-2);
@@ -635,6 +638,13 @@
       color: var(--text-1); font-variant-numeric: tabular-nums;
     }
     .rate-disclaimer { font-size: 9px; color: #9C9C9C; line-height: 1.3; margin-top: 4px; max-width: 118px; }
+    .rate-unverified-msg {
+      font-size: 11px;
+      color: #5C5C5C;
+      line-height: 1.4;
+      max-width: 118px;
+      text-align: center;
+    }
     .rate-source-tag { font-size: 9px; color: #6B5A3E; font-weight: 600; margin-top: 2px; letter-spacing: 0.02em; }
     .currency-control {
       display: flex;
@@ -648,37 +658,50 @@
       border-radius: 10px;
     }
     .currency-control--inline {
-      display: inline-flex;
+      display: flex;
       flex-wrap: nowrap;
       align-items: center;
+      justify-content: space-between;
       gap: 8px;
-      margin: 0 14px 0 0;
+      margin: 0;
       padding: 0;
+      width: 100%;
       background: transparent;
       border: none;
       border-radius: 0;
     }
     .currency-control-label { font-size: 12px; font-weight: 600; color: #3D3D3D; }
-    .rtc-toolbar .sort-label { margin-left: 4px; }
+    .rtc-toolbar-sort {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      width: 100%;
+    }
+    .rtc-toolbar .sort-label { margin-left: 0; flex-shrink: 0; }
     .currency-toggle {
       display: inline-flex;
-      border: 1px solid #D8D2C8;
-      border-radius: 8px;
-      overflow: hidden;
-      background: white;
+      gap: 4px;
+      border: none;
+      border-radius: 0;
+      overflow: visible;
+      background: transparent;
     }
     .currency-toggle-btn {
-      border: none;
-      background: transparent;
-      padding: 6px 12px;
-      font-size: 12px;
-      font-weight: 600;
-      color: #6B5C5C;
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--text-2);
+      padding: 4px 10px;
+      border-radius: var(--radius-pill);
+      border: 1px solid var(--border);
+      background: var(--surface);
+      transition: all var(--transition);
       cursor: pointer;
     }
     .currency-toggle-btn.on {
-      background: #2C2824;
+      background: var(--ink);
       color: white;
+      border-color: var(--ink);
     }
     .currency-control-note {
       flex: 1 1 100%;
@@ -1010,9 +1033,10 @@
 
     .rtc-toolbar-controls {
       display: flex;
-      align-items: center;
+      flex-direction: column;
+      align-items: stretch;
       gap: 10px;
-      flex-wrap: wrap;
+      width: 100%;
     }
     .rt-scroll-wrap {
       overflow-x: auto;
@@ -1031,25 +1055,15 @@
       .results-section { margin-bottom: 32px; }
       .step-layout-bar { display: none; }
       .rtc-toolbar {
-        flex-direction: column;
-        align-items: stretch;
-        gap: 12px;
         padding: 12px 14px;
       }
       .rtc-toolbar-label { flex: none; min-width: 0; }
       .rtc-toolbar-controls {
-        flex-direction: column;
-        align-items: stretch;
-        gap: 0;
+        gap: 10px;
       }
       .rtc-toolbar-sort {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        flex-wrap: wrap;
-        width: 100%;
         padding-top: 10px;
-        margin-top: 10px;
+        margin-top: 0;
         border-top: 1px solid var(--border);
       }
       .rtc-toolbar-sort .sort-label { margin-left: 0; }
@@ -1057,10 +1071,10 @@
       .currency-control--inline {
         margin-right: 0;
         width: 100%;
-        justify-content: space-between;
       }
       .currency-control-label { font-size: 11px; }
-      .currency-toggle-btn { padding: 5px 10px; font-size: 11px; }
+      .sort-label { font-size: 11px; }
+      .currency-toggle-btn { padding: 4px 10px; font-size: 11px; }
       .results-table-desktop { display: none; }
       .results-matrix-mobile {
         display: flex;
@@ -1118,6 +1132,7 @@
       .matrix-date-body .rate-td-main { align-items: flex-start; }
       .matrix-date-body .rate-td-actions { justify-content: flex-start; padding-top: 10px; }
       .matrix-date-body .rate-disclaimer { max-width: none; }
+      .matrix-date-body .rate-unverified-msg { max-width: none; text-align: left; }
       .matrix-date-body .rate-book { min-width: 120px; }
     }
   </style>
@@ -1193,6 +1208,8 @@ const CURRENCY_DISPLAY_NOTE =
 
 const NO_LIVE_RATE_MESSAGE =
   'Unable to retrieve rates. Check the hotel site for availability.';
+
+const CHECK_AVAILABILITY_LABEL = 'Check availability';
 
 const LOCAL_CITY_CURRENCY = {
   london: 'GBP', dublin: 'EUR', paris: 'EUR', barcelona: 'EUR', rome: 'EUR',
@@ -1715,8 +1732,14 @@ function buildBookingUrl(hotel, checkIn, checkOut) {
 }
 
 function resolveBookingUrl(hotel, rateResult, checkIn, checkOut) {
-  if (!rateResult?.available) return '#';
+  if (!rateResult) return '#';
   const serpUrl = rateResult.bookingUrl;
+  const hasBookIntent = rateResult.available
+    || rateResult.citizenMMarriott
+    || rateResult.aguaCaliente
+    || !!(serpUrl && rateResult.error === 'rate_unverified')
+    || isCitizenMHotel(hotel);
+  if (!hasBookIntent) return '#';
 
   if (isAguaCalienteHotel(hotel) || (serpUrl && /aguacaliente|secure-hotel-tracker/i.test(serpUrl))) {
     const acUrl = buildAguaCalienteBookingUrl(hotel, checkIn, checkOut, serpUrl);
@@ -1768,6 +1791,9 @@ function resolveBookingUrl(hotel, rateResult, checkIn, checkOut) {
         return `https://www.marriott.com/reservation/availabilitySearch.mi?propertyCode=${m[1].toUpperCase()}&fromDate=${encodeURIComponent(fmtMMDDYYYY(checkIn))}&toDate=${encodeURIComponent(fmtMMDDYYYY(checkOut))}&numberOfRooms=1&numAdultsPerGuestRoom=2`;
       }
       return serpUrl;
+    }
+    if (/victoria/i.test(hotel?.name || '') && isCitizenMHotel(hotel)) {
+      return `https://www.marriott.com/reservation/availabilitySearch.mi?propertyCode=LONVS&fromDate=${encodeURIComponent(fmtMMDDYYYY(checkIn))}&toDate=${encodeURIComponent(fmtMMDDYYYY(checkOut))}&numberOfRooms=1&numAdultsPerGuestRoom=2`;
     }
     return serpUrl && !/booking\.com/i.test(serpUrl) ? serpUrl : '#';
   }
@@ -2277,6 +2303,22 @@ function SummaryCards({ flatResults, hotels, validDates, onCardClick }) {
 }
 
 // ─── MATRIX CELL CONTENT ───────────────────────────────────────────────────────
+function RateBookOnlyCell({ message, bookUrl, isBest, bookLabel = CHECK_AVAILABILITY_LABEL }) {
+  return (
+    <div className="rate-td">
+      <div className="rate-td-badge-slot" />
+      <div className="rate-td-main">
+        <div className="rate-unverified-msg">{message}</div>
+      </div>
+      <div className="rate-td-actions">
+        <a href={bookUrl} target="_blank" rel="noopener noreferrer" className={`rate-book ${isBest ? 'gold' : ''}`}>
+          {bookLabel}
+        </a>
+      </div>
+    </div>
+  );
+}
+
 function MatrixCellContent({ hotel, d, r, loading, isBest, isHighlighted, nights, bookUrl, compact = false }) {
   if (loading) {
     return (
@@ -2309,23 +2351,30 @@ function MatrixCellContent({ hotel, d, r, loading, isBest, isHighlighted, nights
 
   if (r.available && r.citizenMMarriott && (!r.rate || r.rate <= 0)) {
     return (
-      <div className="rate-td">
-        <div style={{ fontSize: 11, color: '#5C5C5C', lineHeight: 1.4 }}>
-          {NO_LIVE_RATE_MESSAGE}
-        </div>
-        <div className="rate-td-actions" style={{ marginTop: 8 }}>
-          <a href={bookUrl} target="_blank" rel="noopener noreferrer" className={`rate-book ${isBest ? 'gold' : ''}`}>Book →</a>
-        </div>
-      </div>
+      <RateBookOnlyCell
+        message={NO_LIVE_RATE_MESSAGE}
+        bookUrl={bookUrl}
+        isBest={isBest}
+      />
     );
   }
   if (!r.available) {
     return (
       <div className="rate-td">
         {r.error === 'rate_unverified' ? (
-          <div style={{ fontSize: 11, color: '#5C5C5C', lineHeight: 1.4 }}>
-            {r.message || NO_LIVE_RATE_MESSAGE}
-          </div>
+          <>
+            <div className="rate-td-badge-slot" />
+            <div className="rate-td-main">
+              <div className="rate-unverified-msg">{r.message || NO_LIVE_RATE_MESSAGE}</div>
+            </div>
+            {bookUrl && bookUrl !== '#' && (
+              <div className="rate-td-actions">
+                <a href={bookUrl} target="_blank" rel="noopener noreferrer" className={`rate-book ${isBest ? 'gold' : ''}`}>
+                  {CHECK_AVAILABILITY_LABEL}
+                </a>
+              </div>
+            )}
+          </>
         ) : (
           <>
             <div className="rate-unavail">

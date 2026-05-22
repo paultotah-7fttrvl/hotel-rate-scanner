@@ -359,6 +359,7 @@ function findMarriottBookLink(dataObj) {
 
 const CITIZEN_M_MARRIOTT_MAP = [
   { match: "victoria station", propCode: "LONVS" },
+  { match: "london victoria", propCode: "LONVS" },
   { match: "tower of london", propCode: "LONTL" },
   { match: "shoreditch", propCode: "LONST" },
   { match: "bankside", propCode: "LONBK" },
@@ -999,6 +1000,24 @@ function chainNoBrandRateResult(
   };
 }
 
+function tryCitizenMMarriottFallback(hotel, matchName, checkin, checkout, nights, currency, matchScore = null) {
+  if (!isCitizenMHotel(hotel, matchName, matchName)) return null;
+  const bookingUrl = buildCitizenMMarriottBookingUrl(hotel, matchName, null, checkin, checkout);
+  if (!bookingUrl || !bookingUrl.includes("marriott.com")) return null;
+  console.log(`[SerpAPI Rate] citizenM Marriott fallback for "${matchName || hotel}"`);
+  return chainNoBrandRateResult(
+    hotel,
+    checkin,
+    checkout,
+    nights,
+    currency,
+    matchName || hotel,
+    matchScore,
+    bookingUrl,
+    null
+  );
+}
+
 const ProperAzds = require(path.join(__dirname, "proper-azds.js"));
 const AguaCaliente = require(path.join(__dirname, "..", "agua-caliente.js"));
 
@@ -1371,6 +1390,12 @@ app.get("/api/rates", async (req, res) => {
 
     if (data.error) {
       console.error("[SerpAPI Rate Error]", data.error);
+      const citizenFallback = tryCitizenMMarriottFallback(
+        hotel, hotel, checkin, checkout, nights, currency, propertyToken ? 1 : null
+      );
+      if (citizenFallback) {
+        return respondRate(res, citizenFallback, displayMode, city, cacheKey, serpCur, localCurrency, address, hotel);
+      }
       const result = liveUnavailableResult(
         hotel, checkin, checkout, nights, currency, "api_error", String(data.error)
       );
@@ -1390,6 +1415,12 @@ app.get("/api/rates", async (req, res) => {
     } else {
       const properties = data.properties || [];
       if (properties.length === 0) {
+        const citizenFallback = tryCitizenMMarriottFallback(
+          hotel, hotel, checkin, checkout, nights, currency, propertyToken ? 1 : null
+        );
+        if (citizenFallback) {
+          return respondRate(res, citizenFallback, displayMode, city, cacheKey, serpCur, localCurrency, address, hotel);
+        }
         const result = liveUnavailableResult(
           hotel, checkin, checkout, nights, currency, "no_results",
           "No hotels returned for this search."
@@ -1533,6 +1564,14 @@ app.get("/api/rates", async (req, res) => {
         match_score: matchScore,
         rate_candidates: validated.candidates || null,
       };
+      if (isCitizenMHotel(hotel, matchName, rateSource?.name)) {
+        const citizenFallback = tryCitizenMMarriottFallback(
+          hotel, matchName, checkin, checkout, nights, currency, matchScore
+        );
+        if (citizenFallback) {
+          return respondRate(res, citizenFallback, displayMode, city, cacheKey, serpCur, localCurrency, address, hotel);
+        }
+      }
       const result = liveUnavailableResult(
         hotel, checkin, checkout, nights, currency, "rate_unverified",
         RATE_UNVERIFIED_MESSAGE,
