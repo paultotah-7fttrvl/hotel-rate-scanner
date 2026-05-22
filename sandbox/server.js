@@ -9,6 +9,7 @@ if (!process.env.SERPAPI_KEY) {
 
 const fs = require("fs");
 const express = require("express");
+const Currency = require(path.join(__dirname, "..", "currency-display.js"));
 const app = express();
 const SERPAPI_KEY = process.env.SERPAPI_KEY;
 const LIVE_DAILY_LIMIT = Number(process.env.LIVE_DAILY_LIMIT || 33);
@@ -1036,6 +1037,37 @@ function liveUnavailableResult(hotel, checkin, checkout, nights, currency, error
   };
 }
 
+function normalizeDisplayMode(raw) {
+  return raw === "local" ? "local" : "USD";
+}
+
+function finalizeRatePayload(payload, displayMode, city) {
+  const mode = normalizeDisplayMode(displayMode);
+  const local = Currency.resolveLocalCurrency(city, null, null);
+  const withOriginal = {
+    ...payload,
+    original_rate: payload.original_rate ?? payload.rate ?? null,
+    original_currency: payload.original_currency ?? payload.currency ?? local,
+    local_currency: payload.local_currency ?? local,
+  };
+  return Currency.attachDisplayRates(withOriginal, mode, city);
+}
+
+function stampOriginalFields(payload, serpCur, localCurrency) {
+  return {
+    ...payload,
+    original_rate: payload.original_rate ?? payload.rate ?? null,
+    original_currency: payload.original_currency ?? serpCur,
+    local_currency: payload.local_currency ?? localCurrency,
+  };
+}
+
+function respondRate(res, payload, displayMode, city, cacheKey, serpCur, localCurrency) {
+  const stamped = stampOriginalFields(payload, serpCur, localCurrency);
+  cacheSet(rateCache, cacheKey, stamped);
+  return res.json(finalizeRatePayload(stamped, displayMode, city));
+}
+
 // ─── DISCOVERY DATE HELPERS ───────────────────────────────────────────────────
 // google_hotels requires check_in_date + check_out_date on every call, even for
 // discovery searches. We pass a fixed 1-night window 14 days out so the engine
@@ -1128,27 +1160,39 @@ app.get("/api/hotels/search", async (req, res) => {
 });
 
 // ─── RATE ENDPOINT ────────────────────────────────────────────────────────────
+app.get("/api/currency/local", (req, res) => {
+  const city = (req.query.city || "").trim();
+  res.json({
+    city,
+    local_currency: Currency.resolveLocalCurrency(city, null, null),
+  });
+});
+
 app.get("/api/rates", async (req, res) => {
   const { hotel, city, checkin, checkout } = req.query;
   const propertyToken = req.query.propertyToken || null;
+  const displayMode = normalizeDisplayMode(req.query.displayCurrency);
 
   if (!hotel || !city || !checkin || !checkout) {
     return res.status(400).json({ error: "Missing required params: hotel, city, checkin, checkout" });
   }
 
   const nights = Math.max(1, Math.round((new Date(checkout) - new Date(checkin)) / 86400000));
-  // Include propertyToken in cache key so token-based lookups don't collide with name-based ones
-  let currency = resolveCurrency(city, null, hotel);
+  const localCurrency = Currency.resolveLocalCurrency(city, null, null);
+  // Fetch SerpAPI in destination currency so original_rate matches the booking offer row.
+  const serpCurrency = localCurrency;
+  const { currency: serpCur, gl } = Currency.googleHotelsLocale(serpCurrency);
+  let currency = serpCur;
   const cacheKey = propertyToken
-    ? `pt:${propertyToken}|${checkin}|${checkout}|${currency}`
-    : `${hotel}|${city}|${checkin}|${checkout}|${currency}`;
+    ? `pt:${propertyToken}|${checkin}|${checkout}|${serpCur}`
+    : `${hotel}|${city}|${checkin}|${checkout}|${serpCur}`;
   const bust = req.query.bust === '1';
 
   if (!bust) {
     const cached = cacheGet(rateCache, cacheKey, RATE_TTL_MS);
     if (cached) {
       console.log(`[Rate Cache] HIT ${hotel}`);
-      return res.json(cached);
+      return res.json(finalizeRatePayload(cached, displayMode, city));
     }
   }
 
@@ -1158,8 +1202,7 @@ app.get("/api/rates", async (req, res) => {
 
   if (!canUseLiveCall()) {
     const result = demoFallbackResult(hotel, checkin, checkout, nights, currency, "daily_limit");
-    cacheSet(rateCache, cacheKey, result);
-    return res.json(result);
+    return respondRate(res, result, displayMode, city, cacheKey, serpCur, localCurrency);
   }
 
   try {
@@ -1170,30 +1213,28 @@ app.get("/api/rates", async (req, res) => {
         : base;
     };
 
-    let { currency: serpCurrency, gl } = googleHotelsLocale(currency);
-    let nameUrl = buildHotelsUrl(serpCurrency, gl);
+    let nameUrl = buildHotelsUrl(serpCur, gl);
     let tokenUrl = propertyToken ? nameUrl : null;
 
     recordLiveCall(`rate "${hotel}"`);
-    console.log(`[SerpAPI Rate] "${hotel}", ${city} | ${checkin} → ${checkout}${tokenUrl ? " (token)" : ""}`);
+    console.log(`[SerpAPI Rate] "${hotel}", ${city} | ${checkin} → ${checkout} | ${serpCur}${tokenUrl ? " (token)" : ""}`);
 
-    const fetchHotelData = async (cur, gl) => {
-      const res = await fetch(buildHotelsUrl(cur, gl));
+    const fetchHotelData = async (cur, glParam) => {
+      const res = await fetch(buildHotelsUrl(cur, glParam));
       return res.json();
     };
 
-    let data = await fetchHotelData(serpCurrency, gl);
+    let data = await fetchHotelData(serpCur, gl);
 
     // If token call returned no rate data, fall back to name+city search (strict match only)
     if (tokenUrl && !data.error && data.type !== "hotel" && !(data.properties || []).length) {
       if (!canUseLiveCall()) {
         const result = demoFallbackResult(hotel, checkin, checkout, nights, currency, "daily_limit");
-        cacheSet(rateCache, cacheKey, result);
-        return res.json(result);
+        return respondRate(res, result, displayMode, city, cacheKey, serpCur, localCurrency);
       }
       console.log(`[SerpAPI Rate] Token returned empty — falling back to name+city search`);
       recordLiveCall(`rate fallback "${hotel}"`);
-      data = await fetchHotelData(serpCurrency, gl);
+      data = await fetchHotelData(serpCur, gl);
     }
 
     if (data.error) {
@@ -1201,8 +1242,7 @@ app.get("/api/rates", async (req, res) => {
       const result = liveUnavailableResult(
         hotel, checkin, checkout, nights, currency, "api_error", String(data.error)
       );
-      cacheSet(rateCache, cacheKey, result);
-      return res.json(result);
+      return respondRate(res, result, displayMode, city, cacheKey, serpCur, localCurrency);
     }
 
     let matchName = hotel;
@@ -1222,8 +1262,7 @@ app.get("/api/rates", async (req, res) => {
           hotel, checkin, checkout, nights, currency, "no_results",
           "No hotels returned for this search."
         );
-        cacheSet(rateCache, cacheKey, result);
-        return res.json(result);
+        return respondRate(res, result, displayMode, city, cacheKey, serpCur, localCurrency);
       }
 
       let { match, score } = findBestPropertyMatch(properties, hotel, city);
@@ -1233,7 +1272,7 @@ app.get("/api/rates", async (req, res) => {
         recordLiveCall(`rate agua "${acPropEarly.displayName}"`);
         const refetch = await fetch(
           `https://serpapi.com/search.json?engine=google_hotels&q=${encodeURIComponent(acPropEarly.displayName)}` +
-          `&check_in_date=${checkin}&check_out_date=${checkout}&currency=${serpCurrency}&gl=${gl}&hl=en&api_key=${SERPAPI_KEY}`
+          `&check_in_date=${checkin}&check_out_date=${checkout}&currency=${serpCur}&gl=${gl}&hl=en&api_key=${SERPAPI_KEY}`
         ).then(r => r.json());
         if (!refetch.error && refetch.type === "hotel") {
           rateSource = refetch;
@@ -1272,8 +1311,7 @@ app.get("/api/rates", async (req, res) => {
             message:
               "No room rates in Google Hotels for this property. Book links to the official Agua Caliente site.",
           };
-          cacheSet(rateCache, cacheKey, result);
-          return res.json(result);
+          return respondRate(res, result, displayMode, city, cacheKey, serpCur, localCurrency);
         }
         console.log(`[SerpAPI Rate] No confident hotel match (best score ${score.toFixed(2)})`);
         const result = liveUnavailableResult(
@@ -1281,8 +1319,7 @@ app.get("/api/rates", async (req, res) => {
           "Could not match this hotel in Google Hotels results.",
           { match_score: score }
         );
-        cacheSet(rateCache, cacheKey, result);
-        return res.json(result);
+        return respondRate(res, result, displayMode, city, cacheKey, serpCur, localCurrency);
       }
 
       rateSource = match;
@@ -1296,37 +1333,10 @@ app.get("/api/rates", async (req, res) => {
         `Matched "${matchName}" but name similarity is too low.`,
         { matched_property: matchName, match_score: matchScore }
       );
-      cacheSet(rateCache, cacheKey, result);
-      return res.json(result);
+      return respondRate(res, result, displayMode, city, cacheKey, serpCur, localCurrency);
     }
 
-    const addr = rateSource?.address || data?.address || "";
-    const resolvedCurrency = resolveCurrency(city, addr, hotel);
-    if (resolvedCurrency !== serpCurrency && canUseLiveCall()) {
-      console.log(`[SerpAPI Rate] Currency ${serpCurrency} → ${resolvedCurrency} (${addr || city})`);
-      currency = resolvedCurrency;
-      ({ currency: serpCurrency, gl } = googleHotelsLocale(currency));
-      recordLiveCall(`rate recurrency "${hotel}"`);
-      const refetched = await fetchHotelData(serpCurrency, gl);
-      if (!refetched.error) {
-        data = refetched;
-        if (data.type === "hotel") {
-          rateSource = data;
-          matchName = data.name || hotel;
-          matchScore = propertyToken ? 1 : hotelNameMatchScore(hotel, matchName);
-        } else {
-          const { match, score } = findBestPropertyMatch(data.properties || [], hotel, city);
-          if (match) {
-            rateSource = match;
-            matchName = match.name || hotel;
-            matchScore = score;
-          }
-        }
-      }
-    } else {
-      currency = resolvedCurrency;
-    }
-    if (data.search_parameters?.currency) currency = data.search_parameters.currency;
+    currency = serpCur;
 
     const acProp =
       AguaCaliente.resolveAguaCalienteProperty(hotel, city) ||
@@ -1337,7 +1347,7 @@ app.get("/api/rates", async (req, res) => {
       recordLiveCall(`rate agua detail "${hotel}"`);
       const detailData = await fetch(
         `https://serpapi.com/search.json?engine=google_hotels&q=${encodeURIComponent(acProp.displayName)}` +
-        `&check_in_date=${checkin}&check_out_date=${checkout}&currency=${serpCurrency}&gl=${gl}&hl=en` +
+        `&check_in_date=${checkin}&check_out_date=${checkout}&currency=${serpCur}&gl=${gl}&hl=en` +
         `&property_token=${encodeURIComponent(detailToken)}&api_key=${SERPAPI_KEY}`
       ).then(r => r.json());
       if (!detailData.error && detailData.type === "hotel") {
@@ -1376,8 +1386,7 @@ app.get("/api/rates", async (req, res) => {
         brandBookUrl,
         brandIhg
       );
-      cacheSet(rateCache, cacheKey, result);
-      return res.json(result);
+      return respondRate(res, result, displayMode, city, cacheKey, serpCur, localCurrency);
     }
 
     const validated = extractValidatedRate(rateSource, nights);
@@ -1397,8 +1406,7 @@ app.get("/api/rates", async (req, res) => {
         RATE_UNVERIFIED_MESSAGE,
         extra
       );
-      cacheSet(rateCache, cacheKey, result);
-      return res.json(result);
+      return respondRate(res, result, displayMode, city, cacheKey, serpCur, localCurrency);
     }
 
     let { rate, total } = validated;
@@ -1470,13 +1478,12 @@ app.get("/api/rates", async (req, res) => {
       }),
     };
 
-    cacheSet(rateCache, cacheKey, result);
-    return res.json(result);
+    return respondRate(res, result, displayMode, city, cacheKey, serpCur, localCurrency);
   } catch (err) {
     console.error("[Rate Error]", err.message);
-    return res.json(liveUnavailableResult(
+    return respondRate(res, liveUnavailableResult(
       hotel, checkin, checkout, nights, currency, "api_error", err.message
-    ));
+    ), displayMode, city, cacheKey, serpCur, localCurrency);
   }
 });
 

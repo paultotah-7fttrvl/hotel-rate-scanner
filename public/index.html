@@ -329,8 +329,18 @@
       position: absolute; top: calc(100% + 6px); left: 0; right: 0;
       background: var(--surface); border: 1px solid var(--border);
       border-radius: var(--radius-md); box-shadow: var(--shadow-lg);
-      z-index: 300; overflow: hidden;
+      z-index: 300;
+      max-height: 360px;
+      overflow-x: hidden;
+      overflow-y: auto;
+      scrollbar-width: thin;
+      scrollbar-color: #B8B0A4 transparent;
       animation: slideDown 0.18s ease-out;
+    }
+    .search-dropdown::-webkit-scrollbar { width: 8px; }
+    .search-dropdown::-webkit-scrollbar-thumb {
+      background: #C8C0B4;
+      border-radius: 4px;
     }
     .search-item {
       display: flex; align-items: center; gap: 12px;
@@ -613,6 +623,45 @@
     }
     .rate-disclaimer { font-size: 9px; color: #9C9C9C; line-height: 1.3; margin-top: 4px; max-width: 118px; }
     .rate-source-tag { font-size: 9px; color: #6B5A3E; font-weight: 600; margin-top: 2px; letter-spacing: 0.02em; }
+    .currency-control {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px 14px;
+      margin-bottom: 14px;
+      padding: 12px 14px;
+      background: #FAFAF8;
+      border: 1px solid #E8E4DC;
+      border-radius: 10px;
+    }
+    .currency-control-label { font-size: 12px; font-weight: 600; color: #3D3D3D; }
+    .currency-toggle {
+      display: inline-flex;
+      border: 1px solid #D8D2C8;
+      border-radius: 8px;
+      overflow: hidden;
+      background: white;
+    }
+    .currency-toggle-btn {
+      border: none;
+      background: transparent;
+      padding: 6px 12px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #6B5C5C;
+      cursor: pointer;
+    }
+    .currency-toggle-btn.on {
+      background: #2C2824;
+      color: white;
+    }
+    .currency-control-note {
+      flex: 1 1 100%;
+      margin: 0;
+      font-size: 11px;
+      line-height: 1.4;
+      color: #8A8A8A;
+    }
     .rate-nights { font-size: 11px; color: var(--text-3); }
     .rate-book {
       display: inline-flex; align-items: center; justify-content: center; gap: 4px;
@@ -1012,6 +1061,94 @@ function formatCurrency(n, currency = 'USD') {
     maximumFractionDigits: 0,
   }).format(Math.round(n));
 }
+
+const CURRENCY_DISPLAY_NOTE =
+  'Rates are shown for comparison and may not include taxes, resort fees, or other charges.';
+
+const LOCAL_CITY_CURRENCY = {
+  london: 'GBP', dublin: 'EUR', paris: 'EUR', barcelona: 'EUR', rome: 'EUR',
+  vienna: 'EUR', prague: 'EUR', lisbon: 'EUR', amsterdam: 'EUR',
+  budapest: 'EUR', tokyo: 'JPY', kyoto: 'JPY', osaka: 'JPY', 'hong kong': 'HKD',
+  bangkok: 'THB', singapore: 'SGD', sydney: 'AUD', miami: 'USD', 'new york': 'USD',
+  'los angeles': 'USD', chicago: 'USD', boston: 'USD', seattle: 'USD',
+  austin: 'USD', 'san francisco': 'USD', 'miami beach': 'USD', 'palm springs': 'USD',
+  vancouver: 'CAD', toronto: 'CAD', montreal: 'CAD', 'mexico city': 'MXN',
+};
+
+const USD_PER_UNIT = {
+  USD: 1, EUR: 1.08, GBP: 1.27, JPY: 0.0067, AUD: 0.65, CAD: 0.73,
+  MXN: 0.058, HKD: 0.13, THB: 0.028, SGD: 0.74,
+};
+
+function resolveLocalCurrencyForCity(cityName) {
+  const city = (cityName || '').toLowerCase().trim();
+  if (LOCAL_CITY_CURRENCY[city]) return LOCAL_CITY_CURRENCY[city];
+  for (const [name, cur] of Object.entries(LOCAL_CITY_CURRENCY)) {
+    if (city.includes(name) || name.includes(city)) return cur;
+  }
+  return 'USD';
+}
+
+function resolveLocalCurrencyForHotels(hotels) {
+  const codes = [...new Set((hotels || []).map(h => resolveLocalCurrencyForCity(h.city)).filter(Boolean))];
+  return codes.length === 1 ? codes[0] : 'USD';
+}
+
+function convertDisplayRate(amount, fromCurrency, toCurrency) {
+  if (amount == null || amount <= 0) return null;
+  if (fromCurrency === toCurrency) return Math.round(amount);
+  if (USD_PER_UNIT[fromCurrency] == null || USD_PER_UNIT[toCurrency] == null) return null;
+  const usd = amount * USD_PER_UNIT[fromCurrency];
+  const converted = usd / USD_PER_UNIT[toCurrency];
+  return toCurrency === 'JPY' ? Math.round(converted) : Math.round(converted);
+}
+
+function applyDisplayModeToResult(result, displayMode) {
+  if (!result) return result;
+  const localCurrency = result.localCurrency || result.local_currency || result.originalCurrency || result.original_currency || 'USD';
+  const originalRate = result.originalRate ?? result.original_rate ?? result.rate;
+  const originalCurrency = result.originalCurrency ?? result.original_currency ?? result.currency ?? localCurrency;
+  const targetCurrency = displayMode === 'local' ? localCurrency : 'USD';
+
+  if (originalRate == null) {
+    return { ...result, rate: null, currency: targetCurrency, conversionAvailable: false, displayCurrencyMode: displayMode };
+  }
+  if (originalCurrency === targetCurrency) {
+    return {
+      ...result,
+      rate: originalRate,
+      currency: targetCurrency,
+      conversionAvailable: true,
+      displayCurrencyMode: displayMode,
+      originalRate,
+      originalCurrency,
+      localCurrency,
+    };
+  }
+  const converted = convertDisplayRate(originalRate, originalCurrency, targetCurrency);
+  if (converted == null) {
+    return {
+      ...result,
+      rate: originalRate,
+      currency: originalCurrency,
+      conversionAvailable: false,
+      displayCurrencyMode: displayMode,
+      originalRate,
+      originalCurrency,
+      localCurrency,
+    };
+  }
+  return {
+    ...result,
+    rate: converted,
+    currency: targetCurrency,
+    conversionAvailable: true,
+    displayCurrencyMode: displayMode,
+    originalRate,
+    originalCurrency,
+    localCurrency,
+  };
+}
 function formatDate(ds) {
   if (!ds) return '';
   const [y, m, d] = ds.split('-');
@@ -1080,6 +1217,11 @@ async function fetchRate(hotel, checkIn, checkOut, bust = false) {
       message: data.message || null,
       nights: data.nights,
       currency: data.currency,
+      originalRate: data.original_rate ?? data.rate ?? null,
+      originalCurrency: data.original_currency ?? data.currency ?? null,
+      localCurrency: data.local_currency ?? data.currency ?? null,
+      conversionAvailable: data.conversion_available !== false,
+      displayCurrencyMode: data.display_currency_mode || 'USD',
       bookingUrl: data.booking_url || null,
       bookingHost: data.booking_host || null,
       rateMethod: data.rate_method || null,
@@ -1703,7 +1845,8 @@ function HotelSearch({ selectedHotels, onAdd, onRemove, allHotels, recentSearche
   useEffect(() => {
     const fn = e => {
       if (ref.current && !ref.current.contains(e.target)) {
-        setQuery(''); setIsFocused(false); setSelectedCity(null);
+        setIsFocused(false);
+        setSelectedCity(null);
       }
     };
     document.addEventListener('mousedown', fn);
@@ -1768,7 +1911,7 @@ function HotelSearch({ selectedHotels, onAdd, onRemove, allHotels, recentSearche
 
         {/* Typed search — absolute dropdown overlay (standard autocomplete) */}
         {query && showDrop && (
-          <div className="search-dropdown">
+          <div className="search-dropdown" onMouseDown={e => e.preventDefault()}>
             {searching
               ? <div className="search-no-results">Searching…</div>
               : results.length === 0
@@ -1886,6 +2029,31 @@ function DateRanges({ ranges, onChange }) {
       <button className="add-date-btn" onClick={addRow} disabled={!canAdd} style={{ marginTop: 10 }}>
         + Add date option {ranges.length < MAX_DATE_RANGES ? `(${MAX_DATE_RANGES - ranges.length} remaining)` : ''}
       </button>
+    </div>
+  );
+}
+
+// ─── CURRENCY DISPLAY CONTROL ─────────────────────────────────────────────────
+function CurrencyDisplayControl({ mode, localCurrency, onChange }) {
+  const localLabel = localCurrency && localCurrency !== 'USD'
+    ? `Local (${localCurrency})`
+    : 'Local currency';
+  return (
+    <div className="currency-control">
+      <span className="currency-control-label">Show rates in</span>
+      <div className="currency-toggle" role="group" aria-label="Rate display currency">
+        <button
+          type="button"
+          className={`currency-toggle-btn ${mode === 'USD' ? 'on' : ''}`}
+          onClick={() => onChange('USD')}
+        >USD</button>
+        <button
+          type="button"
+          className={`currency-toggle-btn ${mode === 'local' ? 'on' : ''}`}
+          onClick={() => onChange('local')}
+        >{localLabel}</button>
+      </div>
+      <p className="currency-control-note">{CURRENCY_DISPLAY_NOTE}</p>
     </div>
   );
 }
@@ -2147,6 +2315,7 @@ function App() {
   const [showResults, setShowResults] = useState(false);
   const [sortBy, setSortBy] = useState('adr');
   const [usageNotice, setUsageNotice] = useState(null);
+  const [displayCurrencyMode, setDisplayCurrencyMode] = useState('USD');
   const [modal, setModal] = useState(null); // null | 'casestudy' | 'important'
   const [highlightKey, setHighlightKey] = useState(null);
   const [stepLayout, setStepLayout] = useState(() => {
@@ -2179,10 +2348,23 @@ function App() {
   const hotelsMet = selectedHotels.length >= MIN_HOTELS;
   const datesMet  = validDates.length >= MIN_DATE_RANGES;
 
+  const localCurrencyCode = resolveLocalCurrencyForHotels(selectedHotels);
+
+  const displayedResults = React.useMemo(() => {
+    const next = {};
+    for (const [hotelId, byDate] of Object.entries(results)) {
+      next[hotelId] = {};
+      for (const [di, r] of Object.entries(byDate || {})) {
+        next[hotelId][di] = r ? applyDisplayModeToResult(r, displayCurrencyMode) : r;
+      }
+    }
+    return next;
+  }, [results, displayCurrencyMode]);
+
   // Flatten results for summary
   const flatResults = selectedHotels.flatMap(hotel =>
     validDates.map((d, di) => {
-      const r = results[hotel.id]?.[di];
+      const r = displayedResults[hotel.id]?.[di];
       if (!r?.available) return null;
       return { ...r, hotelId: hotel.id, dateIdx: di, nights: nightsBetween(d.checkIn, d.checkOut), total: r.rate * nightsBetween(d.checkIn, d.checkOut) };
     }).filter(Boolean)
@@ -2362,6 +2544,11 @@ function App() {
                 <strong>Prototype note:</strong> {usageNotice}
               </div>
             )}
+            <CurrencyDisplayControl
+              mode={displayCurrencyMode}
+              localCurrency={localCurrencyCode}
+              onChange={setDisplayCurrencyMode}
+            />
             <SummaryCards
               flatResults={flatResults}
               hotels={selectedHotels}
@@ -2370,7 +2557,7 @@ function App() {
             />
             <div ref={tableRef}>
               <ResultsTable
-                results={results}
+                results={displayedResults}
                 loadingCells={loadingCells}
                 hotels={selectedHotels}
                 validDates={validDates}
