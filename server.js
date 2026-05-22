@@ -146,7 +146,6 @@ const BRAND_HEADLINE_MAX_DIFF = 0.22;
 const BRAND_OFFICIAL_MAX_ABOVE_HEADLINE = 0.45;
 
 const BRAND_HOST_LABELS = {
-  "properhotel.com": "Proper",
   "marriott.com": "Marriott",
   "ritzcarlton.com": "Ritz-Carlton",
   "hilton.com": "Hilton",
@@ -160,6 +159,7 @@ const BRAND_HOST_LABELS = {
   "crowneplaza.com": "Crowne Plaza",
   "fourseasons.com": "Four Seasons",
   "fairmont.com": "Fairmont",
+  "aguacalientecasinos.com": "Agua Caliente",
 };
 
 function brandLabelFromHost(host) {
@@ -169,6 +169,102 @@ function brandLabelFromHost(host) {
 function sanitizeRateSourceLabel(label) {
   if (!label || /google/i.test(label)) return null;
   return label;
+}
+
+const OTA_HOST_LABELS = {
+  "booking.com": "Booking.com",
+  "expedia.com": "Expedia",
+  "hotels.com": "Hotels.com",
+  "agoda.com": "Agoda",
+};
+
+/** Official hotel sites where the hostname is a property brand, not a booking platform name. */
+const HOTEL_WEBSITE_HOSTS = new Set([
+  "fourseasons.com",
+  "fairmont.com",
+]);
+
+const BOOKING_PROVIDER_SOURCE_FRAGMENTS = [
+  "marriott", "hilton", "hyatt", "ihg", "expedia", "booking.com", "booking",
+  "hotels.com", "agoda", "intercontinental", "kimpton", "holiday inn",
+  "crowne plaza", "ritz", "waldorf", "conrad", "four seasons", "fairmont",
+  "agua caliente", "w hotels", "westin", "sheraton", "st. regis", "andaz",
+];
+
+function hostFromBookingLink(link) {
+  if (!link) return null;
+  try {
+    return new URL(link).hostname.replace(/^www\./, "").toLowerCase();
+  } catch {
+    return null;
+  }
+}
+
+function normalizeSourceForCompare(text) {
+  return (text || "")
+    .toLowerCase()
+    .replace(/\.com$/i, "")
+    .replace(/[^\w\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function looksLikeHotelOrPropertyName(serpSource, propertyName, hotelName) {
+  const src = normalizeSourceForCompare(serpSource);
+  if (!src) return true;
+  if (BOOKING_PROVIDER_SOURCE_FRAGMENTS.some((frag) => src.includes(frag))) return false;
+  for (const name of [propertyName, hotelName]) {
+    const n = normalizeSourceForCompare(name);
+    if (!n) continue;
+    if (src === n || n.includes(src) || src.includes(n)) return true;
+  }
+  if (/\b(proper|shelborne)\b/.test(src)) return true;
+  return false;
+}
+
+/**
+ * Booking source should reflect the provider behind the selected offer/Book link,
+ * not the hotel brand or property name.
+ */
+function bookingSourceLabelFromOffer({ host, link, serpSource, propertyName, hotelName }) {
+  const resolvedHost = (host || hostFromBookingLink(link) || "").toLowerCase();
+
+  if (resolvedHost === "properhotel.com") return "Proper Hotels";
+  if (HOTEL_WEBSITE_HOSTS.has(resolvedHost)) return "Hotel website";
+
+  if (BRAND_HOST_LABELS[resolvedHost]) return BRAND_HOST_LABELS[resolvedHost];
+  if (OTA_HOST_LABELS[resolvedHost]) return OTA_HOST_LABELS[resolvedHost];
+
+  for (const [otaHost, label] of Object.entries(OTA_HOST_LABELS)) {
+    if (resolvedHost === otaHost || resolvedHost.endsWith("." + otaHost)) return label;
+  }
+  for (const [brandHost, label] of Object.entries(BRAND_HOST_LABELS)) {
+    if (resolvedHost === brandHost || resolvedHost.includes(brandHost.replace(".com", ""))) {
+      return label;
+    }
+  }
+
+  if (
+    serpSource &&
+    !looksLikeHotelOrPropertyName(serpSource, propertyName, hotelName)
+  ) {
+    const cleaned = serpSource.replace(/\.com$/i, "").trim();
+    if (cleaned && !/google/i.test(cleaned)) return cleaned;
+  }
+
+  if (resolvedHost && isBrandBookingHost(resolvedHost)) return "Hotel website";
+  if (resolvedHost) return "Booking site";
+  return "View offer";
+}
+
+function rateSourceLabelForBookingUrl(bookingUrl, fallbackLabel, propertyName, hotelName) {
+  const label = bookingSourceLabelFromOffer({
+    link: bookingUrl,
+    serpSource: fallbackLabel,
+    propertyName,
+    hotelName,
+  });
+  return sanitizeRateSourceLabel(label) || sanitizeRateSourceLabel(fallbackLabel);
 }
 
 /** Headline / OTA — prefer modest "lowest" when it reflects bundled taxes/fees. */
@@ -280,7 +376,12 @@ function pickProperOfficialOffer(dataObj) {
       rate,
       link: link || "https://www.properhotel.com/",
       host: "properhotel.com",
-      sourceLabel: "Proper",
+      sourceLabel: bookingSourceLabelFromOffer({
+        host: "properhotel.com",
+        link,
+        serpSource: p.source,
+        propertyName: dataObj?.name,
+      }),
       official: !!p.official,
       source: p.source,
     };
@@ -309,14 +410,19 @@ function pickBookingOffer(dataObj) {
   const rows = decodePriceRows(dataObj);
   if (!rows.length) return null;
 
-  const toOffer = (row, host, sourceLabel) => {
+  const toOffer = (row, host) => {
     const rate = rateForBookingHost(host, row.rateObj);
     if (!rate) return null;
     return {
       rate,
       link: row.link,
       host,
-      sourceLabel: sourceLabel || brandLabelFromHost(host),
+      sourceLabel: bookingSourceLabelFromOffer({
+        host,
+        link: row.link,
+        serpSource: row.source,
+        propertyName: dataObj?.name,
+      }),
       official: row.official,
       source: row.source,
     };
@@ -325,7 +431,7 @@ function pickBookingOffer(dataObj) {
   for (const host of BRAND_HOST_PRIORITY) {
     const row = rows.find(r => linkIncludesHost(r.link, host));
     if (row) {
-      const offer = toOffer(row, host, brandLabelFromHost(host));
+      const offer = toOffer(row, host);
       if (offer) return offer;
     }
   }
@@ -335,7 +441,7 @@ function pickBookingOffer(dataObj) {
       r => r.source && frags.some(f => r.source.toLowerCase().includes(f))
     );
     if (row) {
-      const offer = toOffer(row, row.host, (row.source || "Brand site").replace(/\.com$/i, ""));
+      const offer = toOffer(row, row.host);
       if (offer) return offer;
     }
   }
@@ -346,7 +452,7 @@ function pickBookingOffer(dataObj) {
       AguaCaliente.isAguaCalienteBrandUrl(r.link)
   );
   if (acRow) {
-    const offer = toOffer(acRow, "aguacalientecasinos.com", "Agua Caliente");
+    const offer = toOffer(acRow, "aguacalientecasinos.com");
     if (offer) return offer;
   }
 
@@ -355,13 +461,13 @@ function pickBookingOffer(dataObj) {
       r => linkIncludesHost(r.link, ota) || (r.source || "").toLowerCase().includes(ota)
     );
     if (row) {
-      const offer = toOffer(row, ota, ota.replace(".com", "").replace(/^\w/, c => c.toUpperCase()));
+      const offer = toOffer(row, ota);
       if (offer) return offer;
     }
   }
 
   const row = rows[0];
-  return toOffer(row, row.host, row.source);
+  return toOffer(row, row.host);
 }
 
 function pickOfficialBrandRate(dataObj) {
@@ -1645,6 +1751,12 @@ app.get("/api/rates", async (req, res) => {
       console.log(`[Agua Caliente] Book → ${bookingUrl?.slice(0, 90)}…`);
     }
     const resolvedBookingHost = resolveBookingHostFromUrl(bookingUrl, bookingOffer, validated);
+    const rateSourceLabel = rateSourceLabelForBookingUrl(
+      bookingUrl,
+      validated.rate_source_label,
+      matchName,
+      hotel
+    );
 
     console.log(
       `[SerpAPI Rate] "${matchName}" $${rate}/night (${validated.confidence}, ${validated.method}` +
@@ -1667,7 +1779,7 @@ app.get("/api/rates", async (req, res) => {
       booking_host: resolvedBookingHost,
       rate_disclaimer: RATE_DISCLAIMER,
       rate_basis: "nightly_before_taxes_fees",
-      rate_source_label: validated.rate_source_label || null,
+      rate_source_label: rateSourceLabel || null,
       rate_confidence: validated.confidence,
       rate_method: validated.method,
       match_score: matchScore,
