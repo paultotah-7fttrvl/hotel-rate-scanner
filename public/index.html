@@ -68,7 +68,12 @@
 
     /* ── RESET ───────────────────────────────────────────── */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    html { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+    html {
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      -webkit-text-size-adjust: 100%;
+      text-size-adjust: 100%;
+    }
     body {
       font-family: var(--font-sans);
       font-weight: 400;
@@ -1014,6 +1019,157 @@
       .main-card { margin-top: -24px; }
       .city-grid { grid-template-columns: repeat(2, 1fr); background: var(--border); }
     }
+
+    /* ── MOBILE RESULTS MATRIX ───────────────────────────── */
+    .rtc-toolbar-controls {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .rt-scroll-wrap {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    .results-table-desktop { display: block; }
+    .results-matrix-mobile { display: none; }
+
+    @media (max-width: 768px) {
+      /* iOS Safari zooms when an input is focused below 16px */
+      .search-box input,
+      input,
+      select,
+      textarea {
+        font-size: 16px;
+      }
+      .results-section { margin-bottom: 32px; }
+      .step-layout-bar { display: none; }
+      .rtc-toolbar {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+        padding: 12px 14px;
+      }
+      .rtc-toolbar-label {
+        flex: none;
+        min-width: 0;
+      }
+      .rtc-toolbar-controls {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0;
+      }
+      .rtc-toolbar-sort {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+        width: 100%;
+        padding-top: 10px;
+        margin-top: 10px;
+        border-top: 1px solid var(--border);
+      }
+      .rtc-toolbar-sort .sort-label { margin-left: 0; }
+      .currency-control--inline {
+        margin-right: 0;
+        width: 100%;
+        justify-content: space-between;
+      }
+      .rtc-toolbar-note {
+        padding: 0 14px 10px;
+        font-size: 10px;
+      }
+      .currency-control-label { font-size: 11px; }
+      .currency-toggle-btn { padding: 5px 10px; font-size: 11px; }
+
+      .results-table-desktop { display: none; }
+      .results-matrix-mobile {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        padding: 12px 14px 16px;
+      }
+      .matrix-hotel-card {
+        border: 1.5px solid var(--border);
+        border-radius: var(--radius-lg);
+        overflow: hidden;
+        background: var(--surface);
+        box-shadow: var(--shadow-sm);
+      }
+      .matrix-hotel-header {
+        padding: 14px 16px;
+        background: var(--surface-2);
+        border-bottom: 1px solid var(--border);
+      }
+      .matrix-hotel-name {
+        font-size: 15px;
+        font-weight: 600;
+        color: var(--text-1);
+        line-height: 1.35;
+      }
+      .matrix-hotel-meta {
+        font-size: 12px;
+        color: var(--text-3);
+        margin-top: 4px;
+      }
+      .matrix-date-row {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        padding: 14px 16px;
+        border-bottom: 1px solid var(--border);
+      }
+      .matrix-date-row:last-child { border-bottom: none; }
+      .matrix-date-row.best { background: var(--gold-bg); }
+      .matrix-date-row.highlighted {
+        animation: cell-highlight 2.4s ease-out forwards;
+      }
+      .matrix-date-head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 10px;
+      }
+      .matrix-date-label {
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--text-3);
+      }
+      .matrix-date-range {
+        font-size: 13px;
+        color: var(--text-2);
+        margin-top: 3px;
+        line-height: 1.35;
+      }
+      .matrix-date-body {
+        width: 100%;
+      }
+      .matrix-date-body .rate-td {
+        min-width: 0;
+        min-height: 0;
+        padding: 0;
+        text-align: left;
+        align-items: flex-start;
+      }
+      .matrix-date-body .rate-td-badge-slot {
+        display: none;
+      }
+      .matrix-date-body .rate-td-main {
+        align-items: flex-start;
+      }
+      .matrix-date-body .rate-td-actions {
+        justify-content: flex-start;
+        padding-top: 10px;
+      }
+      .matrix-date-body .rate-disclaimer {
+        max-width: none;
+      }
+      .matrix-date-body .rate-book {
+        min-width: 120px;
+      }
+    }
   </style>
   <!-- Seven Feet Travel visual preview (CSS only). Remove this line to restore default styling. -->
   <link rel="stylesheet" href="theme-sevenfeet.css" />
@@ -1085,6 +1241,9 @@ function formatCurrency(n, currency = 'USD') {
 const CURRENCY_DISPLAY_NOTE =
   'Rates are shown for comparison and may not include taxes, resort fees, or other charges.';
 
+const NO_LIVE_RATE_MESSAGE =
+  'Unable to retrieve rates. Check the hotel site for availability.';
+
 const LOCAL_CITY_CURRENCY = {
   london: 'GBP', dublin: 'EUR', paris: 'EUR', barcelona: 'EUR', rome: 'EUR',
   vienna: 'EUR', prague: 'EUR', lisbon: 'EUR', amsterdam: 'EUR',
@@ -1095,10 +1254,51 @@ const LOCAL_CITY_CURRENCY = {
   vancouver: 'CAD', toronto: 'CAD', montreal: 'CAD', 'mexico city': 'MXN',
 };
 
-const USD_PER_UNIT = {
-  USD: 1, EUR: 1.08, GBP: 1.27, JPY: 0.0067, AUD: 0.65, CAD: 0.73,
-  MXN: 0.058, HKD: 0.13, THB: 0.028, SGD: 0.74,
+const LOCAL_COUNTRY_CURRENCY = {
+  ireland: 'EUR', uk: 'GBP', 'united kingdom': 'GBP', england: 'GBP',
+  scotland: 'GBP', wales: 'GBP', france: 'EUR', germany: 'EUR', italy: 'EUR',
+  spain: 'EUR', portugal: 'EUR', netherlands: 'EUR', austria: 'EUR', japan: 'JPY',
+  australia: 'AUD', mexico: 'MXN', canada: 'CAD', thailand: 'THB', singapore: 'SGD',
 };
+
+function stripTrailingPostcode(part) {
+  return (part || '').replace(/\s+[A-Z]{1,2}\d[\w\d\s-]*$/i, '').trim();
+}
+
+function cityFromAddressClient(address) {
+  if (!address) return null;
+  const parts = address.split(',').map(s => s.trim()).filter(Boolean);
+  if (/ireland/i.test(address)) {
+    for (const part of parts) {
+      const stripped = stripTrailingPostcode(part).toLowerCase();
+      if (LOCAL_CITY_CURRENCY[stripped]) return stripTrailingPostcode(part);
+      if (/^dublin$/i.test(part)) return 'Dublin';
+    }
+  }
+  if (/\b(united kingdom|england|scotland|wales|uk)\b/i.test(address)) {
+    for (const part of parts) {
+      const stripped = stripTrailingPostcode(part);
+      const key = stripped.toLowerCase();
+      if (LOCAL_CITY_CURRENCY[key]) return stripped;
+      for (const name of Object.keys(LOCAL_CITY_CURRENCY)) {
+        if (key.includes(name)) return stripped;
+      }
+    }
+  }
+  return null;
+}
+
+function inferCityFromQueryClient(query) {
+  const lower = (query || '').toLowerCase();
+  const names = Object.keys(LOCAL_CITY_CURRENCY).sort((a, b) => b.length - a.length);
+  for (const name of names) {
+    const re = new RegExp(`\\b${name.replace(/ /g, '\\s+')}\\b`, 'i');
+    if (re.test(lower)) {
+      return name.replace(/\b\w/g, c => c.toUpperCase());
+    }
+  }
+  return null;
+}
 
 function resolveLocalCurrencyForCity(cityName) {
   const city = (cityName || '').toLowerCase().trim();
@@ -1109,8 +1309,25 @@ function resolveLocalCurrencyForCity(cityName) {
   return 'USD';
 }
 
+function resolveLocalCurrencyForHotel(hotel) {
+  const city = hotel?.city || '';
+  const address = hotel?.address || '';
+  const name = hotel?.name || '';
+  const blob = `${city} ${address} ${name}`.toLowerCase();
+  for (const [country, cur] of Object.entries(LOCAL_COUNTRY_CURRENCY)) {
+    const re = new RegExp(`\\b${country.replace(/ /g, '\\s+')}\\b`, 'i');
+    if (re.test(blob)) return cur;
+  }
+  const fromAddr = cityFromAddressClient(address);
+  if (fromAddr) return resolveLocalCurrencyForCity(fromAddr);
+  const fromCity = resolveLocalCurrencyForCity(city);
+  if (fromCity !== 'USD') return fromCity;
+  const fromName = inferCityFromQueryClient(name);
+  return fromName ? resolveLocalCurrencyForCity(fromName) : 'USD';
+}
+
 function resolveLocalCurrencyForHotels(hotels) {
-  const codes = [...new Set((hotels || []).map(h => resolveLocalCurrencyForCity(h.city)).filter(Boolean))];
+  const codes = [...new Set((hotels || []).map(h => resolveLocalCurrencyForHotel(h)).filter(Boolean))];
   return codes.length === 1 ? codes[0] : 'USD';
 }
 
@@ -1123,9 +1340,17 @@ function convertDisplayRate(amount, fromCurrency, toCurrency) {
   return toCurrency === 'JPY' ? Math.round(converted) : Math.round(converted);
 }
 
-function applyDisplayModeToResult(result, displayMode) {
+const USD_PER_UNIT = {
+  USD: 1, EUR: 1.08, GBP: 1.27, JPY: 0.0067, AUD: 0.65, CAD: 0.73,
+  MXN: 0.058, HKD: 0.13, THB: 0.028, SGD: 0.74,
+};
+
+function applyDisplayModeToResult(result, displayMode, hotel) {
   if (!result) return result;
-  const localCurrency = result.localCurrency || result.local_currency || result.originalCurrency || result.original_currency || 'USD';
+  const resolvedLocal = hotel ? resolveLocalCurrencyForHotel(hotel) : null;
+  const localCurrency = resolvedLocal && resolvedLocal !== 'USD'
+    ? resolvedLocal
+    : (result.localCurrency || result.local_currency || result.originalCurrency || result.original_currency || 'USD');
   const originalRate = result.originalRate ?? result.original_rate ?? result.rate;
   const originalCurrency = result.originalCurrency ?? result.original_currency ?? result.currency ?? localCurrency;
   const targetCurrency = displayMode === 'local' ? localCurrency : 'USD';
@@ -1223,13 +1448,16 @@ async function fetchRate(hotel, checkIn, checkOut, bust = false) {
       checkout: checkOut,
     });
     if (hotel.property_token) params.set('propertyToken', hotel.property_token);
+    if (hotel.address) params.set('address', hotel.address);
     if (bust) params.set('bust', '1');
     const res = await fetch(`/api/rates?${params}`);
     const data = await res.json();
     const isDemo = data.source === 'demo_fallback' || data.source === 'demo_daily_limit';
     return {
       rate: data.rate,
-      available: (data.rate != null && data.rate > 0 && !data.error) || (!!data.booking_url && data.agua_caliente),
+      available: (data.rate != null && data.rate > 0 && !data.error)
+        || (!!data.booking_url && data.agua_caliente)
+        || (!!data.booking_url && data.citizen_m_marriott),
       total: data.total,
       source: data.source,
       error: data.error || null,
@@ -1252,6 +1480,7 @@ async function fetchRate(hotel, checkIn, checkOut, bust = false) {
         ? data.rate_source_label : null,
       isDemo,
       aguaCaliente: !!data.agua_caliente,
+      citizenMMarriott: !!data.citizen_m_marriott,
       ihgBrand: data.ihg_brand || null,
       ihgRegion: data.ihg_region || null,
       ihgLocale: data.ihg_locale || null,
@@ -1351,6 +1580,11 @@ function isProperHotel(hotel) {
   const name = (hotel?.name || '').toLowerCase();
   const url = (hotel?.url || '').toLowerCase();
   return name.includes('proper') || name.includes('shelborne') || url.includes('properhotel.com');
+}
+
+function isCitizenMHotel(hotel) {
+  const name = (hotel?.name || '').toLowerCase();
+  return /\bcitizen\s*m\b/.test(name) || name.includes('citizenm');
 }
 
 function isProperUrl(url) {
@@ -1634,6 +1868,23 @@ function resolveBookingUrl(hotel, rateResult, checkIn, checkOut) {
     }
   }
   if (serpUrl && isSupportedBrandUrl(serpUrl)) return serpUrl;
+
+  // Citizen M (Marriott Bonvoy): never send Book → to Booking.com.
+  if (isCitizenMHotel(hotel)) {
+    const marriottFromHotel = hotel?.url && hotel.url.includes('marriott.com') ? buildBookingUrl(hotel, checkIn, checkOut) : null;
+    if (serpUrl && (serpUrl.includes('marriott.com') || serpUrl.includes('ritzcarlton.com'))) {
+      const m = serpUrl.match(/[?&]propertyCode=([A-Z0-9]+)/i) || serpUrl.match(/hotels\/travel\/([a-z0-9]{4,8})-/i);
+      if (m) {
+        return `https://www.marriott.com/reservation/availabilitySearch.mi?propertyCode=${m[1].toUpperCase()}&fromDate=${encodeURIComponent(fmtMMDDYYYY(checkIn))}&toDate=${encodeURIComponent(fmtMMDDYYYY(checkOut))}&numberOfRooms=1&numAdultsPerGuestRoom=2`;
+      }
+      return serpUrl;
+    }
+    if (marriottFromHotel) return marriottFromHotel;
+    if (/victoria station/i.test(hotel?.name || '')) {
+      return `https://www.marriott.com/reservation/availabilitySearch.mi?propertyCode=LONVS&fromDate=${encodeURIComponent(fmtMMDDYYYY(checkIn))}&toDate=${encodeURIComponent(fmtMMDDYYYY(checkOut))}&numberOfRooms=1&numAdultsPerGuestRoom=2`;
+    }
+    return serpUrl && !isBookingComUrl(serpUrl) ? serpUrl : '#';
+  }
 
   // Booking.com property link from SerpAPI. Keep selected dates attached.
   if (isBookingComUrl(serpUrl)) return withBookingDates(serpUrl, checkIn, checkOut);
@@ -2145,6 +2396,105 @@ function SummaryCards({ flatResults, hotels, validDates, onCardClick }) {
   );
 }
 
+// ─── MATRIX CELL CONTENT ───────────────────────────────────────────────────────
+function MatrixCellContent({ hotel, d, r, loading, isBest, isHighlighted, nights, bookUrl, compact = false }) {
+  if (loading) {
+    return (
+      <div className="rate-td">
+        <div className="skel skel-r" />
+        <div className="skel skel-t" />
+        <div className="skel skel-b" />
+      </div>
+    );
+  }
+
+  if (!r) {
+    return (
+      <div className="rate-td">
+        <span className="rate-unavail">—</span>
+      </div>
+    );
+  }
+
+  if (r.available && r.aguaCaliente && (!r.rate || r.rate <= 0)) {
+    return (
+      <div className="rate-td">
+        <div style={{ fontSize: 11, color: '#5C5C5C', lineHeight: 1.4 }}>
+          {r.message || 'No room rates in Google Hotels for this property. Book links to the official Agua Caliente site.'}
+        </div>
+        <div className="rate-td-actions" style={{ marginTop: 8 }}>
+          <a href={bookUrl} target="_blank" rel="noopener noreferrer" className={`rate-book ${isBest ? 'gold' : ''}`}>Book →</a>
+        </div>
+      </div>
+    );
+  }
+
+  if (r.available && r.citizenMMarriott && (!r.rate || r.rate <= 0)) {
+    return (
+      <div className="rate-td">
+        <div style={{ fontSize: 11, color: '#5C5C5C', lineHeight: 1.4 }}>
+          {NO_LIVE_RATE_MESSAGE}
+        </div>
+        <div className="rate-td-actions" style={{ marginTop: 8 }}>
+          <a href={bookUrl} target="_blank" rel="noopener noreferrer" className={`rate-book ${isBest ? 'gold' : ''}`}>Book →</a>
+        </div>
+      </div>
+    );
+  }
+
+  if (!r.available) {
+    return (
+      <div className="rate-td">
+        {r.error === 'rate_unverified' ? (
+          <div style={{ fontSize: 11, color: '#5C5C5C', lineHeight: 1.4 }}>
+            {r.message || NO_LIVE_RATE_MESSAGE}
+          </div>
+        ) : (
+          <>
+            <div className="rate-unavail">
+              {r.error === 'hotel_mismatch' ? 'Hotel mismatch' :
+               r.isDemo ? 'Demo rate' :
+               'Unavailable'}
+            </div>
+            {(r.message || r.isDemo) && (
+              <div style={{ fontSize: 10, color: '#9C9C9C', marginTop: 4, lineHeight: 1.3 }}>
+                {r.message || (r.isDemo ? 'Not a live rate' : '')}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    );
+  }
+
+  const needsKimptonLookup = (
+    isKimptonHotel(hotel) && !r.ihgPropCode && !isSupportedBrandUrl(hotel.url)
+  );
+
+  return (
+    <div className={`rate-td ${isBest ? 'best' : ''} ${isHighlighted ? 'highlighted' : ''}`}>
+      <div className="rate-td-badge-slot">
+        {isBest && !compact && <div className="best-badge">★ Lowest rate</div>}
+      </div>
+      <div className="rate-td-main">
+        <div className="rate-adr">{formatCurrency(r.rate, r.currency)}<span style={{ fontSize: 11, fontWeight: 400, color: '#9C9C9C' }}>/night</span></div>
+        {r.rateSourceLabel && <div className="rate-source-tag">{r.rateSourceLabel}</div>}
+        <div className="rate-disclaimer">{r.rateDisclaimer || 'Rates may or may not include resort or hotel fees. Taxes are not included.'}</div>
+        <div className="rate-nights">{nights} night{nights !== 1 ? 's' : ''}</div>
+      </div>
+      <div className="rate-td-actions">
+        {needsKimptonLookup
+          ? <KimptonBookButton hotel={hotel} checkIn={d.checkIn} checkOut={d.checkOut} isBest={isBest} />
+          : <a href={bookUrl} target="_blank" rel="noopener noreferrer"
+              className={`rate-book ${isBest ? 'gold' : ''}`}>
+              Book →
+            </a>
+        }
+      </div>
+    </div>
+  );
+}
+
 // ─── RESULTS TABLE ────────────────────────────────────────────────────────────
 function ResultsTable({ results, loadingCells, hotels, validDates, sortBy, onSort, bestKey, highlightKey, displayCurrencyMode, onDisplayCurrencyChange, localCurrencyCode }) {
   const stars = n => STAR_CHAR.repeat(n);
@@ -2168,21 +2518,26 @@ function ResultsTable({ results, loadingCells, hotels, validDates, sortBy, onSor
     <div className="results-table-card">
       <div className="rtc-toolbar">
         <span className="rtc-toolbar-label">{hotels.length} hotel{hotels.length !== 1 ? 's' : ''} · {validDates.length} date option{validDates.length !== 1 ? 's' : ''}</span>
-        <CurrencyDisplayControl
-          inline
-          mode={displayCurrencyMode}
-          localCurrency={localCurrencyCode}
-          onChange={onDisplayCurrencyChange}
-        />
-        <span className="sort-label">Sort by</span>
-        <div className="sort-btns">
-          {[['adr','Nightly rate'],['name','Name']].map(([k,l]) => (
-            <button key={k} className={`sort-btn ${sortBy === k ? 'on' : ''}`} onClick={() => onSort(k)}>{l}</button>
-          ))}
+        <div className="rtc-toolbar-controls">
+          <CurrencyDisplayControl
+            inline
+            mode={displayCurrencyMode}
+            localCurrency={localCurrencyCode}
+            onChange={onDisplayCurrencyChange}
+          />
+          <div className="rtc-toolbar-sort">
+            <span className="sort-label">Sort by</span>
+            <div className="sort-btns">
+              {[['adr','Nightly rate'],['name','Name']].map(([k,l]) => (
+                <button key={k} className={`sort-btn ${sortBy === k ? 'on' : ''}`} onClick={() => onSort(k)}>{l}</button>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
       <div className="rtc-toolbar-note">{CURRENCY_DISPLAY_NOTE}</div>
-      <div style={{ overflowX: 'auto' }}>
+
+      <div className="results-table-desktop rt-scroll-wrap">
         <table className="rt">
           <thead>
             <tr>
@@ -2216,85 +2571,18 @@ function ResultsTable({ results, loadingCells, hotels, validDates, sortBy, onSor
                   const nights = nightsBetween(d.checkIn, d.checkOut);
                   const bookUrl = resolveBookingUrl(hotel, r, d.checkIn, d.checkOut);
 
-                  if (loading) return (
-                    <td key={di}>
-                      <div className="rate-td">
-                        <div className="skel skel-r" />
-                        <div className="skel skel-t" />
-                        <div className="skel skel-b" />
-                      </div>
-                    </td>
-                  );
-
-                  if (!r) return <td key={di}><div className="rate-td"><span className="rate-unavail">—</span></div></td>;
-
-                  if (r.available && r.aguaCaliente && (!r.rate || r.rate <= 0)) {
-                    return (
-                      <td key={di}>
-                        <div className="rate-td">
-                          <div style={{ fontSize: 11, color: '#5C5C5C', lineHeight: 1.4, maxWidth: 168 }}>
-                            {r.message || 'No room rates in Google Hotels for this property. Book links to the official Agua Caliente site.'}
-                          </div>
-                          <div className="rate-td-actions" style={{ marginTop: 8 }}>
-                            <a href={bookUrl} target="_blank" rel="noopener noreferrer" className={`rate-book ${isBest ? 'gold' : ''}`}>Book →</a>
-                          </div>
-                        </div>
-                      </td>
-                    );
-                  }
-
-                  if (!r.available) return (
-                    <td key={di}>
-                      <div className="rate-td">
-                        {r.error === 'rate_unverified' ? (
-                          <div style={{ fontSize: 11, color: '#5C5C5C', lineHeight: 1.4, maxWidth: 168 }}>
-                            {r.message || 'This hotel is either sold out or has a length-of-stay restriction. Try changing your dates.'}
-                          </div>
-                        ) : (
-                          <>
-                            <div className="rate-unavail">
-                              {r.error === 'hotel_mismatch' ? 'Hotel mismatch' :
-                               r.isDemo ? 'Demo rate' :
-                               'Unavailable'}
-                            </div>
-                            {(r.message || r.isDemo) && (
-                              <div style={{ fontSize: 10, color: '#9C9C9C', marginTop: 4, lineHeight: 1.3 }}>
-                                {r.message || (r.isDemo ? 'Not a live rate' : '')}
-                              </div>
-                            )}
-                          </>
-                        )}
-                      </div>
-                    </td>
-                  );
-
-                  const total = r.rate * nights;
-                  // Kimpton properties without an IHG prop code need an async scrape on click
-                  const needsKimptonLookup = (
-                    isKimptonHotel(hotel) && !r.ihgPropCode && !isSupportedBrandUrl(hotel.url)
-                  );
                   return (
                     <td key={di}>
-                      <div className={`rate-td ${isBest ? 'best' : ''} ${isHighlighted ? 'highlighted' : ''}`}>
-                        <div className="rate-td-badge-slot">
-                          {isBest && <div className="best-badge">★ Lowest rate</div>}
-                        </div>
-                        <div className="rate-td-main">
-                          <div className="rate-adr">{formatCurrency(r.rate, r.currency)}<span style={{ fontSize: 11, fontWeight: 400, color: '#9C9C9C' }}>/night</span></div>
-                          {r.rateSourceLabel && <div className="rate-source-tag">{r.rateSourceLabel}</div>}
-                          <div className="rate-disclaimer">{r.rateDisclaimer || 'Rates may or may not include resort or hotel fees. Taxes are not included.'}</div>
-                          <div className="rate-nights">{nights} night{nights !== 1 ? 's' : ''}</div>
-                        </div>
-                        <div className="rate-td-actions">
-                          {needsKimptonLookup
-                            ? <KimptonBookButton hotel={hotel} checkIn={d.checkIn} checkOut={d.checkOut} isBest={isBest} />
-                            : <a href={bookUrl} target="_blank" rel="noopener noreferrer"
-                                className={`rate-book ${isBest ? 'gold' : ''}`}>
-                                Book →
-                              </a>
-                          }
-                        </div>
-                      </div>
+                      <MatrixCellContent
+                        hotel={hotel}
+                        d={d}
+                        r={r}
+                        loading={loading}
+                        isBest={isBest}
+                        isHighlighted={isHighlighted}
+                        nights={nights}
+                        bookUrl={bookUrl}
+                      />
                     </td>
                   );
                 })}
@@ -2302,6 +2590,56 @@ function ResultsTable({ results, loadingCells, hotels, validDates, sortBy, onSor
             ))}
           </tbody>
         </table>
+      </div>
+
+      <div className="results-matrix-mobile">
+        {sortedHotels.map(hotel => (
+          <div key={hotel.id} className="matrix-hotel-card">
+            <div className="matrix-hotel-header">
+              <div className="matrix-hotel-name">{hotel.name}</div>
+              <div className="matrix-hotel-meta">{hotel.city} · {hotel.region} · <span style={{ color: '#C9963A' }}>{stars(hotel.stars)}</span></div>
+            </div>
+            {validDates.map((d, di) => {
+              const cellKey = `${hotel.id}|${di}`;
+              const loading = loadingCells.has(cellKey);
+              const r = results[hotel.id]?.[di];
+              const isBest = cellKey === bestKey;
+              const isHighlighted = cellKey === highlightKey;
+              const nights = nightsBetween(d.checkIn, d.checkOut);
+              const bookUrl = resolveBookingUrl(hotel, r, d.checkIn, d.checkOut);
+
+              return (
+                <div
+                  key={di}
+                  className={`matrix-date-row ${isBest ? 'best' : ''} ${isHighlighted ? 'highlighted' : ''}`}
+                >
+                  <div className="matrix-date-head">
+                    <div>
+                      <div className="matrix-date-label">Option {OPTION_LABELS[di]}</div>
+                      <div className="matrix-date-range">
+                        {formatDate(d.checkIn)} – {formatDate(d.checkOut)} · {nights} night{nights !== 1 ? 's' : ''}
+                      </div>
+                    </div>
+                    {isBest && <div className="best-badge">★ Lowest</div>}
+                  </div>
+                  <div className="matrix-date-body">
+                    <MatrixCellContent
+                      hotel={hotel}
+                      d={d}
+                      r={r}
+                      loading={loading}
+                      isBest={isBest}
+                      isHighlighted={isHighlighted}
+                      nights={nights}
+                      bookUrl={bookUrl}
+                      compact
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -2348,12 +2686,25 @@ function App() {
   const [stepLayout, setStepLayout] = useState(() => {
     try { return localStorage.getItem('hs-step-layout') || 'columns'; } catch { return 'columns'; }
   });
+  const [isMobileLayout, setIsMobileLayout] = useState(() =>
+    typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches
+  );
   const resultsRef = useRef(null);
   const tableRef = useRef(null);
 
   useEffect(() => {
     try { localStorage.setItem('hs-step-layout', stepLayout); } catch {}
   }, [stepLayout]);
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 768px)');
+    const onChange = () => setIsMobileLayout(mq.matches);
+    onChange();
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+
+  const effectiveStepLayout = isMobileLayout ? 'rows' : stepLayout;
 
   // Load full hotel list from server on mount
   useEffect(() => {
@@ -2379,14 +2730,15 @@ function App() {
 
   const displayedResults = React.useMemo(() => {
     const next = {};
+    const hotelById = Object.fromEntries(selectedHotels.map(h => [h.id, h]));
     for (const [hotelId, byDate] of Object.entries(results)) {
       next[hotelId] = {};
       for (const [di, r] of Object.entries(byDate || {})) {
-        next[hotelId][di] = r ? applyDisplayModeToResult(r, displayCurrencyMode) : r;
+        next[hotelId][di] = r ? applyDisplayModeToResult(r, displayCurrencyMode, hotelById[hotelId]) : r;
       }
     }
     return next;
-  }, [results, displayCurrencyMode]);
+  }, [results, displayCurrencyMode, selectedHotels]);
 
   // Flatten results for summary
   const flatResults = selectedHotels.flatMap(hotel =>
@@ -2510,7 +2862,7 @@ function App() {
             </div>
           </div>
 
-          <div className={`main-card-steps layout-${stepLayout}`}>
+          <div className={`main-card-steps layout-${effectiveStepLayout}`}>
           {/* STEP 1 — Hotels */}
           <div className="main-card-section main-card-section--hotels">
             <div className="section-label">

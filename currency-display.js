@@ -44,20 +44,48 @@ const USD_PER_UNIT = {
 const DISPLAY_CURRENCY_NOTE =
   "Rates are shown for comparison and may not include taxes, resort fees, or other charges.";
 
+function stripTrailingPostcode(part) {
+  return (part || "")
+    .replace(/\s+[A-Z]{1,2}\d[\w\d\s-]*$/i, "")
+    .trim();
+}
+
+function cityNameFromPart(part) {
+  const stripped = stripTrailingPostcode(part);
+  const key = stripped.toLowerCase();
+  if (CITY_CURRENCY[key]) return stripped;
+  for (const name of Object.keys(CITY_CURRENCY)) {
+    if (key.includes(name)) return stripped;
+  }
+  return null;
+}
+
 function cityFromAddress(address) {
   if (!address) return null;
   const parts = address.split(",").map((s) => s.trim()).filter(Boolean);
   if (/ireland/i.test(address)) {
     for (const part of parts) {
-      const c = part.toLowerCase();
-      if (CITY_CURRENCY[c]) return part;
+      const match = cityNameFromPart(part);
+      if (match) return match;
       if (/^dublin$/i.test(part)) return "Dublin";
     }
   }
-  if (/united kingdom| england| scotland| wales/i.test(address)) {
+  if (/\b(united kingdom|england|scotland|wales|uk)\b/i.test(address)) {
     for (const part of parts) {
-      const key = part.toLowerCase();
-      if (CITY_CURRENCY[key]) return part;
+      const match = cityNameFromPart(part);
+      if (match) return match;
+    }
+  }
+  return null;
+}
+
+function inferCityFromQuery(query) {
+  const lower = (query || "").toLowerCase();
+  const names = Object.keys(CITY_CURRENCY).sort((a, b) => b.length - a.length);
+  for (const name of names) {
+    const re = new RegExp(`\\b${name.replace(/ /g, "\\s+")}\\b`, "i");
+    if (re.test(lower)) {
+      return name.replace(/\b\w/g, (c) => c.toUpperCase());
     }
   }
   return null;
@@ -66,17 +94,21 @@ function cityFromAddress(address) {
 function resolveLocalCurrency(cityName, address, hotelName) {
   const blob = `${cityName || ""} ${address || ""} ${hotelName || ""}`.toLowerCase();
   for (const [country, cur] of Object.entries(COUNTRY_CURRENCY)) {
-    if (blob.includes(country)) return cur;
+    const re = new RegExp(`\\b${country.replace(/ /g, "\\s+")}\\b`, "i");
+    if (re.test(blob)) return cur;
   }
   const fromAddr = cityFromAddress(address);
-  if (fromAddr && CITY_CURRENCY[fromAddr.toLowerCase()]) {
-    return CITY_CURRENCY[fromAddr.toLowerCase()];
+  if (fromAddr) {
+    const cur = CITY_CURRENCY[fromAddr.toLowerCase()];
+    if (cur) return cur;
   }
   const city = (cityName || "").toLowerCase().trim();
   if (CITY_CURRENCY[city]) return CITY_CURRENCY[city];
   for (const [name, cur] of Object.entries(CITY_CURRENCY)) {
     if (city && (city.includes(name) || name.includes(city))) return cur;
   }
+  const fromName = inferCityFromQuery(hotelName);
+  if (fromName) return CITY_CURRENCY[fromName.toLowerCase()] || "USD";
   return "USD";
 }
 
@@ -159,8 +191,8 @@ function buildDisplayRateFields(originalRate, originalCurrency, displayMode, loc
   };
 }
 
-function attachDisplayRates(payload, displayMode, cityName) {
-  const localCurrency = resolveLocalCurrency(cityName, null, null);
+function attachDisplayRates(payload, displayMode, cityName, address, hotelName) {
+  const localCurrency = resolveLocalCurrency(cityName, address, hotelName);
   const originalRate = payload.original_rate ?? payload.rate ?? null;
   const originalCurrency =
     payload.original_currency || payload.currency || localCurrency;
@@ -183,6 +215,8 @@ module.exports = {
   COUNTRY_CURRENCY,
   CURRENCY_GL,
   DISPLAY_CURRENCY_NOTE,
+  cityFromAddress,
+  inferCityFromQuery,
   resolveLocalCurrency,
   googleHotelsLocale,
   serpFetchCurrency,
