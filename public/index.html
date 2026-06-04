@@ -1190,7 +1190,7 @@
     }
 
     /* ── PRICE ALERTS ────────────────────────────────────── */
-    .alerts-panel { margin-bottom: 40px; }
+    .alerts-panel { margin-top: 32px; margin-bottom: 0; }
     .alerts-panel-inner {
       background: var(--card);
       border: 1px solid var(--border);
@@ -1230,7 +1230,53 @@
     .alert-submit:hover { opacity: 0.88; }
     .alert-submit:disabled { opacity: 0.5; cursor: not-allowed; }
     .alert-error { font-size: 13px; color: var(--destructive); margin-top: 4px; }
+    .alert-success {
+      padding: 12px 14px;
+      margin-bottom: 12px;
+      background: var(--green-bg);
+      border: 1px solid var(--green);
+      border-radius: var(--radius-md);
+      font-size: 13px;
+      line-height: 1.45;
+      color: #2d5016;
+    }
+    .alert-warn {
+      padding: 12px 14px;
+      margin-bottom: 12px;
+      background: #FFF8E6;
+      border: 1px solid #E8C547;
+      border-radius: var(--radius-md);
+      font-size: 13px;
+      line-height: 1.45;
+      color: #5C4A1F;
+    }
     .alert-empty { font-size: 13px; color: var(--text-3); }
+    .alert-scan-picks { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+    .alert-scan-picks-row { display: flex; flex-wrap: wrap; gap: 8px; }
+    .alert-scan-pick {
+      font-size: 12px; font-weight: 500; color: var(--text-2);
+      padding: 6px 12px; border-radius: var(--radius-pill);
+      border: 1px solid var(--border); background: var(--surface);
+      cursor: pointer; transition: all var(--transition);
+      text-align: left; max-width: 100%;
+    }
+    .alert-scan-pick:hover { border-color: var(--ring); color: var(--text-1); }
+    .alert-scan-pick.on { background: var(--ink); color: white; border-color: var(--ink); }
+    .alert-hotel-selected {
+      display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+      padding: 10px 12px; border: 1px solid var(--border);
+      border-radius: var(--radius-md); background: var(--surface-2);
+    }
+    .alert-hotel-selected-name { font-size: 14px; font-weight: 600; color: var(--text-1); }
+    .alert-hotel-selected-meta { font-size: 12px; color: var(--text-3); }
+    .alert-hotel-change {
+      margin-left: auto; font-size: 12px; font-weight: 500;
+      color: var(--text-2); background: transparent; border: none; cursor: pointer;
+      text-decoration: underline;
+    }
+    .alert-rate-hint { font-size: 12px; color: var(--text-3); margin-top: 4px; }
+    .alert-form .drp-wrap { width: 100%; }
+    .alert-form .drp-trigger { width: 100%; box-sizing: border-box; }
     .alert-list { display: flex; flex-direction: column; gap: 8px; }
     .alert-row {
       display: flex; align-items: center; justify-content: space-between;
@@ -1262,6 +1308,11 @@
     .alert-action:hover { border-color: var(--ring); color: var(--text-1); }
     .alert-action:disabled { opacity: 0.5; cursor: not-allowed; }
     .alert-action--delete:hover { border-color: var(--destructive); color: var(--destructive); }
+    .alert-action--book {
+      background: var(--ink); color: white; border-color: var(--ink);
+      text-decoration: none; display: inline-flex; align-items: center;
+    }
+    .alert-action--book:hover { opacity: 0.9; color: white; border-color: var(--ink); }
     @media (max-width: 620px) {
       .alerts-panel-inner { padding: 20px; }
       .alert-form-group--sm, .alert-form-group--btn { flex: 1 0 100%; }
@@ -2794,25 +2845,200 @@ function Modal({ title, onClose, children }) {
 }
 
 // ─── APP ──────────────────────────────────────────────────────────────────────
+// ─── ALERT HOTEL SEARCH (single select, same API as compare flow) ───────────────
+function SingleHotelSearch({ value, onChange, scanHotels = [], allHotels = [] }) {
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState([]);
+  const [activeIdx, setActiveIdx] = useState(-1);
+  const [isFocused, setIsFocused] = useState(false);
+  const [searching, setSearching] = useState(false);
+  const ref = useRef(null);
+  const inputRef = useRef(null);
+  const debounceRef = useRef(null);
+  const fallbackHotels = allHotels.length ? allHotels : HOTELS_STATIC;
+
+  useEffect(() => {
+    if (!query) { setResults([]); setActiveIdx(-1); setSearching(false); return; }
+    setActiveIdx(-1);
+    clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      setSearching(true);
+      const words = query.toLowerCase().split(/\s+/).filter(w => w.length > 2);
+      const filterByName = rows => words.length
+        ? rows.filter(h => words.some(w => (h.name || '').toLowerCase().includes(w) || (h.city || '').toLowerCase().includes(w)))
+        : rows;
+      searchHotelsRemote(query, value ? [value] : [])
+        .then(r => { setResults(filterByName(r)); setSearching(false); })
+        .catch(() => { setResults(filterByName(searchHotelsFallback(query, value ? [value] : [], null, fallbackHotels))); setSearching(false); });
+    }, SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(debounceRef.current);
+  }, [query, value, fallbackHotels]);
+
+  useEffect(() => {
+    const fn = e => { if (ref.current && !ref.current.contains(e.target)) setIsFocused(false); };
+    document.addEventListener('mousedown', fn);
+    return () => document.removeEventListener('mousedown', fn);
+  }, []);
+
+  const select = hotel => {
+    onChange(hotel);
+    setQuery('');
+    setIsFocused(false);
+    inputRef.current?.blur();
+  };
+
+  const handleKey = e => {
+    if (e.key === 'ArrowDown') { e.preventDefault(); setActiveIdx(i => Math.min(i + 1, results.length - 1)); }
+    if (e.key === 'ArrowUp') { e.preventDefault(); setActiveIdx(i => Math.max(i - 1, 0)); }
+    if (e.key === 'Enter' && activeIdx >= 0) select(results[activeIdx]);
+    if (e.key === 'Escape') { setQuery(''); setIsFocused(false); inputRef.current?.blur(); }
+  };
+
+  const stars = n => STAR_CHAR.repeat(n);
+  const icon = h => h.stars >= 5 ? '🏰' : h.stars >= 4 ? '🏨' : '🏩';
+  const showDrop = isFocused && query;
+
+  if (value) {
+    return (
+      <div className="alert-hotel-selected">
+        <span className="alert-hotel-selected-name">{value.name}</span>
+        <span className="alert-hotel-selected-meta">{value.city}{value.region ? ` · ${value.region}` : ''}</span>
+        <button type="button" className="alert-hotel-change" onClick={() => onChange(null)}>Change hotel</button>
+      </div>
+    );
+  }
+
+  return (
+    <div ref={ref}>
+      {scanHotels.length > 0 && (
+        <div className="alert-scan-picks">
+          <span className="alert-label">From your comparison</span>
+          <div className="alert-scan-picks-row">
+            {scanHotels.map(h => (
+              <button key={h.id} type="button" className="alert-scan-pick" onClick={() => select(h)}>
+                {h.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      <div className="search-box-wrap" style={{ position: 'relative' }}>
+        <div className="search-box">
+          <span className="search-box-icon">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <circle cx="6.5" cy="6.5" r="5" stroke="#9C9C9C" strokeWidth="1.5"/>
+              <path d="M10.5 10.5L14 14" stroke="#9C9C9C" strokeWidth="1.5" strokeLinecap="round"/>
+            </svg>
+          </span>
+          <input
+            ref={inputRef}
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            onKeyDown={handleKey}
+            onFocus={() => setIsFocused(true)}
+            placeholder="Search hotels or destinations…"
+            aria-label="Search hotel for price alert"
+          />
+        </div>
+        {showDrop && (
+          <div className="search-dropdown" onMouseDown={e => e.preventDefault()}>
+            {searching
+              ? <div className="search-no-results">Searching…</div>
+              : results.length === 0
+              ? <div className="search-no-results">No results for "{query}"</div>
+              : results.map((h, i) => (
+                <div key={h.id} className={`search-item ${i === activeIdx ? 'active' : ''}`} onClick={() => select(h)}>
+                  <div className="search-item-icon">{icon(h)}</div>
+                  <div className="search-item-body">
+                    <div className="search-item-name">{h.name}</div>
+                    <div className="search-item-meta">{h.city} · {h.region}</div>
+                  </div>
+                  <div className="search-item-stars" style={{ color: '#C9963A' }}>{stars(h.stars)}</div>
+                </div>
+              ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── ALERTS PANEL ─────────────────────────────────────────────────────────────
-function AlertsPanel() {
+function buildAlertScanKey(scanHotels = [], scanDates = []) {
+  const hotels = scanHotels.map(h => h.id).sort().join(',');
+  const dates = scanDates.map(d => `${d.checkIn}|${d.checkOut}`).sort().join(',');
+  return `${hotels}::${dates}`;
+}
+
+function isAlertForScan(alert, scanHotels, scanDates, scanKey) {
+  if (scanKey && alert.scanKey) return alert.scanKey === scanKey;
+  const hotelMatch = scanHotels.some(h => h.name === alert.hotel.name && h.city === alert.hotel.city);
+  const dateMatch = scanDates.some(d => d.checkIn === alert.checkIn && d.checkOut === alert.checkOut);
+  return hotelMatch && dateMatch;
+}
+
+function AlertsPanel({ scanHotels = [], scanDates = [], scanResults = {}, scanKey = '', allHotels = [] }) {
   const [alerts, setAlerts] = useState([]);
-  const [form, setForm] = useState({ hotelName: '', city: '', checkIn: '', checkOut: '', targetPrice: '', email: '' });
+  const [selectedHotel, setSelectedHotel] = useState(null);
+  const [dateRange, setDateRange] = useState({ checkIn: '', checkOut: '' });
+  const [targetPrice, setTargetPrice] = useState('');
+  const [email, setEmail] = useState(() => {
+    try { return localStorage.getItem('hs-alert-email') || ''; } catch { return ''; }
+  });
   const [saving, setSaving] = useState(false);
   const [checkingId, setCheckingId] = useState(null);
   const [error, setError] = useState(null);
+  const [successMsg, setSuccessMsg] = useState(null);
+  const [emailWarn, setEmailWarn] = useState(null);
+  const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
     fetch('/api/alerts').then(r => r.json()).then(setAlerts).catch(() => {});
   }, []);
 
-  function setField(k, v) { setForm(f => ({ ...f, [k]: v })); }
+  const relevantAlerts = React.useMemo(() => {
+    if (!scanHotels.length || !scanDates.length) return [];
+    return alerts
+      .filter(a => isAlertForScan(a, scanHotels, scanDates, scanKey))
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+      .slice(0, 2);
+  }, [alerts, scanHotels, scanDates, scanKey]);
+
+  useEffect(() => {
+    setExpanded(relevantAlerts.length > 0);
+  }, [scanKey, relevantAlerts.length]);
+
+  useEffect(() => {
+    if (scanHotels.length) setSelectedHotel(scanHotels[0]);
+  }, [scanKey, scanHotels]);
+
+  useEffect(() => {
+    if (scanDates.length) {
+      setDateRange({ checkIn: scanDates[0].checkIn, checkOut: scanDates[0].checkOut });
+    }
+  }, [scanKey, scanDates]);
+
+  useEffect(() => {
+    if (!successMsg) return;
+    const t = setTimeout(() => setSuccessMsg(null), 8000);
+    return () => clearTimeout(t);
+  }, [successMsg]);
+
+  const currentRateHint = (() => {
+    if (!selectedHotel || !dateRange.checkIn || !dateRange.checkOut) return null;
+    const di = scanDates.findIndex(d => d.checkIn === dateRange.checkIn && d.checkOut === dateRange.checkOut);
+    if (di < 0) return null;
+    const r = scanResults[selectedHotel.id]?.[di];
+    return r?.rate > 0 ? r.rate : null;
+  })();
 
   async function createAlert(e) {
     e.preventDefault();
     setError(null);
-    if (!form.hotelName || !form.city || !form.checkIn || !form.checkOut || !form.targetPrice || !form.email) {
-      setError('All fields are required.'); return;
+    setSuccessMsg(null);
+    setEmailWarn(null);
+    if (!selectedHotel || !dateRange.checkIn || !dateRange.checkOut || !targetPrice || !email) {
+      setError('Select a hotel, dates, target price, and email.'); return;
     }
     setSaving(true);
     try {
@@ -2820,15 +3046,34 @@ function AlertsPanel() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          hotel: { name: form.hotelName, city: form.city },
-          checkIn: form.checkIn, checkOut: form.checkOut,
-          targetPrice: Number(form.targetPrice), email: form.email,
+          hotel: selectedHotel,
+          checkIn: dateRange.checkIn,
+          checkOut: dateRange.checkOut,
+          targetPrice: Number(targetPrice),
+          email,
+          scanKey,
         }),
       });
       if (!res.ok) { const d = await res.json(); setError(d.error); return; }
-      const alert = await res.json();
-      setAlerts(prev => [...prev, alert]);
-      setForm(f => ({ hotelName: '', city: '', checkIn: '', checkOut: '', targetPrice: '', email: f.email }));
+      const data = await res.json();
+      const price = Number(targetPrice);
+      setAlerts(prev => [...prev, data]);
+      try { localStorage.setItem('hs-alert-email', email); } catch {}
+      setTargetPrice('');
+      setSuccessMsg(`Watch set for ${selectedHotel.name}. We'll check rates about every 6 hours and email you when the rate drops below $${price}/night.`);
+      if (data.confirmationEmailSent) {
+        const from = data.confirmationFromEmail || 'the sender';
+        setSuccessMsg(prev =>
+          `${prev} A confirmation was sent to ${email}. If it is not in your inbox, check Spam or Promotions and add ${from} to your safe senders.`
+        );
+      } else {
+        setEmailWarn(
+          'Your watch was saved, but the confirmation email could not be sent. '
+          + 'Gmail requires an App Password in .env (not your normal Gmail password). '
+          + 'Create one at Google Account → Security → App passwords, update SMTP_PASS, then restart the server.'
+        );
+      }
+      setExpanded(true);
     } catch { setError('Failed to save alert.'); }
     finally { setSaving(false); }
   }
@@ -2854,55 +3099,87 @@ function AlertsPanel() {
   }
 
   const fmt = ds => ds ? new Date(ds + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+  const bookUrlForAlert = a => a.triggeredBookingUrl || a.lastBookingUrl || null;
 
   return (
-    <div className="alerts-panel container">
+    <div className="alerts-panel">
       <div className="alerts-panel-inner">
         <div className="alerts-header">
-          <span className="alerts-title">Price Alerts</span>
-          <span className="alerts-subtitle">Get emailed when a rate drops below your target</span>
+          <span className="alerts-title">Watch for a lower rate</span>
+          <span className="alerts-subtitle">Not ready to book at these prices? Set a target and we'll email you if rates drop. We check about every 6 hours.</span>
         </div>
 
-        <form className="alert-form" onSubmit={createAlert}>
-          <div className="alert-form-row">
-            <div className="alert-form-group">
-              <label className="alert-label">Hotel name</label>
-              <input className="alert-input" placeholder="Hyatt Regency Brisbane" value={form.hotelName} onChange={e => setField('hotelName', e.target.value)} />
-            </div>
-            <div className="alert-form-group alert-form-group--sm">
-              <label className="alert-label">City</label>
-              <input className="alert-input" placeholder="Brisbane" value={form.city} onChange={e => setField('city', e.target.value)} />
-            </div>
-          </div>
-          <div className="alert-form-row">
-            <div className="alert-form-group">
-              <label className="alert-label">Check-in</label>
-              <input className="alert-input" type="date" value={form.checkIn} onChange={e => setField('checkIn', e.target.value)} />
-            </div>
-            <div className="alert-form-group">
-              <label className="alert-label">Check-out</label>
-              <input className="alert-input" type="date" value={form.checkOut} onChange={e => setField('checkOut', e.target.value)} />
-            </div>
-            <div className="alert-form-group alert-form-group--sm">
-              <label className="alert-label">Alert below ($/night)</label>
-              <input className="alert-input" type="number" min="1" placeholder="280" value={form.targetPrice} onChange={e => setField('targetPrice', e.target.value)} />
-            </div>
-          </div>
-          <div className="alert-form-row">
-            <div className="alert-form-group alert-form-group--grow">
-              <label className="alert-label">Your email</label>
-              <input className="alert-input" type="email" placeholder="you@example.com" value={form.email} onChange={e => setField('email', e.target.value)} />
-            </div>
-            <div className="alert-form-group alert-form-group--btn">
-              <button className="alert-submit" type="submit" disabled={saving}>{saving ? 'Saving…' : 'Set alert'}</button>
-            </div>
-          </div>
-          {error && <p className="alert-error">{error}</p>}
-        </form>
+        {!expanded && (
+          <button type="button" className="alert-submit" style={{ marginBottom: 16 }} onClick={() => setExpanded(true)}>
+            Watch for a lower rate
+          </button>
+        )}
 
-        {alerts.length > 0 ? (
+        {expanded && (
+          <>
+            {successMsg && <div className="alert-success">{successMsg}</div>}
+            {emailWarn && <div className="alert-warn">{emailWarn}</div>}
+
+            <form className="alert-form" onSubmit={createAlert}>
+              <div className="alert-form-group">
+                <label className="alert-label">Hotel</label>
+                <SingleHotelSearch
+                  value={selectedHotel}
+                  onChange={setSelectedHotel}
+                  scanHotels={scanHotels}
+                  allHotels={allHotels}
+                />
+              </div>
+
+              {scanDates.length > 0 && (
+                <div className="alert-scan-picks">
+                  <span className="alert-label">Date options from your comparison</span>
+                  <div className="alert-scan-picks-row">
+                    {scanDates.map((d, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        className={`alert-scan-pick ${dateRange.checkIn === d.checkIn && dateRange.checkOut === d.checkOut ? 'on' : ''}`}
+                        onClick={() => setDateRange({ checkIn: d.checkIn, checkOut: d.checkOut })}
+                      >
+                        Option {OPTION_LABELS[i]} · {formatDate(d.checkIn)} – {formatDate(d.checkOut)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="alert-form-group">
+                <label className="alert-label">Stay dates</label>
+                <DateRangePicker value={dateRange} onChange={setDateRange} minDate={todayStr()} />
+              </div>
+
+              <div className="alert-form-row">
+                <div className="alert-form-group alert-form-group--sm">
+                  <label className="alert-label">Notify below ($/night)</label>
+                  <input className="alert-input" type="number" min="1" placeholder="200" value={targetPrice} onChange={e => setTargetPrice(e.target.value)} />
+                  {currentRateHint != null && (
+                    <div className="alert-rate-hint">Current rate from comparison: ${currentRateHint}/night</div>
+                  )}
+                </div>
+                <div className="alert-form-group alert-form-group--grow">
+                  <label className="alert-label">Your email</label>
+                  <input className="alert-input" type="email" placeholder="you@example.com" value={email} onChange={e => setEmail(e.target.value)} />
+                </div>
+                <div className="alert-form-group alert-form-group--btn">
+                  <button className="alert-submit" type="submit" disabled={saving}>{saving ? 'Saving…' : 'Start watching'}</button>
+                </div>
+              </div>
+              {error && <p className="alert-error">{error}</p>}
+            </form>
+          </>
+        )}
+
+        {relevantAlerts.length > 0 ? (
+          <>
+            <p className="alert-label" style={{ marginBottom: 10 }}>Your watches for this search</p>
           <div className="alert-list">
-            {alerts.map(a => (
+            {relevantAlerts.map(a => (
               <div key={a.id} className={`alert-row ${a.triggered ? 'alert-row--triggered' : ''}`}>
                 <div className="alert-row-main">
                   <span className="alert-row-hotel">{a.hotel.name}</span>
@@ -2910,9 +3187,14 @@ function AlertsPanel() {
                   <span className="alert-row-dates">{fmt(a.checkIn)} – {fmt(a.checkOut)}</span>
                   <span className="alert-row-target">Target: <strong>${a.targetPrice}/night</strong></span>
                   {a.lastRate != null && <span className="alert-row-last">Last seen: ${a.lastRate}/night</span>}
-                  {a.triggered && <span className="alert-row-badge">Triggered at ${a.triggeredRate}</span>}
+                  {a.triggered && <span className="alert-row-badge">Triggered at ${a.triggeredRate}/night</span>}
                 </div>
                 <div className="alert-row-actions">
+                  {a.triggered && bookUrlForAlert(a) && (
+                    <a href={bookUrlForAlert(a)} target="_blank" rel="noopener noreferrer" className="alert-action alert-action--book">
+                      Book now →
+                    </a>
+                  )}
                   {!a.triggered && (
                     <button className="alert-action" onClick={() => checkNow(a.id)} disabled={checkingId === a.id}>
                       {checkingId === a.id ? 'Checking…' : 'Check now'}
@@ -2926,9 +3208,10 @@ function AlertsPanel() {
               </div>
             ))}
           </div>
-        ) : (
-          <p className="alert-empty">No alerts yet. Fill out the form above to create one.</p>
-        )}
+          </>
+        ) : expanded ? (
+          <p className="alert-empty">No watches for this search yet.</p>
+        ) : null}
       </div>
     </div>
   );
@@ -2996,6 +3279,11 @@ function App() {
   const datesMet  = validDates.length >= MIN_DATE_RANGES;
 
   const localCurrencyCode = resolveLocalCurrencyForHotels(selectedHotels);
+
+  const alertScanKey = React.useMemo(
+    () => buildAlertScanKey(selectedHotels, validDates),
+    [selectedHotels, validDates]
+  );
 
   const displayedResults = React.useMemo(() => {
     const next = {};
@@ -3218,13 +3506,19 @@ function App() {
                 Important to understand
               </button>
             </div>
+            {showResults && loadingCells.size === 0 && (
+              <AlertsPanel
+                scanHotels={selectedHotels}
+                scanDates={validDates}
+                scanResults={results}
+                scanKey={alertScanKey}
+                allHotels={allHotels}
+              />
+            )}
           </div>
         )}
 
       </div>
-
-      {/* PRICE ALERTS */}
-      <AlertsPanel />
 
       {/* FOOTER */}
       <footer className="footer">

@@ -2097,14 +2097,78 @@ function saveAlerts(alerts) {
   fs.writeFileSync(ALERTS_FILE, JSON.stringify(alerts, null, 2));
 }
 
+function smtpCredentials() {
+  const user = (process.env.SMTP_USER || "").trim();
+  // Gmail App Passwords are 16 chars; users often paste with spaces or dashes.
+  const pass = (process.env.SMTP_PASS || "").replace(/[\s-]/g, "");
+  if (!user || !pass) return null;
+  return { user, pass };
+}
+
 function makeTransporter() {
-  if (!process.env.SMTP_USER || !process.env.SMTP_PASS) return null;
+  const creds = smtpCredentials();
+  if (!creds) return null;
   return nodemailer.createTransport({
     host: process.env.SMTP_HOST || "smtp.gmail.com",
     port: parseInt(process.env.SMTP_PORT || "587"),
     secure: false,
-    auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+    auth: creds,
   });
+}
+
+function fmtAlertDate(ds) {
+  if (!ds) return ds;
+  const d = new Date(ds + "T00:00:00");
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
+function emailSpamNoticeHtml() {
+  const from = (process.env.SMTP_USER || "").trim() || "this sender";
+  return `<p style="font-family:sans-serif;color:#666;font-size:12px;line-height:1.5;margin-top:16px">
+    Didn't see this email? Check your <strong>Spam</strong> or <strong>Promotions</strong> folder,
+    and add <strong>${from}</strong> to your safe senders so future Hotel Scanner alerts reach your inbox.
+  </p>`;
+}
+
+function alertCheckScheduleNoteHtml() {
+  return `<p style="font-family:sans-serif;color:#666;font-size:12px;line-height:1.5">
+    We'll check rates automatically about <strong>every 6 hours</strong> while this watch is active.
+  </p>`;
+}
+
+async function sendAlertSignupEmail(alert) {
+  const transporter = makeTransporter();
+  const nights = Math.max(1, Math.round((new Date(alert.checkOut) - new Date(alert.checkIn)) / 86400000));
+  if (!transporter) {
+    console.log(`[Alert] SMTP not configured — would send signup confirmation to ${alert.email}`);
+    return false;
+  }
+  await transporter.sendMail({
+    from: `"Hotel Rate Scanner" <${process.env.SMTP_USER}>`,
+    to: alert.email,
+    subject: "You're watching rates on Hotel Scanner",
+    html: `
+      <h2 style="font-family:sans-serif">Your price watch is set</h2>
+      <p style="font-family:sans-serif">
+        You used <strong>Hotel Rate Scanner</strong> to watch for a lower rate on:
+      </p>
+      <p style="font-family:sans-serif">
+        <strong>${alert.hotel.name}</strong> · ${alert.hotel.city}<br>
+        ${fmtAlertDate(alert.checkIn)} → ${fmtAlertDate(alert.checkOut)} (${nights} night${nights !== 1 ? "s" : ""})<br>
+        Target: <strong>below $${alert.targetPrice}/night</strong>
+      </p>
+      <p style="font-family:sans-serif">
+        We'll email you when a live rate drops to your target or lower. No need to keep checking back.
+      </p>
+      ${alertCheckScheduleNoteHtml()}
+      ${emailSpamNoticeHtml()}
+      <p style="font-family:sans-serif;color:#888;font-size:12px">
+        Hotel Rate Scanner · Rates are for comparison; confirm totals on the hotel site before booking.
+      </p>
+    `,
+  });
+  console.log(`[Alert] Signup confirmation sent to ${alert.email} — "${alert.hotel.name}"`);
+  return true;
 }
 
 async function sendAlertEmail(alert, rate, bookingUrl) {
@@ -2127,6 +2191,7 @@ async function sendAlertEmail(alert, rate, bookingUrl) {
         Dates: ${alert.checkIn} &rarr; ${alert.checkOut} (${nights} night${nights !== 1 ? "s" : ""}, $${total} total)
       </p>
       ${bookingUrl ? `<p><a href="${bookingUrl}" style="font-family:sans-serif">Book now &rarr;</a></p>` : ""}
+      ${emailSpamNoticeHtml()}
       <p style="font-family:sans-serif;color:#888;font-size:12px">This alert has been marked complete. Log in to set a new one.</p>
     `,
   });
@@ -2155,11 +2220,13 @@ async function runAlertChecks() {
       const data = await checkOneAlert(alert);
       alert.lastChecked = new Date().toISOString();
       alert.lastRate = data.rate;
+      if (data.booking_url) alert.lastBookingUrl = data.booking_url;
       if (data.source === "live" && data.rate && data.rate <= alert.targetPrice) {
         alert.triggered = true;
         alert.triggeredAt = new Date().toISOString();
         alert.triggeredRate = data.rate;
-        await sendAlertEmail(alert, data.rate, data.booking_url);
+        alert.triggeredBookingUrl = data.booking_url || alert.lastBookingUrl || null;
+        await sendAlertEmail(alert, data.rate, alert.triggeredBookingUrl);
         console.log(`[Alert TRIGGERED] "${alert.hotel.name}" $${data.rate} ≤ target $${alert.targetPrice}`);
       } else {
         console.log(`[Alert] "${alert.hotel.name}" $${data.rate ?? "n/a"} (target $${alert.targetPrice})${data.source !== "live" ? " — demo rate, skipping" : ""}`);
@@ -2175,26 +2242,48 @@ cron.schedule("0 */6 * * *", runAlertChecks);
 
 app.get("/api/alerts", (req, res) => res.json(loadAlerts()));
 
-app.post("/api/alerts", (req, res) => {
-  const { hotel, checkIn, checkOut, targetPrice, email } = req.body || {};
+app.post("/api/alerts", async (req, res) => {
+  const { hotel, checkIn, checkOut, targetPrice, email, scanKey } = req.body || {};
   if (!hotel?.name || !hotel?.city || !checkIn || !checkOut || !targetPrice || !email) {
     return res.status(400).json({ error: "Missing required fields: hotel.name, hotel.city, checkIn, checkOut, targetPrice, email" });
   }
   const alert = {
     id: Math.random().toString(36).slice(2, 10),
-    hotel: { name: hotel.name, city: hotel.city },
+    hotel: {
+      name: hotel.name,
+      city: hotel.city,
+      region: hotel.region || "",
+      url: hotel.url || "",
+      address: hotel.address || "",
+      property_token: hotel.property_token || null,
+    },
     checkIn, checkOut,
     targetPrice: Number(targetPrice),
     email,
+    scanKey: scanKey || null,
     active: true, triggered: false,
     createdAt: new Date().toISOString(),
-    lastChecked: null, lastRate: null,
+    lastChecked: null, lastRate: null, lastBookingUrl: null,
+    triggeredBookingUrl: null,
   };
   const alerts = loadAlerts();
   alerts.push(alert);
   saveAlerts(alerts);
   console.log(`[Alert] Created — "${alert.hotel.name}" target $${alert.targetPrice}`);
-  res.json(alert);
+  let confirmationEmailSent = false;
+  let confirmationEmailError = null;
+  try {
+    confirmationEmailSent = await sendAlertSignupEmail(alert);
+  } catch (err) {
+    confirmationEmailError = err.message || "Email send failed";
+    console.error(`[Alert] Signup email failed for ${alert.email}:`, confirmationEmailError);
+  }
+  res.json({
+    ...alert,
+    confirmationEmailSent,
+    confirmationEmailError,
+    confirmationFromEmail: (process.env.SMTP_USER || "").trim() || null,
+  });
 });
 
 app.delete("/api/alerts/:id", (req, res) => {
@@ -2210,11 +2299,13 @@ app.post("/api/alerts/:id/check", async (req, res) => {
     const data = await checkOneAlert(alert);
     alert.lastChecked = new Date().toISOString();
     alert.lastRate = data.rate;
+    if (data.booking_url) alert.lastBookingUrl = data.booking_url;
     if (data.source === "live" && data.rate && data.rate <= alert.targetPrice) {
       alert.triggered = true;
       alert.triggeredAt = new Date().toISOString();
       alert.triggeredRate = data.rate;
-      await sendAlertEmail(alert, data.rate, data.booking_url);
+      alert.triggeredBookingUrl = data.booking_url || alert.lastBookingUrl || null;
+      await sendAlertEmail(alert, data.rate, alert.triggeredBookingUrl);
     }
     saveAlerts(alerts);
     res.json({ alert, rateData: data });
@@ -2227,7 +2318,7 @@ app.post("/api/alerts/:id/reset", (req, res) => {
   const alerts = loadAlerts();
   const alert = alerts.find(a => a.id === req.params.id);
   if (!alert) return res.status(404).json({ error: "Alert not found" });
-  Object.assign(alert, { triggered: false, triggeredAt: null, triggeredRate: null });
+  Object.assign(alert, { triggered: false, triggeredAt: null, triggeredRate: null, triggeredBookingUrl: null });
   saveAlerts(alerts);
   res.json(alert);
 });
