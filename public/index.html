@@ -1207,7 +1207,7 @@
     }
     .alerts-subtitle { font-size: 13px; color: var(--text-2); }
     .alert-form { display: flex; flex-direction: column; gap: 12px; margin-bottom: 28px; }
-    .alert-form-row { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; }
+    .alert-form-row { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-start; }
     .alert-form-group { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 140px; }
     .alert-form-group--sm { flex: 0 0 130px; }
     .alert-form-group--grow { flex: 2; }
@@ -1275,7 +1275,7 @@
       color: var(--text-2); background: transparent; border: none; cursor: pointer;
       text-decoration: underline;
     }
-    .alert-rate-hint { font-size: 12px; color: var(--text-3); margin-top: 4px; }
+    .alert-rate-hint { font-size: 12px; color: var(--text-3); margin: 6px 0 0; }
     .alert-form .drp-wrap { width: 100%; }
     .alert-form .drp-trigger { width: 100%; box-sizing: border-box; }
     .alert-list { display: flex; flex-direction: column; gap: 8px; }
@@ -3166,9 +3166,6 @@ function AlertsPanel({ scanHotels = [], scanDates = [], scanResults = {}, scanKe
                 <div className="alert-form-group alert-form-group--sm">
                   <label className="alert-label">Notify below ($/night)</label>
                   <input className="alert-input" type="number" min="1" placeholder="200" value={targetPrice} onChange={e => setTargetPrice(e.target.value)} />
-                  {currentRateHint != null && (
-                    <div className="alert-rate-hint">Current rate from comparison: ${currentRateHint}/night</div>
-                  )}
                 </div>
                 <div className="alert-form-group alert-form-group--grow">
                   <label className="alert-label">Your email</label>
@@ -3179,6 +3176,9 @@ function AlertsPanel({ scanHotels = [], scanDates = [], scanResults = {}, scanKe
                   <button className="alert-submit" type="submit" disabled={saving}>{saving ? 'Saving…' : 'Start watching'}</button>
                 </div>
               </div>
+              {currentRateHint != null && (
+                <p className="alert-rate-hint">Current rate from comparison: ${currentRateHint}/night</p>
+              )}
               {error && <p className="alert-error">{error}</p>}
             </form>
           </>
