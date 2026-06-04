@@ -3,8 +3,11 @@ require("dotenv").config({ path: path.join(__dirname, ".env") });
 
 const fs = require("fs");
 const express = require("express");
+const cron = require("node-cron");
+const nodemailer = require("nodemailer");
 const Currency = require(path.join(__dirname, "currency-display.js"));
 const app = express();
+app.use(express.json());
 const SERPAPI_KEY = process.env.SERPAPI_KEY;
 const LIVE_DAILY_LIMIT = Number(process.env.LIVE_DAILY_LIMIT || 33);
 
@@ -2080,16 +2083,168 @@ app.get("/api/kimpton-propcode", async (req, res) => {
   }
 });
 
+// ─── PRICE ALERTS ─────────────────────────────────────────────────────────────
+const ALERTS_FILE = path.join(__dirname, "alerts.json");
+
+function loadAlerts() {
+  try {
+    if (fs.existsSync(ALERTS_FILE)) return JSON.parse(fs.readFileSync(ALERTS_FILE, "utf8"));
+  } catch {}
+  return [];
+}
+
+function saveAlerts(alerts) {
+  fs.writeFileSync(ALERTS_FILE, JSON.stringify(alerts, null, 2));
+}
+
+function makeTransporter() {
+  if (!process.env.SMTP_USER || !process.env.SMTP_PASS) return null;
+  return nodemailer.createTransport({
+    host: process.env.SMTP_HOST || "smtp.gmail.com",
+    port: parseInt(process.env.SMTP_PORT || "587"),
+    secure: false,
+    auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+  });
+}
+
+async function sendAlertEmail(alert, rate, bookingUrl) {
+  const nights = Math.round((new Date(alert.checkOut) - new Date(alert.checkIn)) / 86400000);
+  const total = rate * nights;
+  const transporter = makeTransporter();
+  if (!transporter) {
+    console.log(`[Alert] SMTP not configured — would email ${alert.email}: "${alert.hotel.name}" at $${rate}/night`);
+    return;
+  }
+  await transporter.sendMail({
+    from: `"Hotel Rate Scanner" <${process.env.SMTP_USER}>`,
+    to: alert.email,
+    subject: `Price alert: ${alert.hotel.name} dropped to $${rate}/night`,
+    html: `
+      <h2 style="font-family:sans-serif">Your price alert triggered</h2>
+      <p style="font-family:sans-serif">
+        <strong>${alert.hotel.name}</strong> in ${alert.hotel.city}<br>
+        Rate: <strong>$${rate}/night</strong> &mdash; your target was $${alert.targetPrice}/night<br>
+        Dates: ${alert.checkIn} &rarr; ${alert.checkOut} (${nights} night${nights !== 1 ? "s" : ""}, $${total} total)
+      </p>
+      ${bookingUrl ? `<p><a href="${bookingUrl}" style="font-family:sans-serif">Book now &rarr;</a></p>` : ""}
+      <p style="font-family:sans-serif;color:#888;font-size:12px">This alert has been marked complete. Log in to set a new one.</p>
+    `,
+  });
+  console.log(`[Alert] Email sent to ${alert.email} — "${alert.hotel.name}" at $${rate}`);
+}
+
+async function checkOneAlert(alert) {
+  const params = new URLSearchParams({
+    hotel: alert.hotel.name,
+    city: alert.hotel.city,
+    checkin: alert.checkIn,
+    checkout: alert.checkOut,
+    bust: "1",
+  });
+  const res = await fetch(`http://localhost:${process.env.PORT || 3000}/api/rates?${params}`);
+  return res.json();
+}
+
+async function runAlertChecks() {
+  const alerts = loadAlerts();
+  const active = alerts.filter(a => a.active && !a.triggered);
+  if (!active.length) { console.log("[Alerts] No active alerts"); return; }
+  console.log(`[Alerts] Checking ${active.length} alert(s)`);
+  for (const alert of active) {
+    try {
+      const data = await checkOneAlert(alert);
+      alert.lastChecked = new Date().toISOString();
+      alert.lastRate = data.rate;
+      if (data.source === "live" && data.rate && data.rate <= alert.targetPrice) {
+        alert.triggered = true;
+        alert.triggeredAt = new Date().toISOString();
+        alert.triggeredRate = data.rate;
+        await sendAlertEmail(alert, data.rate, data.booking_url);
+        console.log(`[Alert TRIGGERED] "${alert.hotel.name}" $${data.rate} ≤ target $${alert.targetPrice}`);
+      } else {
+        console.log(`[Alert] "${alert.hotel.name}" $${data.rate ?? "n/a"} (target $${alert.targetPrice})${data.source !== "live" ? " — demo rate, skipping" : ""}`);
+      }
+    } catch (err) {
+      console.error(`[Alert Error] "${alert.hotel.name}":`, err.message);
+    }
+  }
+  saveAlerts(alerts);
+}
+
+cron.schedule("0 */6 * * *", runAlertChecks);
+
+app.get("/api/alerts", (req, res) => res.json(loadAlerts()));
+
+app.post("/api/alerts", (req, res) => {
+  const { hotel, checkIn, checkOut, targetPrice, email } = req.body || {};
+  if (!hotel?.name || !hotel?.city || !checkIn || !checkOut || !targetPrice || !email) {
+    return res.status(400).json({ error: "Missing required fields: hotel.name, hotel.city, checkIn, checkOut, targetPrice, email" });
+  }
+  const alert = {
+    id: Math.random().toString(36).slice(2, 10),
+    hotel: { name: hotel.name, city: hotel.city },
+    checkIn, checkOut,
+    targetPrice: Number(targetPrice),
+    email,
+    active: true, triggered: false,
+    createdAt: new Date().toISOString(),
+    lastChecked: null, lastRate: null,
+  };
+  const alerts = loadAlerts();
+  alerts.push(alert);
+  saveAlerts(alerts);
+  console.log(`[Alert] Created — "${alert.hotel.name}" target $${alert.targetPrice}`);
+  res.json(alert);
+});
+
+app.delete("/api/alerts/:id", (req, res) => {
+  saveAlerts(loadAlerts().filter(a => a.id !== req.params.id));
+  res.json({ ok: true });
+});
+
+app.post("/api/alerts/:id/check", async (req, res) => {
+  const alerts = loadAlerts();
+  const alert = alerts.find(a => a.id === req.params.id);
+  if (!alert) return res.status(404).json({ error: "Alert not found" });
+  try {
+    const data = await checkOneAlert(alert);
+    alert.lastChecked = new Date().toISOString();
+    alert.lastRate = data.rate;
+    if (data.source === "live" && data.rate && data.rate <= alert.targetPrice) {
+      alert.triggered = true;
+      alert.triggeredAt = new Date().toISOString();
+      alert.triggeredRate = data.rate;
+      await sendAlertEmail(alert, data.rate, data.booking_url);
+    }
+    saveAlerts(alerts);
+    res.json({ alert, rateData: data });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/alerts/:id/reset", (req, res) => {
+  const alerts = loadAlerts();
+  const alert = alerts.find(a => a.id === req.params.id);
+  if (!alert) return res.status(404).json({ error: "Alert not found" });
+  Object.assign(alert, { triggered: false, triggeredAt: null, triggeredRate: null });
+  saveAlerts(alerts);
+  res.json(alert);
+});
+
 // ─── STATUS ───────────────────────────────────────────────────────────────────
 app.get("/api/status", (req, res) => {
+  const alerts = loadAlerts();
   res.json({
     status: "ok",
     mode: "live",
     serpApiConfigured: !!SERPAPI_KEY,
+    smtpConfigured: !!(process.env.SMTP_USER && process.env.SMTP_PASS),
     searchCacheSize: Object.keys(searchCache).length,
     rateCacheSize: Object.keys(rateCache).length,
     liveUsage: getLiveUsage(),
     liveDailyLimit: LIVE_DAILY_LIMIT,
+    alerts: { total: alerts.length, active: alerts.filter(a => a.active && !a.triggered).length },
   });
 });
 
