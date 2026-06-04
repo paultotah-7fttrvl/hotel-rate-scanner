@@ -1207,12 +1207,13 @@
     }
     .alerts-subtitle { font-size: 13px; color: var(--text-2); }
     .alert-form { display: flex; flex-direction: column; gap: 12px; margin-bottom: 28px; }
-    .alert-form-row { display: flex; gap: 12px; flex-wrap: wrap; }
+    .alert-form-row { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; }
     .alert-form-group { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 140px; }
     .alert-form-group--sm { flex: 0 0 130px; }
     .alert-form-group--grow { flex: 2; }
-    .alert-form-group--btn { flex: 0 0 auto; justify-content: flex-end; }
+    .alert-form-group--btn { flex: 0 0 auto; }
     .alert-label { font-size: 12px; font-weight: 500; color: var(--text-2); letter-spacing: 0.02em; }
+    .alert-label--spacer { visibility: hidden; user-select: none; }
     .alert-input {
       height: 38px; padding: 0 10px;
       border: 1px solid var(--border); border-radius: var(--radius-md);
@@ -3174,6 +3175,7 @@ function AlertsPanel({ scanHotels = [], scanDates = [], scanResults = {}, scanKe
                   <input className="alert-input" type="email" placeholder="you@example.com" value={email} onChange={e => setEmail(e.target.value)} />
                 </div>
                 <div className="alert-form-group alert-form-group--btn">
+                  <span className="alert-label alert-label--spacer" aria-hidden="true">&nbsp;</span>
                   <button className="alert-submit" type="submit" disabled={saving}>{saving ? 'Saving…' : 'Start watching'}</button>
                 </div>
               </div>
