@@ -3066,11 +3066,18 @@ function AlertsPanel({ scanHotels = [], scanDates = [], scanResults = {}, scanKe
         setSuccessMsg(prev =>
           `${prev} A confirmation was sent to ${email}. If it is not in your inbox, check Spam or Promotions and add ${from} to your safe senders.`
         );
+      } else if (data.smtpConfigured === false) {
+        setEmailWarn(
+          'Your watch was saved, but email is not configured on this server yet. '
+          + 'On Render → hotel-rate-scanner → Environment, add SMTP_USER, SMTP_PASS (Gmail App Password), '
+          + 'SMTP_HOST=smtp.gmail.com, SMTP_PORT=587, save, wait for redeploy, then confirm /api/status shows smtpConfigured: true.'
+        );
       } else {
         setEmailWarn(
           'Your watch was saved, but the confirmation email could not be sent. '
-          + 'Gmail requires an App Password in .env (not your normal Gmail password). '
-          + 'Create one at Google Account → Security → App passwords, update SMTP_PASS, then restart the server.'
+          + (data.confirmationEmailError
+            ? `Error: ${data.confirmationEmailError}`
+            : 'Check Render logs for [Alert] Signup email failed, verify the Gmail App Password, and restart the service.')
         );
       }
       setExpanded(true);

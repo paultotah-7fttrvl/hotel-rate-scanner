@@ -13,3 +13,11 @@ services:
         value: live
       - key: LIVE_DAILY_LIMIT
         value: 33
+      - key: SMTP_HOST
+        value: smtp.gmail.com
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false

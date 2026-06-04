@@ -2278,11 +2278,13 @@ app.post("/api/alerts", async (req, res) => {
     confirmationEmailError = err.message || "Email send failed";
     console.error(`[Alert] Signup email failed for ${alert.email}:`, confirmationEmailError);
   }
+  const smtpConfigured = !!smtpCredentials();
   res.json({
     ...alert,
     confirmationEmailSent,
     confirmationEmailError,
     confirmationFromEmail: (process.env.SMTP_USER || "").trim() || null,
+    smtpConfigured,
   });
 });
 
@@ -2330,7 +2332,7 @@ app.get("/api/status", (req, res) => {
     status: "ok",
     mode: "live",
     serpApiConfigured: !!SERPAPI_KEY,
-    smtpConfigured: !!(process.env.SMTP_USER && process.env.SMTP_PASS),
+    smtpConfigured: !!smtpCredentials(),
     searchCacheSize: Object.keys(searchCache).length,
     rateCacheSize: Object.keys(rateCache).length,
     liveUsage: getLiveUsage(),
@@ -2345,5 +2347,6 @@ app.listen(PORT, () => {
   console.log(`\n  Hotel Rate Scanner`);
   console.log(`  http://localhost:${PORT}`);
   console.log(`  Mode: live SerpAPI | any hotel, anywhere`);
-  console.log(`  SerpAPI: ${SERPAPI_KEY ? "configured ✓" : "NOT SET ✗"}\n`);
+  console.log(`  SerpAPI: ${SERPAPI_KEY ? "configured ✓" : "NOT SET ✗"}`);
+  console.log(`  SMTP: ${smtpCredentials() ? "configured ✓" : "NOT SET ✗ (alert emails disabled)"}\n`);
 });
