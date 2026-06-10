@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Hotel Scanner — Compare Rates Across Dates</title>
-  <meta name="description" content="Search hotels worldwide and compare rates across multiple possible stay dates. A tool from Seven Feet Travel." />
+  <title>Hotel Rate Scanner & Price Alerts</title>
+  <meta name="description" content="Search by hotel, destination, or dates to compare live rates across hotel and OTA platforms. Set a price alert after results load if the rate is not aligned with your budget. A tool from Seven Feet Travel." />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
   <script src="hotels.js"></script>
@@ -158,7 +158,7 @@
     }
     .hero-headline {
       font-family: var(--font-serif);
-      font-size: clamp(32px, 5vw, 54px);
+      font-size: clamp(24px, 3.2vw, 36px);
       font-weight: 500;
       line-height: 1.12; letter-spacing: -0.01em;
       color: #fff; margin-bottom: 18px;
@@ -175,7 +175,6 @@
       font-size: 13px; color: rgba(255,255,255,0.75);
       text-shadow: 0 1px 3px rgba(0,0,0,0.4);
     }
-
     /* ── MAIN CARD ───────────────────────────────────────── */
     .main-card {
       background: var(--surface);
@@ -3384,7 +3383,7 @@ function App() {
       <div className="hero-section-wrap">
       <nav className="nav">
         <div className="nav-inner">
-          <div className="nav-logo">Hotel <em>Scanner</em><a className="nav-logo-sub" href="https://sevenfeettravel.com" target="_blank" rel="noopener noreferrer">by Seven Feet Travel</a></div>
+          <div className="nav-logo">Hotel Rate Scanner <em>&amp; Price Alerts</em><a className="nav-logo-sub" href="https://sevenfeettravel.com" target="_blank" rel="noopener noreferrer">by Seven Feet Travel</a></div>
           <div className="nav-right">
             <button className="nav-link" onClick={() => setModal('casestudy')}>About</button>
             <div className="nav-badge">Portfolio Prototype</div>
@@ -3395,14 +3394,14 @@ function App() {
       {/* HERO */}
       <div className="hero">
         <h1 className="hero-headline">
-          Compare rates<br />
-          across dates,<br />
+          <span style={{whiteSpace:'nowrap'}}>Compare rates across dates,</span><br />
           <em>not across tabs.</em>
         </h1>
         <p className="hero-value">
-          Add the hotels you want.<br />
-          Pick the dates that could work.<br />
-          See every combination at once.
+          Search by hotel, destination, or dates to compare live rates across hotel and OTA platforms.
+        </p>
+        <p className="hero-value">
+          Once your results load, you can review available prices, check alternate dates, and set a price alert if the rate is not aligned with your budget yet.
         </p>
         <p className="hero-note">Search any hotel worldwide — live rates with demo fallback when daily limits apply.</p>
       </div>
@@ -3562,7 +3561,7 @@ function App() {
             </div>
             <div className="modal-card">
               <div className="modal-card-tag">The Approach</div>
-              <div className="modal-card-text">A multi-axis rate matrix: pin the hotels you're considering, add the date ranges that could work, and see the complete grid at once. One view replaces a dozen searches.</div>
+              <div className="modal-card-text">A multi-axis rate matrix: pin the hotels you're considering, add the date ranges that could work, and see the complete grid at once. Once results load, set a price alert if the current rate is not aligned with your budget. One view replaces a dozen searches.</div>
             </div>
             <div className="modal-card">
               <div className="modal-card-tag">What This Demonstrates</div>
