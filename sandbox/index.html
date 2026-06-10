@@ -114,7 +114,8 @@
       font-size: 20px; font-weight: 500;
       color: var(--text-1);
     }
-    .nav-logo-sub { font-size: 13px; font-weight: 400; color: var(--text-3); margin-left: 6px; }
+    .nav-logo-sub { font-family: var(--font-serif); font-size: 16px; font-weight: 400; color: var(--text-3); margin-left: 8px; text-decoration: none; }
+    .nav-logo-sub:hover { color: var(--text-1); }
     .nav-right { display: flex; align-items: center; gap: 4px; }
     .nav-link {
       font-size: 14px; font-weight: 500; color: var(--text-2);
@@ -2741,7 +2742,7 @@ function App() {
       <div className="hero-section-wrap">
       <nav className="nav">
         <div className="nav-inner">
-          <div className="nav-logo">Hotel <em>Scanner</em><span className="nav-logo-sub">by Seven Feet Travel</span></div>
+          <div className="nav-logo">Hotel <em>Scanner</em><a className="nav-logo-sub" href="https://sevenfeettravel.com" target="_blank" rel="noopener noreferrer">by Seven Feet Travel</a></div>
           <div className="nav-right">
             <button className="nav-link" onClick={() => setModal('casestudy')}>About</button>
             <div className="nav-badge">Portfolio Prototype</div>
@@ -2878,10 +2879,7 @@ function App() {
       {/* FOOTER */}
       <footer className="footer">
         <div className="footer-author">
-          Built by <a className="footer-a" href="https://linkedin.com/in/paultotah" target="_blank" rel="noopener noreferrer">Paul Totah</a>
-        </div>
-        <div className="footer-author" style={{marginTop: '4px', fontSize: '12px'}}>
-          © 2026 Seven Feet Travel · All rights reserved
+          Built by <a className="footer-a" href="https://linkedin.com/in/paultotah" target="_blank" rel="noopener noreferrer">Paul Totah</a> · © 2026 Seven Feet Travel · All rights reserved
         </div>
       </footer>
 
