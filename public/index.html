@@ -166,6 +166,7 @@
       text-shadow: 0 1px 3px rgba(0,0,0,0.4);
     }
     .hero-headline em { font-style: italic; color: rgba(255,255,255,0.88); }
+    .hero-nowrap { white-space: nowrap; }
     .hero-value {
       font-size: 17px; font-weight: 400;
       color: rgba(255,255,255,0.90); line-height: 1.6;
@@ -1053,15 +1054,12 @@
       .nav-logo-sub { display: none; }
       .nav-badge { display: none; }
       .nav-link { display: none; }
-      /* Hero — show eyebrow, tighten spacing */
-      .hero-eyebrow { display: block; }
+      /* Hero — tighten spacing */
+      .hero-nowrap { white-space: normal; }
       .hero { padding: 44px 20px 48px; }
       .hero-headline { font-size: clamp(26px, 7vw, 38px); line-height: 1.15; }
       .hero-value { font-size: 15px; }
       .hero-note { font-size: 12px; }
-      /* Footer — show About link on mobile */
-      .footer-about-mobile { display: block; margin-top: 8px; font-size: 13px; }
-      .footer { flex-direction: column; }
       .main-card { margin-top: -24px; }
       .city-grid { grid-template-columns: repeat(2, 1fr); background: var(--border); }
     }
@@ -3415,9 +3413,8 @@ function App() {
 
       {/* HERO */}
       <div className="hero">
-        <div className="hero-eyebrow">by Seven Feet Travel</div>
         <h1 className="hero-headline">
-          Compare rates across dates,<br />
+          <span className="hero-nowrap">Compare rates across dates,</span><br />
           <em>not across tabs.</em>
         </h1>
         <p className="hero-value">
@@ -3556,10 +3553,7 @@ function App() {
       {/* FOOTER */}
       <footer className="footer">
         <div className="footer-author">
-          Built by <a className="footer-a" href="https://linkedin.com/in/paultotah" target="_blank" rel="noopener noreferrer">Paul Totah</a> · © 2026 Seven Feet Travel · All rights reserved
-        </div>
-        <div className="footer-about-mobile">
-          <button className="footer-about-btn" onClick={() => setModal('casestudy')}>About</button>
+          Built by <a className="footer-a" href="https://linkedin.com/in/paultotah" target="_blank" rel="noopener noreferrer">Paul Totah</a> · © 2026 <a className="footer-a" href="https://sevenfeettravel.com" target="_blank" rel="noopener noreferrer">Seven Feet Travel</a> · All rights reserved
         </div>
       </footer>
 
