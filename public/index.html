@@ -1039,7 +1039,16 @@
       .why-grid { grid-template-columns: 1fr; gap: 12px; }
       .step-layout-bar { padding: 12px 20px 0; }
       .main-card-section, .cta-wrap { padding: 20px 20px; }
-      .hero { padding: 48px 0 64px; }
+      /* Nav — hide overflow elements on small screens */
+      .nav-logo-sub { display: none; }
+      .nav-badge { display: none; }
+      .nav-logo { font-size: 17px; }
+      .nav-inner { padding: 0 16px; }
+      /* Hero — tighten spacing and fix overflow */
+      .hero { padding: 44px 20px 48px; }
+      .hero-headline { font-size: clamp(26px, 7vw, 38px); line-height: 1.15; }
+      .hero-value { font-size: 15px; }
+      .hero-note { font-size: 12px; }
       .main-card { margin-top: -24px; }
       .city-grid { grid-template-columns: repeat(2, 1fr); background: var(--border); }
     }
@@ -3394,7 +3403,7 @@ function App() {
       {/* HERO */}
       <div className="hero">
         <h1 className="hero-headline">
-          <span style={{whiteSpace:'nowrap'}}>Compare rates across dates,</span><br />
+          Compare rates across dates,<br />
           <em>not across tabs.</em>
         </h1>
         <p className="hero-value">
