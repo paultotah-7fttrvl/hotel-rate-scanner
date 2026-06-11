@@ -1059,6 +1059,17 @@
     .results-matrix-mobile { display: none; }
 
     @media (max-width: 768px) {
+      /* Nav */
+      .nav-badge { display: none; }
+      .nav-inner { padding: 0 16px; }
+      .nav-logo { font-size: 18px; }
+
+      /* Hero */
+      .hero { padding: 48px 20px 44px; }
+      .hero-headline { font-size: clamp(26px, 7vw, 38px); margin-bottom: 14px; }
+      .hero-value { font-size: 15px; }
+      .hero-note { font-size: 12px; }
+
       /* iOS Safari zooms when an input is focused below 16px */
       .search-box input,
       input,
@@ -3101,9 +3112,7 @@ function App() {
           <em>not across tabs.</em>
         </h1>
         <p className="hero-value">
-          Add the hotels you want.<br />
-          Pick the dates that could work.<br />
-          See every combination at once.
+          Add the hotels you want. Pick the dates that could work. See every combination at once.
         </p>
         <p className="hero-note">Search any hotel worldwide — live rates with demo fallback when daily limits apply.</p>
       </div>
