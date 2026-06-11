@@ -197,15 +197,6 @@ button,
   color: #6d5a2a;
 }
 
-.section-title::before {
-  content: '';
-  display: inline-block;
-  width: 24px;
-  height: 1px;
-  background: #6d5a2a;
-  margin-right: 10px;
-  vertical-align: middle;
-}
 
 .section-subtitle {
   font-size: 11px;
