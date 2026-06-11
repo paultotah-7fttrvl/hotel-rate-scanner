@@ -815,25 +815,6 @@
     .footer-disclaimer { display: none; }
     .footer-divider { display: none; }
     .footer-link { display: none; }
-    .footer-mobile-brand { display: none; }
-    @media (max-width: 620px) {
-      .footer-mobile-brand {
-        display: block;
-        font-family: var(--font-serif);
-        font-size: 15px; font-weight: 500;
-        margin-bottom: 12px;
-        text-align: center;
-      }
-      .footer-mobile-brand em { font-style: italic; }
-      .footer-mobile-brand a {
-        display: block;
-        font-size: 12px; font-weight: 400;
-        color: var(--text-3);
-        text-decoration: none; margin-top: 4px;
-        letter-spacing: 0.03em;
-      }
-      .footer { flex-direction: column; gap: 0; }
-    }
 
     /* ── ANIMATIONS ──────────────────────────────────────── */
     @keyframes fadeUp {
@@ -1058,11 +1039,11 @@
       .why-grid { grid-template-columns: 1fr; gap: 12px; }
       .step-layout-bar { padding: 12px 20px 0; }
       .main-card-section, .cta-wrap { padding: 20px 20px; }
-      /* Nav — hide overflow elements on small screens */
-      .nav-logo-sub { display: none; }
+      /* Nav — stack sub-brand below logo title, hide badge */
+      .nav-inner { height: auto; padding: 10px 16px; }
+      .nav-logo { font-size: 15px; display: flex; flex-direction: column; gap: 1px; }
+      .nav-logo-sub { display: block; margin-left: 0; font-size: 11px; letter-spacing: 0.02em; }
       .nav-badge { display: none; }
-      .nav-logo { font-size: 17px; }
-      .nav-inner { padding: 0 16px; }
       /* Hero — tighten spacing and fix overflow */
       .hero { padding: 44px 20px 48px; }
       .hero-headline { font-size: clamp(26px, 7vw, 38px); line-height: 1.15; }
@@ -3560,10 +3541,6 @@ function App() {
 
       {/* FOOTER */}
       <footer className="footer">
-        <div className="footer-mobile-brand">
-          Hotel Rate Scanner <em>&amp; Price Alerts</em>
-          <a href="https://sevenfeettravel.com" target="_blank" rel="noopener noreferrer">by Seven Feet Travel</a>
-        </div>
         <div className="footer-author">
           Built by <a className="footer-a" href="https://linkedin.com/in/paultotah" target="_blank" rel="noopener noreferrer">Paul Totah</a> · © 2026 Seven Feet Travel · All rights reserved
         </div>
