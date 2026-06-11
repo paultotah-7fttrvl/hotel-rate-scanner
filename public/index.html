@@ -151,6 +151,7 @@
       position: relative; z-index: 1;
     }
     .hero-eyebrow {
+      display: none;
       font-size: 12px; font-weight: 500;
       letter-spacing: 0.25em; text-transform: uppercase;
       color: rgba(255,255,255,0.85); margin-bottom: 20px;
@@ -815,6 +816,13 @@
     .footer-disclaimer { display: none; }
     .footer-divider { display: none; }
     .footer-link { display: none; }
+    .footer-about-mobile { display: none; }
+    .footer-about-btn {
+      background: none; border: none; padding: 0;
+      font-family: var(--font-sans); font-size: 13px;
+      color: var(--text-2); cursor: pointer;
+      text-decoration: underline; text-underline-offset: 3px;
+    }
 
     /* ── ANIMATIONS ──────────────────────────────────────── */
     @keyframes fadeUp {
@@ -1039,16 +1047,21 @@
       .why-grid { grid-template-columns: 1fr; gap: 12px; }
       .step-layout-bar { padding: 12px 20px 0; }
       .main-card-section, .cta-wrap { padding: 20px 20px; }
-      /* Nav — stack sub-brand below logo title, hide badge */
-      .nav-inner { height: auto; padding: 10px 16px; }
-      .nav-logo { font-size: 15px; display: flex; flex-direction: column; gap: 1px; }
-      .nav-logo-sub { display: block; margin-left: 0; font-size: 11px; letter-spacing: 0.02em; }
+      /* Nav — single-line logo only, hide sub-brand/badge/about */
+      .nav-inner { padding: 0 16px; }
+      .nav-logo { font-size: 15px; }
+      .nav-logo-sub { display: none; }
       .nav-badge { display: none; }
-      /* Hero — tighten spacing and fix overflow */
+      .nav-link { display: none; }
+      /* Hero — show eyebrow, tighten spacing */
+      .hero-eyebrow { display: block; }
       .hero { padding: 44px 20px 48px; }
       .hero-headline { font-size: clamp(26px, 7vw, 38px); line-height: 1.15; }
       .hero-value { font-size: 15px; }
       .hero-note { font-size: 12px; }
+      /* Footer — show About link on mobile */
+      .footer-about-mobile { display: block; margin-top: 8px; font-size: 13px; }
+      .footer { flex-direction: column; }
       .main-card { margin-top: -24px; }
       .city-grid { grid-template-columns: repeat(2, 1fr); background: var(--border); }
     }
@@ -3402,6 +3415,7 @@ function App() {
 
       {/* HERO */}
       <div className="hero">
+        <div className="hero-eyebrow">by Seven Feet Travel</div>
         <h1 className="hero-headline">
           Compare rates across dates,<br />
           <em>not across tabs.</em>
@@ -3543,6 +3557,9 @@ function App() {
       <footer className="footer">
         <div className="footer-author">
           Built by <a className="footer-a" href="https://linkedin.com/in/paultotah" target="_blank" rel="noopener noreferrer">Paul Totah</a> · © 2026 Seven Feet Travel · All rights reserved
+        </div>
+        <div className="footer-about-mobile">
+          <button className="footer-about-btn" onClick={() => setModal('casestudy')}>About</button>
         </div>
       </footer>
 
