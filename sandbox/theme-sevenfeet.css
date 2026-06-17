@@ -524,3 +524,19 @@ button,
 ::-webkit-scrollbar-thumb {
   background: #c8c4ba;
 }
+
+/* ── Mobile overrides (restore smaller sizes the base media query intended) ── */
+@media (max-width: 620px) {
+  .nav-logo {
+    font-size: 15px;
+  }
+  .hero-headline {
+    font-size: clamp(24px, 6.5vw, 34px);
+  }
+  .hero-value {
+    font-size: 14px;
+  }
+  .hero-note {
+    font-size: 12px;
+  }
+}
